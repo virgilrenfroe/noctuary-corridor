@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noctuary — front door</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #05060a;
+    --paper: #f2ebe0;
+    --mute: rgba(242,235,224,0.62);
+    --line: rgba(242,235,224,0.18);
+    --accent: #f0c24b;
+    --violet: #8a7bb8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper);
+    font-family: var(--font-sans);
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(5,6,10,0.45); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(5,6,10,0.5);
+    color: var(--paper); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .pill:hover, .pill.on { border-color: rgba(242,235,224,0.45); background: rgba(20,24,36,0.72); }
+  .pill.cta {
+    border-color: rgba(240,194,75,0.55); background: rgba(240,194,75,0.14); color: var(--accent);
+  }
+  .pill.cta:hover { background: rgba(240,194,75,0.22); border-color: var(--accent); }
+
+  .hero {
+    position: absolute; left: 5vw; top: 14vh; max-width: min(780px, 88vw);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .hero.dim { opacity: 0.14; transform: translateY(-10px); }
+  .hero .eyebrow {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--violet); margin: 0 0 14px;
+  }
+  .hero .stack {
+    font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 700; line-height: 0.88; letter-spacing: -0.045em;
+    font-size: clamp(3.6rem, 11vw, 8.2rem); margin: 0;
+  }
+  .hero .stack span { display: block; color: rgba(242,235,224,0.26); }
+  .hero .stack span.focus { color: var(--paper); }
+  .hero .stack span.shift { margin-left: 0.12em; }
+  .hero .stack span.shift2 { margin-left: 0.28em; }
+  .hero p {
+    margin: 22px 0 0; max-width: 36ch; color: var(--mute);
+    font-size: 16px; line-height: 1.5;
+  }
+  .hero .actions {
+    margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; pointer-events: auto;
+  }
+
+  .stations {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    width: min(920px, calc(100vw - 24px)); pointer-events: auto;
+  }
+  .station {
+    appearance: none; min-width: 120px; flex: 1 1 120px; max-width: 176px;
+    border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px 10px;
+    background: rgba(8,10,16,0.55); backdrop-filter: blur(12px); cursor: pointer;
+    text-align: left; color: inherit; font: inherit;
+  }
+  .station .n {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; opacity: 0.5;
+  }
+  .station .t {
+    display: block; margin-top: 4px; font-family: var(--font-sans);
+    font-size: 14px; font-weight: 500; letter-spacing: -0.01em;
+  }
+  .station:hover { border-color: rgba(242,235,224,0.4); }
+  .station.on {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(240,194,75,0.25);
+  }
+
+  .sheet {
+    position: absolute; right: 18px; bottom: 96px;
+    width: min(300px, calc(100vw - 36px));
+    border-radius: 20px; border: 1px solid var(--line);
+    background: rgba(8,10,16,0.88); backdrop-filter: blur(18px);
+    padding: 14px 14px 12px; pointer-events: auto;
+    opacity: 0; transform: translateY(12px); transition: 0.28s ease; visibility: hidden;
+  }
+  .sheet.on { opacity: 1; transform: none; visibility: visible; }
+  .sheet .head {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;
+  }
+  .sheet h2 {
+    margin: 0; font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 400;
+  }
+  .sheet .close {
+    appearance: none; border: none; background: transparent; color: var(--mute);
+    font: inherit; font-size: 11px; letter-spacing: 0.08em; cursor: pointer; padding: 0;
+  }
+  .sheet .close:hover { color: var(--paper); }
+  .presets { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .preset {
+    appearance: none; border: 1px solid var(--line); background: rgba(5,6,10,0.45);
+    color: var(--paper); border-radius: 999px; padding: 7px 11px; font: inherit;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+  }
+  .preset:hover, .preset.on {
+    border-color: rgba(240,194,75,0.45); background: rgba(240,194,75,0.1);
+  }
+  .row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; margin: 9px 0; font-size: 12px; color: var(--mute);
+  }
+  .row label { flex: 0 0 auto; min-width: 64px; }
+  .row input[type=range] {
+    flex: 1 1 auto; width: 100%; accent-color: var(--accent); height: 4px; cursor: pointer;
+  }
+  .val {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+    color: var(--paper); min-width: 40px; text-align: right;
+  }
+  .swatches { display: flex; gap: 8px; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer; padding: 0;
+  }
+  .swatch.on { border-color: var(--paper); }
+
+  .card {
+    position: absolute; left: 18px; bottom: 96px; width: min(380px, calc(100vw - 36px));
+    border-radius: 22px; overflow: hidden; border: 1px solid var(--line);
+    background: rgba(10,12,18,0.9); backdrop-filter: blur(16px);
+    pointer-events: auto; opacity: 0; transform: translateY(16px);
+    transition: 0.35s ease; visibility: hidden;
+  }
+  .card.on { opacity: 1; transform: none; visibility: visible; }
+  .card .band { height: 7px; background: var(--accent); }
+  .card .body { padding: 16px 16px 14px; }
+  .card .k {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; opacity: 0.55; margin: 0 0 6px;
+  }
+  .card h3 {
+    margin: 0 0 12px; font-family: var(--font-display); font-optical-sizing: auto;
+    font-size: 1.45rem; font-weight: 600; letter-spacing: -0.02em;
+  }
+
+  /* Soft dual-layer tear: dream over wake — drag or hover to reveal */
+  .reveal {
+    position: relative; border-radius: 12px; overflow: hidden;
+    min-height: 118px; border: 1px solid var(--line);
+    cursor: ew-resize; touch-action: none; user-select: none;
+  }
+  .reveal .layer-wake, .reveal .layer-dream {
+    padding: 12px 14px; margin: 0; line-height: 1.45; font-size: 0.92rem;
+  }
+  .reveal .layer-wake {
+    position: absolute; inset: 0;
+    background: rgba(18, 16, 12, 0.92); color: var(--mute);
+    font-family: var(--font-sans);
+  }
+  .reveal .layer-wake .tag,
+  .reveal .layer-dream .tag {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; opacity: 0.55; display: block; margin-bottom: 6px;
+  }
+  .reveal .layer-dream {
+    position: relative; z-index: 1;
+    background: linear-gradient(135deg, rgba(14,16,28,0.96), rgba(22,18,36,0.94));
+    color: var(--paper);
+    font-family: var(--font-display); font-weight: 450;
+    clip-path: inset(0 calc(100% - var(--tear, 58%)) 0 0);
+    -webkit-clip-path: inset(0 calc(100% - var(--tear, 58%)) 0 0);
+  }
+  .reveal .seam {
+    position: absolute; top: 0; bottom: 0; left: var(--tear, 58%);
+    width: 2px; margin-left: -1px; z-index: 2; pointer-events: none;
+    background: linear-gradient(180deg, transparent, var(--accent), transparent);
+    box-shadow: 0 0 12px rgba(240,194,75,0.35);
+  }
+  .reveal .hint {
+    position: absolute; right: 10px; bottom: 8px; z-index: 3;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; opacity: 0.4; pointer-events: none;
+  }
+
+  .note {
+    position: absolute; left: 18px; bottom: 18px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+    opacity: 0.4; max-width: 280px; line-height: 1.45;
+  }
+
+  @media (max-width: 720px) {
+    .hero { top: 10vh; }
+    .hero .stack { font-size: clamp(2.8rem, 12vw, 4.5rem); }
+    .note { display: none; }
+    .card { bottom: 110px; }
+    .sheet { bottom: 110px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero, .card, .sheet { transition: none; }
+  }
+
+  /* Exhibit embed: city keeps playing; chrome minimized */
+  body.embed .topbar,
+  body.embed .stations,
+  body.embed .sheet,
+  body.embed .card,
+  body.embed .note {
+    display: none !important;
+  }
+  body.embed .hero {
+    top: 10px; left: 10px; max-width: 72%;
+    opacity: 0.22; transform: scale(0.42);
+    transform-origin: top left;
+    pointer-events: none;
+  }
+  body.embed .hero .actions,
+  body.embed .hero p { display: none; }
+  body.embed .hero .eyebrow { margin-bottom: 6px; font-size: 8px; }
+  body.embed .hero .stack {
+    font-size: clamp(1.4rem, 7vw, 2.6rem);
+    line-height: 0.9;
+  }
+</style>
+</head>
+<body>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Noctuary</div>
+      <div class="pills">
+        <a class="pill cta" id="enter" href="https://noctuary.club/" target="_blank" rel="noopener">Enter journal</a>
+        <button class="pill" id="walk" type="button">Walk nights</button>
+        <button class="pill" id="weather" type="button">Atmosphere</button>
+        <button class="pill" id="reset" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div class="hero" id="hero">
+      <p class="eyebrow">Dual-mind dream journal</p>
+      <h1 class="stack">
+        <span class="focus">Night mind</span>
+        <span class="shift" id="l2">Day mind</span>
+        <span class="shift2" id="l3">One city</span>
+      </h1>
+      <p>Districts are nights you can walk. Dream on one side of the bridge — wake on the other.</p>
+      <div class="actions">
+        <a class="pill cta" href="https://noctuary.club/" target="_blank" rel="noopener">Enter journal</a>
+        <button class="pill" id="walk-hero" type="button">Walk nights</button>
+      </div>
+    </div>
+
+    <div class="stations" id="stations"></div>
+
+    <aside class="sheet" id="sheet" aria-label="Atmosphere">
+      <div class="head">
+        <h2>Atmosphere</h2>
+        <button class="close" id="sheet-close" type="button">Close</button>
+      </div>
+      <div class="presets" role="group" aria-label="Weather presets">
+        <button class="preset" data-preset="clear" type="button">Clear</button>
+        <button class="preset on" data-preset="haze" type="button">Haze</button>
+        <button class="preset" data-preset="storm" type="button">Storm</button>
+      </div>
+      <div class="row">
+        <label for="fog">Fog</label>
+        <input id="fog" type="range" min="8" max="55" value="28" />
+        <span class="val" id="fog-val">0.028</span>
+      </div>
+      <div class="row">
+        <label for="bloom">Bloom</label>
+        <input id="bloom" type="range" min="15" max="90" value="55" />
+        <span class="val" id="bloom-val">0.55</span>
+      </div>
+      <div class="row">
+        <label for="haze">Haze</label>
+        <input id="haze" type="range" min="0" max="100" value="40" />
+        <span class="val" id="haze-val">0.40</span>
+      </div>
+      <div class="row">
+        <label>Tint</label>
+        <div class="swatches">
+          <button class="swatch on" data-c="0x6e8fb5" style="background:#6e8fb5" type="button"></button>
+          <button class="swatch" data-c="0xc47a4a" style="background:#c47a4a" type="button"></button>
+          <button class="swatch" data-c="0x8a7bb8" style="background:#8a7bb8" type="button"></button>
+          <button class="swatch" data-c="0xf0c24b" style="background:#f0c24b" type="button"></button>
+        </div>
+      </div>
+    </aside>
+
+    <article class="card" id="card">
+      <div class="band" id="band"></div>
+      <div class="body">
+        <p class="k" id="ck">District</p>
+        <h3 id="ct"></h3>
+        <div class="reveal" id="reveal" style="--tear: 58%">
+          <div class="layer-wake">
+            <span class="tag">Wake</span>
+            <span id="cw"></span>
+          </div>
+          <div class="layer-dream">
+            <span class="tag">Dream</span>
+            <span id="cd"></span>
+          </div>
+          <div class="seam" aria-hidden="true"></div>
+          <span class="hint">drag · dream ↔ wake</span>
+        </div>
+      </div>
+    </article>
+
+    <p class="note">Local front door · live site unchanged</p>
+  </div>
+
+  <script type="importmap">
+  {"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}
+  </script>
+  <script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const params = new URLSearchParams(location.search);
+const embed = params.has('embed');
+const still = params.has('still');
+const reduceMotion = still || matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (embed) document.body.classList.add('embed');
+
+const nights = [
+  { title: 'Lengthening hall', dream: 'A hallway that kept lengthening. Cups of water on every sill.', wake: 'Why water? Rooms I never finished entering.', x: -7, z: -3, h: 4.4, c: 0x6e8fb5 },
+  { title: 'Market of clocks', dream: 'Stalls selling clocks that only ticked backward.', wake: 'Deadlines rewritten in reverse.', x: -1, z: 4, h: 5.8, c: 0xc47a4a },
+  { title: 'Quiet pier', dream: 'A pier with no water under it — only fog.', wake: 'Support that looks solid until you step.', x: 7, z: -2, h: 3.6, c: 0x8a7bb8 },
+  { title: 'Library stairs', dream: 'Stairs that rearranged when I named a book.', wake: 'Memory as architecture, not a list.', x: -3, z: 9, h: 6.4, c: 0x3ee0c6 },
+  { title: 'Two moons', dream: 'Two moons arguing over who casts the longer shadow.', wake: 'Night-mind and day-mind refusing a tie.', x: 6, z: 7, h: 5.0, c: 0xf0c24b },
+];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060a);
+scene.fog = new THREE.FogExp2(0x05060a, 0.028);
+
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 220);
+const homePos = new THREE.Vector3(16, 11, 18);
+const homeLook = new THREE.Vector3(0, 2, 2);
+camera.position.copy(homePos);
+let lookTarget = homeLook.clone();
+let idleLook = homeLook.clone();
+
+scene.add(new THREE.HemisphereLight(0xa8b8d8, 0x080a10, 0.5));
+const key = new THREE.DirectionalLight(0xffe6c8, 1.15);
+key.position.set(10, 16, 7);
+scene.add(key);
+const keyPoint = new THREE.PointLight(0xffe6c8, 28, 48, 2);
+keyPoint.position.set(8, 12, 6);
+scene.add(keyPoint);
+
+// Parallax far massing
+const far = new THREE.Group();
+scene.add(far);
+for (let i = 0; i < 36; i++) {
+  const h = 1.5 + Math.random() * 7;
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4 + Math.random(), h, 1.4 + Math.random()),
+    new THREE.MeshStandardMaterial({ color: 0x10151f, roughness: 0.95, metalness: 0.05 })
+  );
+  m.position.set((Math.random() - 0.5) * 50, h / 2, -18 - Math.random() * 18);
+  far.add(m);
+}
+
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(34, 72),
+  new THREE.MeshStandardMaterial({ color: 0x0a0d14, roughness: 0.94, metalness: 0.04 })
+);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+const grid = new THREE.GridHelper(48, 48, 0x1a2230, 0x10161f);
+grid.position.y = 0.02;
+scene.add(grid);
+
+// Orbiting centerpiece (Nex-style focal)
+const center = new THREE.Group();
+scene.add(center);
+const core = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1.15, 1),
+  new THREE.MeshStandardMaterial({
+    color: 0xf0c24b, emissive: 0xf0c24b, emissiveIntensity: 0.55,
+    roughness: 0.25, metalness: 0.4, wireframe: true,
+  })
+);
+center.add(core);
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(2.2, 0.04, 12, 80),
+  new THREE.MeshBasicMaterial({ color: 0x8a7bb8, transparent: true, opacity: 0.7 })
+);
+ring.rotation.x = Math.PI / 2.4;
+center.add(ring);
+center.position.set(1.5, 3.2, 1.2);
+const coreLight = new THREE.PointLight(0xf0c24b, 35, 18, 2);
+center.add(coreLight);
+
+// Soft haze sheet (atmosphere-driven opacity)
+const hazeGeo = new THREE.PlaneGeometry(60, 28);
+const hazeMat = new THREE.MeshBasicMaterial({
+  color: 0x8a9bb8, transparent: true, opacity: 0.06, depthWrite: false, fog: false,
+});
+const hazePlane = new THREE.Mesh(hazeGeo, hazeMat);
+hazePlane.position.set(0, 8, -6);
+hazePlane.rotation.x = -0.12;
+scene.add(hazePlane);
+
+const blocks = [];
+const nightGroup = new THREE.Group();
+scene.add(nightGroup);
+const stations = document.getElementById('stations');
+const stationBtns = [];
+const markers = [];
+
+function makeDistrictPanel(n, i) {
+  const cnv = document.createElement('canvas');
+  cnv.width = 512; cnv.height = 256;
+  const ctx = cnv.getContext('2d');
+  ctx.fillStyle = '#0c0e16';
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.fillStyle = '#' + n.c.toString(16).padStart(6, '0');
+  ctx.fillRect(0, 0, 512, 10);
+  ctx.fillStyle = 'rgba(242,235,224,0.45)';
+  ctx.font = '22px monospace';
+  ctx.fillText('0' + (i + 1), 28, 52);
+  ctx.fillStyle = '#f2ebe0';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText(n.title, 28, 108);
+  ctx.fillStyle = 'rgba(242,235,224,0.55)';
+  ctx.font = '20px sans-serif';
+  const line = n.dream.length > 42 ? n.dream.slice(0, 40) + '…' : n.dream;
+  ctx.fillText(line, 28, 168);
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // Corridor lesson: mapped panels stay readable through fog
+  const mat = new THREE.MeshBasicMaterial({ map: tex, fog: false, transparent: true, opacity: 0.92 });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), mat);
+  mesh.position.set(n.x, n.h + 1.1, n.z);
+  mesh.visible = false;
+  return mesh;
+}
+
+
+/** Market of clocks — glowing stall cube kept; faces densified with varied clocks. */
+const clockHandAnims = [];
+function decorateMarketOfClocks(block) {
+  const n = block.userData.night;
+  const halfW = 1.2;
+  const halfH = n.h / 2;
+  const halfD = 1.2;
+
+  const roundFace = new THREE.CircleGeometry(0.5, 20);
+  const squareFace = new THREE.PlaneGeometry(1, 1);
+  const roundBezel = new THREE.TorusGeometry(0.52, 0.045, 5, 18);
+  const caseRound = new THREE.CylinderGeometry(0.55, 0.55, 0.12, 16);
+  const caseSquare = new THREE.BoxGeometry(1.1, 1.1, 0.12);
+  const squareRim = new THREE.EdgesGeometry(new THREE.PlaneGeometry(1.05, 1.05));
+  const handLong = new THREE.BoxGeometry(0.055, 0.42, 0.028);
+  handLong.translate(0, 0.21, 0);
+  const handShort = new THREE.BoxGeometry(0.065, 0.26, 0.032);
+  handShort.translate(0, 0.13, 0);
+
+  const palette = [
+    { dial: 0xe8d4b8, case: 0xc47a4a, hand: 0x3a2418, metal: 0xb8956a },
+    { dial: 0xd4c4a8, case: 0xa86b45, hand: 0x2a1810, metal: 0xc9a66b },
+    { dial: 0xf0e0c8, case: 0x8a5238, hand: 0xc47a4a, metal: 0xd4a574 },
+    { dial: 0xc9b896, case: 0xd4925a, hand: 0x1a1008, metal: 0xe8c48a },
+    { dial: 0xb8a888, case: 0x6e4030, hand: 0xe8d4b8, metal: 0xa87850 },
+  ];
+
+  function makeDialTexture(kind) {
+    const cnv = document.createElement('canvas');
+    cnv.width = 128; cnv.height = 128;
+    const ctx = cnv.getContext('2d');
+    ctx.fillStyle = '#e8d4b8';
+    if (kind === 'square') ctx.fillRect(4, 4, 120, 120);
+    else { ctx.beginPath(); ctx.arc(64, 64, 62, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = '#4a3020';
+    ctx.lineWidth = kind === 'ticks' ? 3 : 2;
+    const marks = kind === 'weird' ? 11 : 12;
+    for (let i = 0; i < marks; i++) {
+      const a = (i / marks) * Math.PI * 2 - Math.PI / 2;
+      const inner = kind === 'ticks' ? 46 : 42;
+      const outer = kind === 'ticks' ? 60 : 58;
+      ctx.beginPath();
+      ctx.moveTo(64 + Math.cos(a) * inner, 64 + Math.sin(a) * inner);
+      ctx.lineTo(64 + Math.cos(a) * outer, 64 + Math.sin(a) * outer);
+      ctx.stroke();
+    }
+    if (kind === 'numerals') {
+      ctx.fillStyle = '#5a3820';
+      ctx.font = 'bold 14px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ['12', '3', '6', '9'].forEach((lab, i) => {
+        const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+        ctx.fillText(lab, 64 + Math.cos(a) * 30, 64 + Math.sin(a) * 30);
+      });
+    }
+    if (kind === 'weird') {
+      ctx.strokeStyle = '#8a5238';
+      ctx.beginPath();
+      ctx.arc(64, 64, 22, 0.2, Math.PI * 1.6);
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  const dialTextures = [
+    makeDialTexture('round'),
+    makeDialTexture('ticks'),
+    makeDialTexture('weird'),
+    makeDialTexture('numerals'),
+    makeDialTexture('square'),
+  ];
+
+  const caseMats = palette.map((p) => new THREE.MeshStandardMaterial({
+    color: p.case, emissive: p.case, emissiveIntensity: 0.14,
+    metalness: 0.55, roughness: 0.38,
+  }));
+  const metalMats = palette.map((p) => new THREE.MeshStandardMaterial({
+    color: p.metal, emissive: p.metal, emissiveIntensity: 0.1,
+    metalness: 0.82, roughness: 0.28,
+  }));
+  const handMats = palette.map((p) => new THREE.MeshStandardMaterial({
+    color: p.hand, emissive: p.hand, emissiveIntensity: 0.06,
+    metalness: 0.35, roughness: 0.45,
+  }));
+  const dialMats = dialTextures.map((tex) => new THREE.MeshStandardMaterial({
+    map: tex, color: 0xffffff, roughness: 0.72, metalness: 0.04,
+    emissive: 0xc47a4a, emissiveIntensity: 0.05,
+  }));
+  const rimLineMats = palette.map((p) => new THREE.LineBasicMaterial({ color: p.metal }));
+
+  const market = new THREE.Group();
+  market.name = 'clockMarket';
+
+  const faces = [
+    { axis: 'z', sign: 1, count: 14 },
+    { axis: 'z', sign: -1, count: 12 },
+    { axis: 'x', sign: 1, count: 12 },
+    { axis: 'x', sign: -1, count: 12 },
+    { axis: 'y', sign: 1, count: 14 },
+  ];
+
+  const rng = (s) => {
+    const x = Math.sin(s * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  let placed = 0;
+  faces.forEach((face, fi) => {
+    for (let k = 0; k < face.count; k++) {
+      const id = fi * 17 + k * 3.17;
+      const r = (o) => rng(id + o);
+      const pi = Math.floor(r(0) * palette.length);
+      const isRound = r(1) > 0.36;
+      const scale = 0.13 + r(2) * 0.26;
+      const hang = (r(3) - 0.35) * 0.28;
+      const askew = (r(4) - 0.5) * 0.7;
+      const texi = Math.floor(r(5) * dialTextures.length);
+      const style = Math.floor(r(6) * 4); // 0 both, 1 hour-only, 2 ticks-only, 3 reverse both
+      const dir = (style === 3 || r(7) > 0.7) ? -1 : 1;
+
+      const g = new THREE.Group();
+
+      const caseMesh = new THREE.Mesh(isRound ? caseRound : caseSquare, caseMats[pi]);
+      caseMesh.rotation.x = Math.PI / 2;
+      g.add(caseMesh);
+
+      const dial = new THREE.Mesh(isRound ? roundFace : squareFace, dialMats[texi]);
+      dial.position.z = 0.07;
+      g.add(dial);
+
+      if (isRound) {
+        const bez = new THREE.Mesh(roundBezel, metalMats[pi]);
+        bez.position.z = 0.055;
+        g.add(bez);
+      } else {
+        const rim = new THREE.LineSegments(squareRim, rimLineMats[pi]);
+        rim.position.z = 0.085;
+        g.add(rim);
+      }
+
+      if (style !== 2) {
+        const minH = new THREE.Mesh(handLong, handMats[pi]);
+        minH.position.z = 0.1;
+        minH.rotation.z = r(8) * Math.PI * 2;
+        g.add(minH);
+        clockHandAnims.push({
+          hand: minH, rate: 0.55 + r(9) * 2.4, dir, phase: r(10) * Math.PI * 2,
+        });
+        if (style !== 1) {
+          const hrH = new THREE.Mesh(handShort, handMats[pi]);
+          hrH.position.z = 0.115;
+          hrH.rotation.z = r(11) * Math.PI * 2;
+          g.add(hrH);
+          clockHandAnims.push({
+            hand: hrH, rate: 0.07 + r(12) * 0.4, dir, phase: r(13) * Math.PI * 2,
+          });
+        }
+      }
+
+      g.scale.setScalar(scale);
+
+      const margin = 0.18;
+      let u = (r(14) - 0.5) * 2;
+      let v = (r(15) - 0.5) * 2;
+      if (face.axis !== 'y') {
+        // shelf rows — stall density, not a neat grid
+        const row = Math.floor(r(16) * 5);
+        v = ((row + 0.5) / 5) * 2 - 1 + (r(17) - 0.5) * 0.22;
+        u += (r(18) - 0.5) * 0.18;
+      } else {
+        u += (r(16) - 0.5) * 0.12;
+        v += (r(17) - 0.5) * 0.12;
+      }
+
+      if (face.axis === 'z') {
+        g.position.set(
+          THREE.MathUtils.clamp(u, -1, 1) * (halfW - margin),
+          THREE.MathUtils.clamp(v, -1, 1) * (halfH - margin),
+          face.sign * (halfD + Math.max(hang, 0.01) + 0.03)
+        );
+        g.rotation.y = face.sign > 0 ? 0 : Math.PI;
+        g.rotation.z = askew;
+        g.rotation.x = askew * 0.35;
+      } else if (face.axis === 'x') {
+        g.position.set(
+          face.sign * (halfW + Math.max(hang, 0.01) + 0.03),
+          THREE.MathUtils.clamp(v, -1, 1) * (halfH - margin),
+          THREE.MathUtils.clamp(u, -1, 1) * (halfD - margin)
+        );
+        g.rotation.y = face.sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+        g.rotation.z = askew;
+      } else {
+        g.position.set(
+          THREE.MathUtils.clamp(u, -1, 1) * (halfW - margin),
+          halfH + Math.max(hang, 0) + 0.05,
+          THREE.MathUtils.clamp(v, -1, 1) * (halfD - margin)
+        );
+        g.rotation.x = -Math.PI / 2 + askew * 0.45;
+        g.rotation.z = askew * 1.2;
+        g.rotation.y = (r(19) - 0.5) * 0.8;
+      }
+
+      // a few lean further off the edge
+      if (hang > 0.12 && face.axis !== 'y') {
+        g.position.y -= 0.06;
+      }
+
+      market.add(g);
+      placed++;
+    }
+  });
+
+  block.add(market);
+  return placed;
+}
+
+function tickClockHands(t) {
+  for (let i = 0; i < clockHandAnims.length; i++) {
+    const a = clockHandAnims[i];
+    a.hand.rotation.z = a.phase + t * a.rate * a.dir;
+  }
+}
+
+
+const panels = [];
+nights.forEach((n, i) => {
+  const geo = new THREE.BoxGeometry(2.4, n.h, 2.4);
+  const mat = new THREE.MeshStandardMaterial({
+    color: n.c, emissive: n.c, emissiveIntensity: 0.24,
+    roughness: 0.32, metalness: 0.18, transparent: true, opacity: 0.93,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(n.x, n.h / 2, n.z);
+  mesh.userData = { night: n, index: i };
+  nightGroup.add(mesh);
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22 })
+  );
+  edges.position.copy(mesh.position);
+  nightGroup.add(edges);
+  const lamp = new THREE.PointLight(n.c, 14, 11, 2);
+  lamp.position.set(n.x, n.h + 0.5, n.z);
+  scene.add(lamp);
+  blocks.push(mesh);
+
+  const pad = new THREE.Mesh(
+    new THREE.CircleGeometry(1.4, 32),
+    new THREE.MeshBasicMaterial({ color: n.c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, fog: false })
+  );
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(n.x, 0.04, n.z);
+  scene.add(pad);
+  markers.push(pad);
+
+  const panel = makeDistrictPanel(n, i);
+  scene.add(panel);
+  panels.push(panel);
+
+  const b = document.createElement('button');
+  b.className = 'station';
+  b.type = 'button';
+  b.innerHTML = `<span class="n">District 0${i + 1}</span><span class="t">${n.title}</span>`;
+  b.onclick = () => goToDistrict(i);
+  stations.appendChild(b);
+  stationBtns.push(b);
+});
+
+const marketBlock = blocks.find((b) => b.userData.night.title === 'Market of clocks');
+let marketClockCount = 0;
+if (marketBlock) marketClockCount = decorateMarketOfClocks(marketBlock);
+
+// Soft route ribbon (Persona wayfinding cue)
+const routePts = nights.map((n) => new THREE.Vector3(n.x, 0.08, n.z));
+routePts.push(routePts[0].clone());
+const routeCurve = new THREE.CatmullRomCurve3(routePts, false, 'catmullrom', 0.35);
+const routeLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(routeCurve.getPoints(140)),
+  new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.22 })
+);
+scene.add(routeLine);
+
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(1200);
+for (let i = 0; i < 400; i++) {
+  starPos[i * 3] = (Math.random() - 0.5) * 90;
+  starPos[i * 3 + 1] = 10 + Math.random() * 35;
+  starPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xe8dcc4, size: 0.05, sizeAttenuation: true })));
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.22);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const card = document.getElementById('card');
+const hero = document.getElementById('hero');
+const sheet = document.getElementById('sheet');
+const reveal = document.getElementById('reveal');
+
+let tour = null;
+let touring = false;
+let walkIndex = 0;
+let pointerIdle = { x: 0, y: 0 };
+const _cam = new THREE.Vector3();
+const _look = new THREE.Vector3();
+
+function easeInOut(u) { return u * u * (3 - 2 * u); }
+
+function buildTourPath(fromPos, fromLook, dest) {
+  const station = new THREE.Vector3(dest.x, dest.h * 0.45, dest.z);
+  const toStation = station.clone().sub(fromLook);
+  toStation.y = 0;
+  if (toStation.lengthSq() < 0.01) toStation.set(1, 0, 0);
+  toStation.normalize();
+  const side = new THREE.Vector3(-toStation.z, 0, toStation.x);
+  const midA = fromPos.clone().lerp(station, 0.35).add(side.clone().multiplyScalar(4.5));
+  midA.y = Math.max(6.5, (fromPos.y + dest.h) * 0.45);
+  const midB = station.clone().add(side.clone().multiplyScalar(-2.2)).add(toStation.clone().multiplyScalar(-5.5));
+  midB.y = dest.h * 0.55 + 4.2;
+  const endPos = station.clone().add(toStation.clone().multiplyScalar(-7.2));
+  endPos.y = dest.h * 0.4 + 3.6;
+  endPos.add(side.clone().multiplyScalar(1.4));
+  const endLook = new THREE.Vector3(dest.x, dest.h * 0.35, dest.z);
+  const midLook = fromLook.clone().lerp(endLook, 0.55);
+  midLook.y += 0.8;
+  return {
+    camCurve: new THREE.CatmullRomCurve3([fromPos.clone(), midA, midB, endPos], false, 'catmullrom', 0.4),
+    lookCurve: new THREE.CatmullRomCurve3([fromLook.clone(), midLook, endLook], false, 'catmullrom', 0.4),
+    endPos, endLook,
+  };
+}
+
+function setTear(pct) {
+  const t = Math.max(8, Math.min(92, pct));
+  reveal.style.setProperty('--tear', t + '%');
+}
+
+function openCard(i) {
+  const n = nights[i];
+  document.getElementById('ck').textContent = `District 0${i + 1} · bridge`;
+  document.getElementById('ct').textContent = n.title;
+  document.getElementById('cd').textContent = n.dream;
+  document.getElementById('cw').textContent = n.wake;
+  document.getElementById('band').style.background = '#' + n.c.toString(16).padStart(6, '0');
+  setTear(reduceMotion ? 50 : 58);
+  card.classList.add('on');
+  hero.classList.add('dim');
+  sheet.classList.remove('on');
+  document.getElementById('weather').classList.remove('on');
+  blocks.forEach((b, j) => { b.material.emissiveIntensity = j === i ? 0.62 : 0.18; });
+  stationBtns.forEach((el, j) => el.classList.toggle('on', j === i));
+  markers.forEach((m, j) => { m.material.opacity = j === i ? 0.36 : 0.12; });
+  panels.forEach((p, j) => { p.visible = j === i; });
+}
+
+function goToDistrict(i) {
+  const n = nights[i];
+  walkIndex = i;
+  if (reduceMotion) {
+    const { endPos, endLook } = buildTourPath(camera.position, lookTarget, n);
+    camera.position.copy(endPos);
+    lookTarget.copy(endLook);
+    idleLook.copy(endLook);
+    touring = false;
+    tour = null;
+    openCard(i);
+    return;
+  }
+  card.classList.remove('on');
+  const { camCurve, lookCurve } = buildTourPath(camera.position.clone(), lookTarget.clone(), n);
+  touring = true;
+  tour = {
+    camCurve, lookCurve,
+    start: performance.now(),
+    dur: 2200 + Math.min(900, camera.position.distanceTo(new THREE.Vector3(n.x, n.h * 0.4, n.z)) * 40),
+    index: i,
+  };
+  stationBtns.forEach((el, j) => el.classList.toggle('on', j === i));
+  blocks.forEach((b, j) => { b.material.emissiveIntensity = j === i ? 0.4 : 0.18; });
+}
+
+function walkNights() {
+  if (reduceMotion) {
+    goToDistrict(walkIndex % nights.length);
+    walkIndex = (walkIndex + 1) % nights.length;
+    return;
+  }
+  goToDistrict(walkIndex % nights.length);
+  walkIndex = (walkIndex + 1) % nights.length;
+}
+
+function resetView() {
+  touring = false;
+  tour = null;
+  if (reduceMotion) {
+    camera.position.copy(homePos);
+    lookTarget.copy(homeLook);
+  } else {
+    tour = {
+      camCurve: new THREE.CatmullRomCurve3([
+        camera.position.clone(),
+        camera.position.clone().lerp(homePos, 0.5).add(new THREE.Vector3(0, 2, 0)),
+        homePos.clone(),
+      ], false, 'catmullrom', 0.4),
+      lookCurve: new THREE.CatmullRomCurve3([
+        lookTarget.clone(),
+        lookTarget.clone().lerp(homeLook, 0.5),
+        homeLook.clone(),
+      ], false, 'catmullrom', 0.4),
+      start: performance.now(),
+      dur: 1600,
+      index: -1,
+    };
+    touring = true;
+  }
+  idleLook.copy(homeLook);
+  card.classList.remove('on');
+  hero.classList.remove('dim');
+  sheet.classList.remove('on');
+  document.getElementById('weather').classList.remove('on');
+  blocks.forEach((b) => { b.material.emissiveIntensity = 0.24; });
+  stationBtns.forEach((el) => el.classList.remove('on'));
+  markers.forEach((m) => { m.material.opacity = 0.16; });
+  panels.forEach((p) => { p.visible = false; });
+}
+
+// Atmosphere sheet — primary driver
+const presets = {
+  clear: { fog: 12, bloom: 30, haze: 10 },
+  haze: { fog: 28, bloom: 55, haze: 40 },
+  storm: { fog: 48, bloom: 72, haze: 78 },
+};
+
+function applyAtmosphere() {
+  const fog = Number(document.getElementById('fog').value);
+  const bloom = Number(document.getElementById('bloom').value);
+  const haze = Number(document.getElementById('haze').value);
+  scene.fog.density = fog / 1000;
+  bloomPass.strength = bloom / 100;
+  hazeMat.opacity = 0.02 + (haze / 100) * 0.14;
+  document.getElementById('fog-val').textContent = (fog / 1000).toFixed(3);
+  document.getElementById('bloom-val').textContent = (bloom / 100).toFixed(2);
+  document.getElementById('haze-val').textContent = (haze / 100).toFixed(2);
+}
+
+function setPreset(name) {
+  const p = presets[name];
+  if (!p) return;
+  document.getElementById('fog').value = p.fog;
+  document.getElementById('bloom').value = p.bloom;
+  document.getElementById('haze').value = p.haze;
+  document.querySelectorAll('.preset').forEach((el) => el.classList.toggle('on', el.dataset.preset === name));
+  applyAtmosphere();
+}
+
+document.getElementById('fog').oninput = applyAtmosphere;
+document.getElementById('bloom').oninput = applyAtmosphere;
+document.getElementById('haze').oninput = applyAtmosphere;
+document.querySelectorAll('.preset').forEach((el) => {
+  el.onclick = () => setPreset(el.dataset.preset);
+});
+document.querySelectorAll('.swatch').forEach((s) => {
+  s.onclick = () => {
+    document.querySelectorAll('.swatch').forEach((x) => x.classList.remove('on'));
+    s.classList.add('on');
+    const c = Number(s.dataset.c);
+    core.material.color.setHex(c);
+    core.material.emissive.setHex(c);
+    coreLight.color.setHex(c);
+    hazeMat.color.setHex(c);
+  };
+});
+
+function toggleSheet() {
+  const on = sheet.classList.toggle('on');
+  document.getElementById('weather').classList.toggle('on', on);
+  if (on) card.classList.remove('on');
+}
+document.getElementById('weather').onclick = toggleSheet;
+document.getElementById('sheet-close').onclick = () => {
+  sheet.classList.remove('on');
+  document.getElementById('weather').classList.remove('on');
+};
+document.getElementById('walk').onclick = walkNights;
+document.getElementById('walk-hero').onclick = walkNights;
+document.getElementById('reset').onclick = resetView;
+
+// Dual-layer tear interaction on district card
+let tearing = false;
+function tearFromEvent(e) {
+  const rect = reveal.getBoundingClientRect();
+  const x = ('touches' in e ? e.touches[0].clientX : e.clientX) - rect.left;
+  setTear((x / rect.width) * 100);
+}
+reveal.addEventListener('pointerdown', (e) => {
+  tearing = true;
+  reveal.setPointerCapture(e.pointerId);
+  tearFromEvent(e);
+});
+reveal.addEventListener('pointermove', (e) => { if (tearing) tearFromEvent(e); });
+reveal.addEventListener('pointerup', () => { tearing = false; });
+reveal.addEventListener('pointercancel', () => { tearing = false; });
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (touring) return;
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(blocks);
+  if (hits.length) goToDistrict(hits[0].object.userData.index);
+});
+
+addEventListener('pointermove', (e) => {
+  if (touring) return;
+  pointerIdle.x = (e.clientX / innerWidth) * 2 - 1;
+  pointerIdle.y = -(e.clientY / innerHeight) * 2 + 1;
+});
+
+// Type focus pulse (Nex emphasis) — skipped under reduced motion
+const lines = [document.getElementById('l2'), document.getElementById('l3')];
+if (!reduceMotion) {
+  setInterval(() => { lines.forEach((el) => el.classList.toggle('focus')); }, 2400);
+} else {
+  lines.forEach((el) => el.classList.add('focus'));
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  bloomPass.resolution.set(innerWidth, innerHeight);
+});
+
+applyAtmosphere();
+
+const clock = new THREE.Clock();
+function frame(now) {
+  const t = clock.getElapsedTime();
+
+  if (!reduceMotion) {
+    center.rotation.y = t * 0.35;
+    ring.rotation.z = t * 0.2;
+    core.position.y = Math.sin(t * 1.2) * 0.15;
+    far.position.x = Math.sin(t * 0.08) * 1.2;
+    tickClockHands(t);
+    nightGroup.children.forEach((c) => {
+      if (c.isMesh && c.userData.night) {
+        c.position.y = c.userData.night.h / 2 + Math.sin(t * 0.7 + c.userData.index) * 0.07;
+      }
+    });
+    panels.forEach((p, i) => {
+      if (p.visible) {
+        p.position.y = nights[i].h + 1.1 + Math.sin(t * 0.9 + i) * 0.05;
+        p.lookAt(camera.position.x, p.position.y, camera.position.z);
+      }
+    });
+  }
+
+  if (tour && touring) {
+    const u = Math.min(1, (now - tour.start) / tour.dur);
+    const e = easeInOut(u);
+    tour.camCurve.getPoint(e, _cam);
+    tour.lookCurve.getPoint(e, _look);
+    camera.position.copy(_cam);
+    lookTarget.copy(_look);
+    if (u >= 1) {
+      touring = false;
+      idleLook.copy(lookTarget);
+      if (tour.index >= 0) openCard(tour.index);
+      tour = null;
+    }
+  } else if (!reduceMotion) {
+    const ox = pointerIdle.x * 1.1;
+    const oy = pointerIdle.y * 0.5;
+    idleLook.x += (lookTarget.x + ox - idleLook.x) * 0.045;
+    idleLook.y += (lookTarget.y + oy - idleLook.y) * 0.045;
+    idleLook.z += (lookTarget.z - idleLook.z) * 0.045;
+  } else {
+    idleLook.copy(lookTarget);
+  }
+
+  camera.lookAt(touring || reduceMotion ? lookTarget : idleLook);
+  composer.render();
+  requestAnimationFrame(frame);
+}
+camera.lookAt(lookTarget);
+requestAnimationFrame(frame);
+
+if (still) {
+  const i = 2;
+  const { endPos, endLook } = buildTourPath(homePos, homeLook, nights[i]);
+  camera.position.copy(endPos);
+  lookTarget.copy(endLook);
+  idleLook.copy(endLook);
+  openCard(i);
+}
+  </script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nestlight</title>
+<meta name="description" content="Homework-personalized bedtime stories. The child is the star." />
+<style>
+  :root {
+    --navy: #0c1424;
+    --cream: #f2e8d5;
+    --cream-dim: #a39682;
+    --orange: #FF8B16;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background:
+      radial-gradient(ellipse 80% 55% at 50% 100%, rgba(255,139,22,0.12), transparent 55%),
+      radial-gradient(circle at 20% 18%, rgba(107,140,174,0.15), transparent 35%),
+      linear-gradient(180deg, #0a1020 0%, #0c1424 50%, #101828 100%);
+    color: var(--cream);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sky {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1.25rem;
+  }
+  .stars span {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: var(--cream);
+    border-radius: 50%;
+    opacity: 0.45;
+  }
+  .stars span:nth-child(1) { left: 12%; top: 14%; }
+  .stars span:nth-child(2) { left: 28%; top: 8%; width: 2px; height: 2px; }
+  .stars span:nth-child(3) { left: 72%; top: 12%; background: var(--orange); opacity: 0.7; }
+  .stars span:nth-child(4) { left: 88%; top: 22%; width: 2px; height: 2px; }
+  .stars span:nth-child(5) { left: 55%; top: 6%; }
+  .stars span:nth-child(6) { left: 40%; top: 18%; width: 2px; height: 2px; opacity: 0.3; }
+
+  .orbit {
+    position: absolute;
+    width: min(620px, 92vw);
+    height: min(620px, 92vw);
+    left: 50%; top: 46%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .orbit-ring {
+    position: absolute;
+    inset: 8%;
+    border: 1px dashed rgba(242,232,213,0.1);
+    border-radius: 50%;
+  }
+  .orbit-ring.inner {
+    inset: 24%;
+    border-color: rgba(255,139,22,0.14);
+  }
+  .toy {
+    position: absolute;
+    left: 50%; top: 50%;
+    animation: spin 28s linear infinite;
+  }
+  .toy.t2 { animation-duration: 36s; animation-direction: reverse; animation-delay: -8s; }
+  .toy.t3 { animation-duration: 22s; animation-delay: -14s; }
+  .toy.t4 { animation-duration: 40s; animation-direction: reverse; animation-delay: -3s; }
+  .toy.t5 { animation-duration: 30s; animation-delay: -20s; }
+  .toy .blob { margin-left: var(--r); animation: unspin 28s linear infinite; }
+  .toy.t2 .blob { animation-duration: 36s; animation-direction: reverse; animation-delay: -8s; }
+  .toy.t3 .blob { animation-duration: 22s; animation-delay: -14s; }
+  .toy.t4 .blob { animation-duration: 40s; animation-direction: reverse; animation-delay: -3s; }
+  .toy.t5 .blob { animation-duration: 30s; animation-delay: -20s; }
+  .toy.t1 { --r: 210px; }
+  .toy.t2 { --r: 160px; }
+  .toy.t3 { --r: 230px; }
+  .toy.t4 { --r: 140px; }
+  .toy.t5 { --r: 190px; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes unspin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+  .blob {
+    width: 48px; height: 48px;
+    border-radius: 16px;
+    box-shadow: 4px 6px 0 rgba(0,0,0,0.25);
+  }
+  .blob.box { background: #6b8cae; border-radius: 14px; }
+  .blob.ball {
+    background: radial-gradient(circle at 32% 28%, #ffc070, #FF8B16);
+    border-radius: 50%;
+    width: 40px; height: 40px;
+  }
+  .blob.block {
+    background: #7a9e8a;
+    width: 36px; height: 44px;
+    border-radius: 10px;
+  }
+  .blob.book {
+    background: #c48a7a;
+    width: 52px; height: 16px;
+    border-radius: 3px;
+    transform: rotate(-12deg);
+  }
+  .blob.wedge {
+    width: 0; height: 0;
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-bottom: 40px solid #5a6e88;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .card {
+    position: relative;
+    z-index: 5;
+    width: min(420px, 92vw);
+    text-align: center;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cream-dim);
+  }
+  .mark {
+    margin-top: 0.85rem;
+    font-size: clamp(2.8rem, 9vw, 4.2rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    color: var(--cream);
+    text-shadow: 4px 4px 0 var(--orange);
+    transform: rotate(-2deg);
+  }
+  .mark span {
+    color: var(--orange);
+    text-shadow: 4px 4px 0 #5a2e05;
+  }
+  .tagline {
+    margin: 1.15rem auto 0;
+    max-width: 22rem;
+    font-size: 1.08rem;
+    line-height: 1.55;
+    color: var(--cream);
+  }
+  .enter {
+    margin-top: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.7rem 1.6rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--orange);
+    color: #1a0e02;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    box-shadow: 0 5px 0 #c66a10;
+    cursor: pointer;
+  }
+  .enter:hover { filter: brightness(1.03); }
+  .enter:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #c66a10;
+  }
+
+  @media (max-width: 720px) {
+    .orbit { width: min(420px, 96vw); height: min(420px, 96vw); opacity: 0.9; }
+    .toy.t1 { --r: 150px; }
+    .toy.t2 { --r: 110px; }
+    .toy.t3 { --r: 165px; }
+    .toy.t4 { --r: 95px; }
+    .toy.t5 { --r: 130px; }
+    .blob { transform: scale(0.82); }
+  }
+  body.embed, body.embed * { pointer-events: none; user-select: none; cursor: default; }
+  @media (prefers-reduced-motion: reduce) {
+    .toy, .toy .blob { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="sky">
+    <div class="stars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="orbit" aria-hidden="true">
+      <div class="orbit-ring"></div>
+      <div class="orbit-ring inner"></div>
+      <div class="toy t1"><div class="blob box"></div></div>
+      <div class="toy t2"><div class="blob ball"></div></div>
+      <div class="toy t3"><div class="blob block"></div></div>
+      <div class="toy t4"><div class="blob book"></div></div>
+      <div class="toy t5"><div class="blob wedge"></div></div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">night toybox · bedtime</p>
+      <h1 class="mark" aria-label="Nestlight">nest<span>light</span></h1>
+      <p class="tagline">Homework-personalized bedtime stories. The child is the star.</p>
+      <button type="button" class="enter" id="enter">Enter Nestlight</button>
+    </div>
+  </div>
+<script>
+(function () {
+  var LIVE = "https://nestlight-packs.up.railway.app/";
+  var params = new URLSearchParams(location.search);
+  var embed = params.get("embed") === "1";
+  if (embed) document.body.classList.add("embed");
+  var btn = document.getElementById("enter");
+  function go() {
+    location.href = embed ? (LIVE + "?embed=1") : LIVE;
+  }
+  // Corridor iframes are non-interactive — keep the gate on screen.
+  // Live packs auto-enters on ?embed=1 when opened directly.
+  if (btn && !embed) btn.addEventListener("click", go);
+})();
+</script>
+</body>
+</html>

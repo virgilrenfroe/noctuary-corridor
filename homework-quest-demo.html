@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Homework Quest — exhibit demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --ink: #121816;
+    --cream: #ece7db;
+    --muted: #9aab9c;
+    --sage: #6f9b7a;
+    --ember: #c45c3e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--ink);
+    color: var(--cream);
+    font-family: "Figtree", system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.embed, body.embed * { pointer-events: none; user-select: none; cursor: default; }
+
+  .stage {
+    position: relative;
+    width: 100%; height: 100%;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 18%, rgba(111,155,122,0.18), transparent 60%),
+      linear-gradient(180deg, #1a2420 0%, var(--ink) 55%, #0c100e 100%);
+  }
+  .frame {
+    position: relative;
+    width: min(92vw, 420px);
+    height: min(94vh, 620px);
+    aspect-ratio: 26 / 38;
+    max-height: 94vh;
+    border-radius: 14px;
+    border: 1px solid rgba(58,82,70,0.4);
+    box-shadow:
+      0 0 0 1px rgba(236,231,219,0.06),
+      0 18px 48px rgba(0,0,0,0.5);
+    overflow: hidden;
+    background: #0a0e0c;
+  }
+  .chrome {
+    position: absolute;
+    top: 10px; left: 12px; right: 12px;
+    z-index: 8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(236,231,219,0.75);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    pointer-events: none;
+  }
+  .chrome .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--sage);
+    box-shadow: 0 0 8px rgba(111,155,122,0.7);
+  }
+
+  .slides { position: absolute; inset: 0; }
+  .slide {
+    position: absolute; inset: 0;
+    opacity: 0;
+    transition: opacity 0.85s ease;
+    pointer-events: none;
+  }
+  .slide.on { opacity: 1; z-index: 2; }
+  .slide .bg {
+    position: absolute; inset: -6%;
+    background-size: cover;
+    background-position: center;
+    transform: scale(1.05);
+  }
+  .slide.on .bg {
+    animation: ken 6.2s ease-out forwards;
+  }
+  body.still .slide.on .bg { animation: none; transform: scale(1.08); }
+  @keyframes ken {
+    from { transform: scale(1.05) translate(0, 0); }
+    to   { transform: scale(1.14) translate(-1.5%, -1%); }
+  }
+  .slide.heroes .bg { display: none; }
+  .slide.heroes .hero-grid {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+  }
+  .slide.heroes .hero-cell {
+    position: relative;
+    overflow: hidden;
+    background: #1a2420;
+  }
+  .slide.heroes .hero-cell img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    transform: scale(1.06);
+  }
+  .slide.heroes.on .hero-cell img {
+    animation: ken 6s ease-out forwards;
+  }
+  body.still .slide.heroes.on .hero-cell img { animation: none; }
+  .slide.heroes .hero-cell::after {
+    content: attr(data-name);
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 28px 6px 10px;
+    background: linear-gradient(transparent, rgba(8,12,10,0.88));
+    font-family: "Fraunces", serif;
+    font-size: 12px;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  .slide.battle .monster-wrap {
+    position: absolute;
+    inset: 12% 10% 28%;
+    display: grid;
+    place-items: center;
+  }
+  .slide.battle .monster-wrap img {
+    max-width: 72%;
+    max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 28px rgba(0,0,0,0.55));
+    transform: scale(1.02);
+  }
+  .slide.battle.on .monster-wrap img {
+    animation: ken 6s ease-out forwards;
+  }
+  body.still .slide.battle.on .monster-wrap img { animation: none; }
+
+  .veil {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgba(8,12,10,0.35) 0%, transparent 28%, transparent 55%, rgba(8,12,10,0.82) 100%);
+    z-index: 3;
+    pointer-events: none;
+  }
+  .caption {
+    position: absolute;
+    left: 16px; right: 16px; bottom: 28px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .caption .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 6px;
+  }
+  .caption h2 {
+    font-family: "Fraunces", serif;
+    font-weight: 500;
+    font-size: clamp(22px, 5.5vw, 28px);
+    line-height: 1.15;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.55);
+  }
+  .caption h2 em { font-style: italic; color: #d4c4a0; }
+  .caption p {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(236,231,219,0.88);
+    max-width: 32ch;
+  }
+  .caption .callout {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(196,92,62,0.85);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .still-compose {
+    position: absolute; inset: 0;
+    display: none;
+    z-index: 6;
+    background: #0a0e0c;
+  }
+  body.still .still-compose { display: block; }
+  body.still .slides { display: none; }
+  .still-compose .mosaic {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    grid-template-rows: 1.1fr 0.9fr 1fr;
+    gap: 2px;
+    background: #0a0e0c;
+  }
+  .still-compose .tile {
+    position: relative;
+    overflow: hidden;
+    background: #15201a center/cover no-repeat;
+  }
+  .still-compose .tile.t1 { grid-row: 1 / 3; background-image: url('./demo-assets/homework-quest/title.jpg'); }
+  .still-compose .tile.t2 { background-image: url('./demo-assets/homework-quest/hero-mira.jpg'); background-position: center top; }
+  .still-compose .tile.t3 { background-image: url('./demo-assets/homework-quest/monster-imp.jpg'); background-size: 70%; background-color: #1a2420; }
+  .still-compose .tile.t4 { grid-column: 1 / 3; background-image: url('./demo-assets/homework-quest/ceremony.jpg'); }
+  .still-compose .label {
+    position: absolute;
+    left: 14px; right: 14px; bottom: 18px;
+    z-index: 2;
+  }
+  .still-compose .label h1 {
+    font-family: "Fraunces", serif;
+    font-weight: 500;
+    font-size: 26px;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.7);
+  }
+  .still-compose .label h1 em { font-style: italic; color: #d4c4a0; }
+  .still-compose .label p {
+    margin-top: 6px;
+    font-size: 12px;
+    color: rgba(236,231,219,0.85);
+  }
+  .still-compose .veil {
+    background: linear-gradient(180deg, transparent 40%, rgba(8,12,10,0.75) 100%);
+  }
+
+  a.click {
+    position: absolute; inset: 0;
+    z-index: 10;
+    text-indent: -9999px;
+  }
+  body.embed a.click { display: none; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="frame" id="frame">
+      <div class="chrome"><span>Homework Quest</span><span class="dot" aria-hidden="true"></span></div>
+
+      <div class="slides" aria-live="polite">
+        <!-- Beat 1: title -->
+        <section class="slide" data-beat="0">
+          <div class="bg" style="background-image:url('./demo-assets/homework-quest/title.jpg')"></div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">A study adventure</p>
+            <h2>Homework<em>Quest</em></h2>
+            <p>Browser storybook RPG — pick a hero, walk realms, battle by answering well.</p>
+          </div>
+        </section>
+
+        <!-- Beat 2: hero pick -->
+        <section class="slide heroes" data-beat="1">
+          <div class="hero-grid">
+            <div class="hero-cell" data-name="Mira"><img src="./demo-assets/homework-quest/hero-mira.jpg" alt="Mira"/></div>
+            <div class="hero-cell" data-name="Kael"><img src="./demo-assets/homework-quest/hero-kael.jpg" alt="Kael"/></div>
+            <div class="hero-cell" data-name="Sable"><img src="./demo-assets/homework-quest/hero-sable.jpg" alt="Sable"/></div>
+          </div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">Choose</p>
+            <h2>Pick a hero</h2>
+            <p>Mira, Kael, or Sable.</p>
+          </div>
+        </section>
+
+        <!-- Beat 3: realm / trail -->
+        <section class="slide" data-beat="2">
+          <div class="bg" style="background-image:url('./demo-assets/homework-quest/world-map.jpg'); background-position: center 40%;"></div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">Realm</p>
+            <h2>Walk the trail</h2>
+            <p>Math · Reading · Science.</p>
+          </div>
+        </section>
+
+        <!-- Beat 3b trail accent briefly via crossfade of trail under map vibe - separate beat uses trail -->
+        <section class="slide" data-beat="3">
+          <div class="bg" style="background-image:url('./demo-assets/homework-quest/trail.jpg')"></div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">On the path</p>
+            <h2>Keep walking</h2>
+            <p>The path between realms.</p>
+          </div>
+        </section>
+
+        <!-- Beat 4: battle -->
+        <section class="slide battle" data-beat="4">
+          <div class="bg" style="background-image:url('./demo-assets/homework-quest/realm-math.jpg'); filter: brightness(0.55);"></div>
+          <div class="monster-wrap">
+            <img src="./demo-assets/homework-quest/monster-imp.jpg" alt="Knowledge creature"/>
+          </div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">Battle</p>
+            <h2>Answer well</h2>
+            <p>Knowledge creatures fall to good answers.</p>
+            <span class="callout">Answer well</span>
+          </div>
+        </section>
+
+        <!-- Beat 5: ceremony -->
+        <section class="slide" data-beat="5">
+          <div class="bg" style="background-image:url('./demo-assets/homework-quest/ceremony.jpg')"></div>
+          <div class="veil"></div>
+          <div class="caption">
+            <p class="eyebrow">Victory</p>
+            <h2>Ceremony · XP</h2>
+            <p>XP · trail continues.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="still-compose" aria-hidden="true">
+        <div class="mosaic">
+          <div class="tile t1"><div class="veil"></div></div>
+          <div class="tile t2"></div>
+          <div class="tile t3"></div>
+          <div class="tile t4">
+            <div class="veil"></div>
+            <div class="label">
+              <h1>Homework<em>Quest</em></h1>
+              <p>Hero · realm · battle · ceremony</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <a class="click" href="https://homeworkquest.app/" target="_blank" rel="noopener">Open Homework Quest</a>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const embed = params.has('embed');
+  const still = params.has('still') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (embed) document.body.classList.add('embed');
+  if (still) {
+    document.body.classList.add('still');
+    return;
+  }
+
+  const slides = Array.from(document.querySelectorAll('.slide[data-beat]'));
+  // ~30s loop across 6 beats
+  const BEATS = [
+    { id: 0, dur: 5000 },  // title
+    { id: 1, dur: 5500 },  // heroes
+    { id: 2, dur: 4500 },  // world-map
+    { id: 3, dur: 4000 },  // trail
+    { id: 4, dur: 5500 },  // battle
+    { id: 5, dur: 5000 },  // ceremony
+  ];
+
+  function show(id) {
+    slides.forEach((s) => {
+      const on = Number(s.dataset.beat) === id;
+      s.classList.toggle('on', on);
+    });
+  }
+
+  let idx = 0;
+  function arm() {
+    show(BEATS[idx].id);
+    setTimeout(() => {
+      idx = (idx + 1) % BEATS.length;
+      arm();
+    }, BEATS[idx].dur);
+  }
+  arm();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Noctuary — spatial drill · corridor exhibit</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #05060a;
+    --paper: #f2ebe0;
+    --mute: rgba(242,235,224,0.55);
+    --line: rgba(242,235,224,0.16);
+    --accent: #f0c24b;
+    --violet: #8a7bb8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--ink); color: var(--paper);
+    font-family: var(--font-sans);
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #stage {
+    position: fixed; inset: 0; z-index: 0;
+    cursor: grab;
+    touch-action: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #stage > canvas,
+  #stage > div {
+    position: absolute; inset: 0;
+    display: block; width: 100% !important; height: 100% !important;
+  }
+  #stage > div { pointer-events: none; z-index: 1; }
+  #stage > canvas { z-index: 0; }
+  .veil {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(70% 55% at 50% 42%, transparent 0%, rgba(5,6,10,0.12) 68%, rgba(5,6,10,0.48) 100%),
+      linear-gradient(180deg, rgba(5,6,10,0.28) 0%, transparent 18%, transparent 80%, rgba(5,6,10,0.5) 100%);
+  }
+  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(5,6,10,0.45); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(5,6,10,0.5);
+    color: var(--paper); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+  .pill:hover, .pill.on { border-color: rgba(242,235,224,0.45); background: rgba(20,24,36,0.72); }
+  .pill.tech {
+    cursor: default; letter-spacing: 0.1em;
+    border-color: rgba(138,123,184,0.35); color: rgba(242,235,224,0.85);
+  }
+
+  .title-block {
+    position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+    max-width: 24ch; pointer-events: none;
+  }
+  .title-block .kicker {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--mute); margin: 0 0 10px;
+  }
+  .title-block h1 {
+    margin: 0; font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 700; font-stretch: condensed;
+    font-size: clamp(2rem, 4.5vw, 3.4rem);
+    line-height: 0.95; letter-spacing: -0.04em;
+  }
+  .title-block p {
+    margin: 14px 0 0; color: var(--mute); font-size: 13px; line-height: 1.45;
+    max-width: 28ch;
+  }
+
+  .hud {
+    position: absolute; left: 18px; bottom: 18px; right: 18px;
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+  }
+  .caption {
+    max-width: 36ch; padding: 14px 16px; border-radius: 16px;
+    border: 1px solid var(--line); background: rgba(5,6,10,0.55);
+    backdrop-filter: blur(14px);
+  }
+  .caption .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 6px;
+  }
+  .caption h2 {
+    margin: 0; font-family: var(--font-display); font-weight: 650;
+    font-size: 1.35rem; letter-spacing: -0.03em; line-height: 1.1;
+  }
+  .caption p { margin: 8px 0 0; font-size: 12px; color: var(--mute); line-height: 1.45; }
+  .keys {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--mute); text-align: right;
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: rgba(5,6,10,0.4); backdrop-filter: blur(10px);
+  }
+  .keys strong { color: var(--paper); font-weight: 400; }
+
+  .gate {
+    position: fixed; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(5,6,10,0.55);
+    backdrop-filter: blur(18px);
+    pointer-events: auto;
+    transition: opacity 0.35s ease, visibility 0.35s;
+  }
+  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .gate-card {
+    text-align: center; max-width: 34ch; padding: 28px 32px;
+    border-radius: 24px; border: 1px solid var(--line);
+    background: rgba(5,6,10,0.72);
+  }
+  .gate-card .k {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
+  }
+  .gate-card h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-stretch: condensed; font-size: clamp(2.4rem, 6vw, 3.8rem);
+    letter-spacing: -0.04em; line-height: 0.95;
+  }
+  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
+  .gate-card .ctrl {
+    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(242,235,224,0.7);
+  }
+  .gate-card button {
+    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.45);
+    background: rgba(240,194,75,0.12); color: var(--paper);
+    border-radius: 999px; padding: 14px 28px; font: inherit;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
+  }
+  .gate-card button:hover { background: rgba(240,194,75,0.22); }
+
+  body.reduce .gate { display: none; }
+
+  /* Post-unlock / embed: strip exhibit chrome; KEEP nav language + compass pad */
+  body.embed-quiet .topbar,
+  body.embed-quiet .title-block,
+  body.embed-quiet .caption,
+  body.embed-quiet .gate { display: none !important; }
+  body.embed-quiet .hud {
+    display: flex !important;
+    justify-content: flex-end;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 6;
+  }
+  body.embed-quiet .keys {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    max-width: 48ch;
+    pointer-events: none;
+  }
+  body.embed-quiet .keys-mode { display: none; }
+  /* Compass (walk pad) always on after unlock — not only coarse pointers */
+  body.embed-quiet #mobile-pad {
+    display: block !important;
+    z-index: 6;
+  }
+
+
+  /* Virtual walk pad — shown on coarse pointer / narrow screens */
+  #mobile-pad {
+    display: none;
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 4;
+    width: 148px; height: 148px;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #mobile-pad .pad-base {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(242,235,224,0.28);
+    background: rgba(5,6,10,0.42);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 0 0 1px rgba(5,6,10,0.35);
+  }
+  #mobile-pad .pad-knob {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 56px; height: 56px;
+    margin: -28px 0 0 -28px;
+    border-radius: 50%;
+    border: 1px solid rgba(240,194,75,0.45);
+    background: rgba(240,194,75,0.18);
+    pointer-events: none;
+    transition: background 0.12s ease;
+  }
+  #mobile-pad.active .pad-knob {
+    background: rgba(240,194,75,0.32);
+    border-color: rgba(240,194,75,0.7);
+  }
+  #mobile-pad .pad-cross {
+    position: absolute; inset: 18%;
+    pointer-events: none;
+    opacity: 0.35;
+    background:
+      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
+      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
+  }
+  .keys .keys-mobile { display: none; }
+  .gate-card .ctrl .ctrl-mobile { display: none; }
+
+  @media (pointer: coarse), (max-width: 900px) {
+    #mobile-pad { display: block; }
+    .keys .keys-desktop { display: none; }
+    .keys .keys-mobile { display: inline; }
+    .gate-card .ctrl .ctrl-desktop { display: none; }
+    .gate-card .ctrl .ctrl-mobile { display: inline; }
+    .hud {
+      left: 18px; right: 18px;
+      bottom: calc(168px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+  @media (max-width: 720px) {
+    .title-block { display: none; }
+    .hud { flex-direction: column; align-items: stretch; }
+    .keys { text-align: left; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage" aria-label="Corridor exhibit stage"></div>
+  <div class="veil" aria-hidden="true"></div>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Noctuary · drill</div>
+      <div class="pills">
+        <div class="pill tech" title="Technique">Corridor · portal · WASD</div>
+        <button class="pill" id="btn-bright-dim" type="button">Dim</button>
+        <button class="pill" id="btn-bright-mid" type="button">Mid</button>
+        <button class="pill on" id="btn-bright-hi" type="button">Bright</button>
+        <button class="pill" id="btn-reset" type="button">Reset</button>
+        <button class="pill" id="btn-music" type="button" title="Ambient corridor bed">Music</button>
+        <div class="pill" id="h-motion">live</div>
+      </div>
+    </div>
+    <div class="title-block">
+      <p class="kicker">Spatial drill</p>
+      <h1>Corridor<br/>exhibit</h1>
+      <p>Hung app panels in depth. Walk the hall before the caption — work exhibit, not a scroll first.</p>
+    </div>
+    <div class="hud">
+      <div class="caption" id="caption">
+        <p class="tag" id="cap-tag">Live front door</p>
+        <h2 id="cap-title">Noctuary</h2>
+        <p id="cap-body">Plays live on the end screen — walk the hall to see the city move.</p>
+      </div>
+      <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · click panel</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · tap panel</span><span class="keys-mode"> · <span id="h-mode">idle</span></span></div>
+    </div>
+  </div>
+
+  <div class="gate" id="gate" role="dialog" aria-label="Enter the room">
+    <div class="gate-card">
+      <p class="k">Project room</p>
+      <h1>Enter the<br/>corridor</h1>
+      <p class="ctrl"><span class="ctrl-desktop">WASD to walk · drag to look</span><span class="ctrl-mobile">pad walk · drag look · tap panel</span></p>
+      <p style="margin-top:10px;font-size:12px;color:var(--mute)">Ambient bed starts on Enter · Mute anytime.</p>
+      <button type="button" id="btn-enter">Enter the room</button>
+    </div>
+  </div>
+
+  <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
+    <div class="pad-base"></div>
+    <div class="pad-cross" aria-hidden="true"></div>
+    <div class="pad-knob" id="pad-knob"></div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script src="./app-shots/embedded-shots.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+
+const params = new URLSearchParams(location.search);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
+if (reduceMotion) document.body.classList.add('reduce');
+document.getElementById('h-motion').textContent = reduceMotion ? 'still' : 'live';
+
+const FRONT_DOOR_BASE = /(?:^|\/)02-corridor(?:\/|$)/.test(location.pathname)
+  ? '../01-front-door/noctuary-front-door.html'
+  : './noctuary-front-door.html';
+const FRONT_DOOR_EMBED = FRONT_DOOR_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+
+// Side-panel demos live beside this corridor HTML (box + Mac 02-corridor alike)
+const HQ_DEMO_BASE = './homework-quest-demo.html';
+const HQ_DEMO_EMBED = HQ_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const BARPAL_DEMO_BASE = './barpal-demo.html';
+const BARPAL_DEMO_EMBED = BARPAL_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const BARPAL_HOME_BASE = './barpal-home.html';
+const BARPAL_HOME_EMBED = BARPAL_HOME_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const NESTLIGHT_HOME_BASE = './nestlight-home.html';
+const NESTLIGHT_HOME_EMBED = NESTLIGHT_HOME_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const WORK_DEMO_BASE = './work-samples-demo.html';
+const WORK_DEMO_EMBED = WORK_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const COURSE_DEMO_BASE = './course-samples-demo.html';
+const COURSE_DEMO_EMBED = COURSE_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const FLEISS_BASE = './fleiss-world-route.html';
+const FLEISS_EMBED = FLEISS_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+
+const CAROUSEL_BASE = './spatial-drill-loop-carousel.html';
+const CAROUSEL_EMBED = CAROUSEL_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const SONG_BASE = './spatial-drill-flow-atelier.html';
+const SONG_EMBED = SONG_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
+const BURN_BASE = './spatial-drill-burn.html';
+const BURN_EMBED = BURN_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
+
+const APPS = [
+  { id: 'noctuary', name: 'Noctuary', blurb: 'Plays live on the end screen — walk the hall to see the city move.', accent: '#8a7bb8',
+    url: FRONT_DOOR_BASE,
+    embedUrl: FRONT_DOOR_EMBED,
+    candidates: ['jpg/noctuary.jpg', 'noctuary.png', 'noctuary-og.png'] },
+  { id: 'nestlight', name: 'NestLight', blurb: 'Live nestlight-packs on this panel — Enter gate.', accent: '#e8a87c',
+    url: 'https://nestlight-packs.up.railway.app/',
+    embedUrl: 'https://nestlight-packs.up.railway.app/?v=corridor',
+    embedBg: '#0c1424',
+    live: true,
+    candidates: ['jpg/nestlight.jpg', 'nestlight.png', 'nestlight.webp'] },
+  { id: 'oneshopbooks', name: 'OneShopBooks', blurb: 'Shop-isolated contractor books and deposit-as-liability.', accent: '#f0c24b',
+    url: 'https://oneshopbooks-production.up.railway.app/',
+    candidates: ['jpg/oneshopbooks.jpg', 'oneshopbooks.png', 'oneshopbooks-live.png'] },
+  { id: 'barpal', name: 'BarPal', blurb: 'Autoplay tip → round → settle on this panel — click to open the full demo.', accent: '#7ec8c4',
+    url: BARPAL_DEMO_BASE,
+    embedUrl: BARPAL_DEMO_EMBED,
+    embedBg: '#0e0b09',
+    live: true,
+    candidates: ['jpg/barpal.jpg', 'barpal.png'] },
+  { id: 'fleiss', name: 'Fleiss screenings', blurb: 'World-route globe — click to open the full tour.', accent: '#f0c24b',
+    url: FLEISS_BASE,
+    coverAlign: 'center',
+    candidates: ['jpg/fleiss-world-route.jpg', 'jpg/noctuary.jpg'] },
+  { id: 'cue-tip-shaper', name: 'Cue tip shaper', blurb: 'Motorized tip shaper — even scuff, DIY one-pager.', accent: '#4db6a4',
+    url: './app-shots/cue-tip-shaper.html',
+    candidates: ['jpg/cue-tip-shaper-panel.jpg', 'jpg/cue-tip-shaper.jpg', 'cue-tip-shaper.png'] },
+  { id: 'homework-quest', name: 'Homework Quest', blurb: 'Plays live on this panel — brief quest demo.', accent: '#f0c24b',
+    url: 'https://virgilrenfroe.github.io/course-samples/homework-quest/',
+    embedUrl: HQ_DEMO_EMBED,
+    embedBg: '#121816',
+    live: true,
+    candidates: ['jpg/homework-quest.jpg', 'homework-quest.png', 'homework-quest-retry.png'] },
+  { id: 'carousel', name: 'Carousel', blurb: 'Loop-agency carousel drill — front largest, sides angled away.', accent: '#f0c24b',
+    url: CAROUSEL_BASE,
+    embedUrl: CAROUSEL_EMBED,
+    embedBg: '#05060a',
+    live: true,
+    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
+  { id: 'song', name: 'A Song with a Hole in It', blurb: 'Music-driven flow — Song / A on the panel. Virgil Renfroe · AI-assisted.', accent: '#f0c24b',
+    url: SONG_BASE,
+    embedUrl: SONG_EMBED,
+    embedBg: '#05060a',
+    live: true,
+    interactiveEmbed: true,
+    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
+  { id: 'burn', name: 'Burn', blurb: 'Heat-trail craft on this panel — click for the full drill.', accent: '#e8a54b',
+    url: BURN_BASE,
+    embedUrl: BURN_EMBED,
+    embedBg: '#05060a',
+    live: true,
+    interactiveEmbed: true,
+    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
+];
+
+const HALL_W = 12;
+const HALL_L = 42;
+const WALL_H = 7.2;
+const EYE = 1.65;
+const CAM_DIST = 14; // generous start distance looking down the hall
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.5 : 2));
+renderer.setClearColor(0x05060a, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+stage.appendChild(renderer.domElement);
+
+const cssRenderer = new CSS3DRenderer();
+cssRenderer.domElement.style.pointerEvents = 'none';
+stage.appendChild(cssRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05060a, 0.010);
+const cssScene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+const yaw = { value: 0 };
+const pitch = { value: -0.08 };
+const pos = new THREE.Vector3(0, EYE, CAM_DIST);
+
+let panelBright = 1.15;
+const panelSpots = [];
+const hemi = new THREE.HemisphereLight(0xb8b0d0, 0x12141c, 1.05);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xf7f2e8, 1.45);
+key.position.set(4, 10, 8);
+scene.add(key);
+const fill = new THREE.PointLight(0xa898d0, 28, 48);
+fill.position.set(-3, 4, 6);
+scene.add(fill);
+const portalGlow = new THREE.PointLight(0xf0c24b, 32, 34);
+portalGlow.position.set(0, 3.2, -HALL_L / 2 + 2);
+scene.add(portalGlow);
+
+// —— Day wing threshold (luminous aperture on right wall, far half) ——
+const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
+const DAY_DOOR_W = 2.2;
+const DAY_DOOR_H = 4.6;
+const dayDoorGroup = new THREE.Group();
+const dayFrameMat = new THREE.MeshStandardMaterial({
+  color: 0xe8dfd0, roughness: 0.55, metalness: 0.08,
+  emissive: 0xf2ebe0, emissiveIntensity: 0.35,
+});
+const dayFrame = new THREE.Mesh(
+  new THREE.BoxGeometry(0.22, DAY_DOOR_H + 0.35, DAY_DOOR_W + 0.35),
+  dayFrameMat
+);
+dayDoorGroup.add(dayFrame);
+const dayAperture = new THREE.Mesh(
+  new THREE.PlaneGeometry(DAY_DOOR_W, DAY_DOOR_H),
+  new THREE.MeshBasicMaterial({ color: 0xf5efe4, fog: false, side: THREE.DoubleSide })
+);
+dayAperture.rotation.y = -Math.PI / 2;
+dayAperture.position.set(-0.12, 0, 0);
+dayAperture.userData.portal = 'day';
+dayAperture.userData.clickable = true;
+dayDoorGroup.add(dayAperture);
+const dayRim = new THREE.Mesh(
+  new THREE.PlaneGeometry(DAY_DOOR_W + 0.12, DAY_DOOR_H + 0.12),
+  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.22, fog: false, side: THREE.DoubleSide })
+);
+dayRim.rotation.y = -Math.PI / 2;
+dayRim.position.set(-0.1, 0, 0);
+dayDoorGroup.add(dayRim);
+dayDoorGroup.position.set(HALL_W / 2 - 0.08, DAY_DOOR_H / 2 + 0.2, DAY_DOOR_Z);
+scene.add(dayDoorGroup);
+const daySpill = new THREE.PointLight(0xfff4e4, 42, 22);
+daySpill.position.set(HALL_W / 2 - 1.6, 3.4, DAY_DOOR_Z);
+scene.add(daySpill);
+const daySkyFill = new THREE.PointLight(0xc9d6ea, 16, 18);
+daySkyFill.position.set(HALL_W / 2 - 2.2, 5.2, DAY_DOOR_Z);
+scene.add(daySkyFill);
+
+// Architecture
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x141820, roughness: 0.28, metalness: 0.3,
+});
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALL_W, HALL_L), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.z = -HALL_L / 2 + CAM_DIST * 0.15;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x181c28, roughness: 0.88, metalness: 0.06 });
+const sideGeo = new THREE.PlaneGeometry(HALL_L, WALL_H);
+const wallL = new THREE.Mesh(sideGeo, wallMat);
+wallL.rotation.y = Math.PI / 2;
+wallL.position.set(-HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
+scene.add(wallL);
+const wallR = new THREE.Mesh(sideGeo, wallMat);
+wallR.rotation.y = -Math.PI / 2;
+wallR.position.set(HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
+scene.add(wallR);
+
+const endMat = new THREE.MeshStandardMaterial({ color: 0x12151e, roughness: 0.88 });
+const endWall = new THREE.Mesh(new THREE.PlaneGeometry(HALL_W, WALL_H), endMat);
+endWall.position.set(0, WALL_H / 2, -HALL_L / 2 + 0.05);
+scene.add(endWall);
+
+// Soft aperture (window) on left near entrance
+const win = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.08, WALL_H * 0.72),
+  new THREE.MeshBasicMaterial({ color: 0x2a3558 })
+);
+win.position.set(-HALL_W / 2 + 0.06, WALL_H * 0.48, 4);
+scene.add(win);
+const winLight = new THREE.PointLight(0x8a9ad0, 20, 20);
+winLight.position.set(-HALL_W / 2 + 1.2, 3.5, 4);
+scene.add(winLight);
+
+
+function makeFallbackTexture(app, w = 768, h = 1024) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, '#05060a');
+  g.addColorStop(0.55, '#12162a');
+  g.addColorStop(1, '#05060a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  // accent rule — labeled plate, not city massing
+  ctx.fillStyle = app.accent;
+  ctx.globalAlpha = 0.85;
+  ctx.fillRect(48, 72, 72, 6);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#f2ebe0';
+  ctx.font = '700 56px "Bricolage Grotesque", sans-serif';
+  const lines = String(app.name).split(' ');
+  let ty = h * 0.42;
+  for (const line of lines) {
+    ctx.fillText(line, 48, ty);
+    ty += 68;
+  }
+  ctx.font = '12px "Space Mono", monospace';
+  ctx.fillStyle = 'rgba(242,235,224,0.55)';
+  ctx.fillText(app.id.toUpperCase(), 48, h - 56);
+  ctx.fillText('APP · FALLBACK', 48, h - 36);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function applyCover(tex, planeW, planeH, align = 'center') {
+  const img = tex.image;
+  if (!img || !img.width || !img.height) return;
+  const imgAspect = img.width / img.height;
+  const planeAspect = planeW / planeH;
+  // Landscape onto portrait: horizontal crop. 'left' keeps H1/start of shot visible.
+  if (imgAspect > planeAspect) {
+    const ratio = planeAspect / imgAspect;
+    tex.repeat.set(ratio, 1);
+    if (align === 'left') tex.offset.set(0, 0);
+    else if (align === 'right') tex.offset.set(1 - ratio, 0);
+    else tex.offset.set((1 - ratio) / 2, 0);
+  } else {
+    const ratio = imgAspect / planeAspect;
+    tex.repeat.set(1, ratio);
+    tex.offset.set(0, (1 - ratio) / 2);
+  }
+  tex.needsUpdate = true;
+}
+
+function loadTextureUrl(url) {
+  // Image + Texture works under file:// on Mac; TextureLoader often fails there.
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const tex = new THREE.Texture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      resolve(tex);
+    };
+    img.onerror = () => reject(new Error('image load failed: ' + url));
+    img.src = url;
+  });
+}
+
+async function resolveAppTexture(app) {
+  const embedded = (typeof window !== 'undefined' && window.NOCTUARY_APP_SHOTS)
+    ? window.NOCTUARY_APP_SHOTS[app.id]
+    : null;
+  if (embedded) {
+    try {
+      const tex = await loadTextureUrl(embedded);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
+      app.image = 'embedded:' + app.id;
+      app._source = 'image';
+      return tex;
+    } catch {
+      // fall through to file candidates
+    }
+  }
+  for (const file of app.candidates || []) {
+    const url = `./app-shots/${file}`;
+    try {
+      const tex = await loadTextureUrl(url);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
+      app.image = url;
+      app._source = 'image';
+      return tex;
+    } catch {
+      // try next candidate
+    }
+  }
+  app.image = null;
+  app._source = 'fallback';
+  return makeFallbackTexture(app);
+}
+
+function hangPanel(app, tex, x, y, z, rotY, w, h) {
+  const group = new THREE.Group();
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x1a1d28, roughness: 0.55, metalness: 0.2 })
+  );
+  group.add(frame);
+  if (app._source === 'image') applyCover(tex, w, h, app.coverAlign || 'center');
+  // Basic map so screenshots read clearly (not washed/dark under lights)
+  const mat = new THREE.MeshBasicMaterial({ map: tex, fog: false, side: THREE.DoubleSide });
+  const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  canvas.position.z = 0.05;
+  canvas.userData.app = app;
+  canvas.userData.clickable = true;
+  group.add(canvas);
+  group.position.set(x, y, z);
+  group.rotation.y = rotY;
+  scene.add(group);
+
+  const off = new THREE.Vector3(0, 0, 2.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+  const spot = new THREE.SpotLight(0xf2ebe0, 14, 16, Math.PI / 5.2, 0.5);
+  spot.position.set(x + off.x, 6.2, z + off.z);
+  spot.target = group;
+  scene.add(spot);
+  scene.add(spot.target);
+  panelSpots.push(spot);
+  spot.userData.baseIntensity = spot.intensity;
+  spot.intensity *= panelBright;
+
+  return { group, canvas, motif: app, app, z, spot };
+}
+
+function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
+  const group = new THREE.Group();
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x1a1d28, roughness: 0.55, metalness: 0.2 })
+  );
+  group.add(frame);
+
+  // Invisible hit plane — click opens app URL; iframe itself is pointer-events:none
+  const hit = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({
+      transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    })
+  );
+  hit.position.z = 0.06;
+  hit.userData.app = app;
+  hit.userData.clickable = true;
+  group.add(hit);
+
+  group.position.set(x, y, z);
+  group.rotation.y = rotY;
+  scene.add(group);
+
+  // CSS px size: optional override, else 100px per world unit (720×440 → 7.2×4.4; 260×380 → 2.6×3.8)
+  const cssW = (iframePx && iframePx.w) || Math.round(w * 100);
+  const cssH = (iframePx && iframePx.h) || Math.round(h * 100);
+  const scale = w / cssW;
+
+  const iframe = document.createElement('iframe');
+  iframe.src = app.embedUrl || FRONT_DOOR_EMBED;
+  iframe.title = (app.name || 'Live') + ' — live';
+  iframe.setAttribute('loading', 'eager');
+  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.style.width = cssW + 'px';
+  iframe.style.height = cssH + 'px';
+  iframe.style.border = '0';
+  iframe.style.background = app.embedBg || '#05060a';
+  iframe.style.pointerEvents = app.interactiveEmbed ? 'auto' : 'none';
+  iframe.style.borderRadius = '2px';
+
+  const cssObj = new CSS3DObject(iframe);
+  cssObj.scale.set(scale, scale, scale);
+  // Offset along panel normal so side walls (rotY ±π/2) sit in front of the frame
+  const face = new THREE.Vector3(0, 0, 0.04).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+  cssObj.position.set(x + face.x, y + face.y, z + face.z);
+  cssObj.rotation.y = rotY;
+  cssScene.add(cssObj);
+
+  const off = new THREE.Vector3(0, 0, 2.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+  const spot = new THREE.SpotLight(0xf2ebe0, 14, 16, Math.PI / 5.2, 0.5);
+  spot.position.set(x + off.x, 6.2, z + off.z);
+  spot.target = group;
+  scene.add(spot);
+  scene.add(spot.target);
+  panelSpots.push(spot);
+  spot.userData.baseIntensity = spot.intensity;
+  spot.intensity *= panelBright;
+
+  return { group, canvas: hit, motif: app, app, z, cssObj, iframe, spot };
+}
+
+const hung = [];
+let portalApp = APPS[0];
+
+async function hangAll() {
+  const textures = await Promise.all(APPS.map((app) => (
+    app.live && app.embedUrl ? Promise.resolve(null) : resolveAppTexture(app)
+  )));
+  const byId = Object.fromEntries(APPS.map((a, i) => [a.id, { app: a, tex: textures[i] }]));
+
+  const leftIds = ['nestlight', 'oneshopbooks', 'barpal', 'carousel'];
+  const rightIds = ['fleiss', 'burn', 'homework-quest', 'song'];
+  const leftZ = [-3, -8, -13, -18];
+  const rightZ = [-4, -10, -16, -21];
+  const PANEL_W = 2.6;
+  const PANEL_H = 3.8;
+
+  function hangSide(app, tex, x, y, z, rotY) {
+    if (app.live && app.embedUrl) {
+      hung.push(hangLivePortal(app, x, y, z, rotY, PANEL_W, PANEL_H));
+    } else {
+      hung.push(hangPanel(app, tex, x, y, z, rotY, PANEL_W, PANEL_H));
+    }
+  }
+
+  leftIds.forEach((id, i) => {
+    const { app, tex } = byId[id];
+    hangSide(app, tex, -HALL_W / 2 + 0.12, 3.1, leftZ[i], Math.PI / 2);
+  });
+  rightIds.forEach((id, i) => {
+    const { app, tex } = byId[id];
+    hangSide(app, tex, HALL_W / 2 - 0.12, 3.1, rightZ[i], -Math.PI / 2);
+  });
+
+  portalApp = byId.noctuary.app;
+  hung.push(hangLivePortal(byId.noctuary.app, 0, 3.4, -HALL_L / 2 + 0.2, 0, 7.2, 4.4));
+  updateCaption(portalApp);
+  console.info('[corridor apps]', APPS.map((a) => ({ id: a.id, live: !!a.live, source: a._source, image: a.image })));
+}
+
+// Thin ceiling glow strip
+const ceil = new THREE.Mesh(
+  new THREE.PlaneGeometry(HALL_W * 0.7, HALL_L * 0.85),
+  new THREE.MeshBasicMaterial({ color: 0x12162a, transparent: true, opacity: 0.35 })
+);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.set(0, WALL_H - 0.05, -HALL_L / 2 + 4);
+scene.add(ceil);
+
+// Locomotion
+const move = { f: false, b: false, l: false, r: false };
+const velocity = new THREE.Vector3();
+let dragging = false;
+let lastX = 0, lastY = 0;
+let downX = 0, downY = 0;
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let nearest = portalApp;
+
+
+/* —— corridor ambient (procedural Web Audio; penguin.music art-dir vibe, no ripped tracks) —— */
+window.addEventListener('message', (ev) => {
+  const d = ev && ev.data;
+  if (!d || d.type !== 'corridor-song') return;
+  if (d.playing) {
+    if (musicOn && masterGain && audioCtx) {
+      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      masterGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+    }
+  } else if (musicOn && masterGain && audioCtx) {
+    masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(0.42, audioCtx.currentTime + 0.4);
+  }
+});
+
+const btnMusic = document.getElementById('btn-music');
+let audioCtx = null;
+let musicOn = false;
+let masterGain = null;
+let walkGain = null;
+let filterNode = null;
+let musicStarted = false;
+
+function buildCorridorBed(ctx) {
+  masterGain = ctx.createGain();
+  masterGain.gain.value = 0.0001;
+  walkGain = ctx.createGain();
+  walkGain.gain.value = 0.55;
+  filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'lowpass';
+  filterNode.frequency.value = 520;
+  filterNode.Q.value = 0.7;
+  walkGain.connect(filterNode);
+  filterNode.connect(masterGain);
+  masterGain.connect(ctx.destination);
+
+  const now = ctx.currentTime;
+  // soft detuned pad (A minor-ish night)
+  const padFreqs = [110, 164.81, 220, 261.63, 329.63];
+  padFreqs.forEach((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = i % 2 === 0 ? 'sine' : 'triangle';
+    o.frequency.value = f;
+    o.detune.value = (i - 2) * 6;
+    const g = ctx.createGain();
+    g.gain.value = 0.045 + (i === 0 ? 0.03 : 0);
+    o.connect(g);
+    g.connect(walkGain);
+    o.start(now);
+  });
+  // slow sub pulse
+  const sub = ctx.createOscillator();
+  sub.type = 'sine';
+  sub.frequency.value = 55;
+  const subG = ctx.createGain();
+  subG.gain.value = 0.07;
+  sub.connect(subG);
+  subG.connect(walkGain);
+  sub.start(now);
+  // high shimmer (very quiet)
+  const shim = ctx.createOscillator();
+  shim.type = 'sine';
+  shim.frequency.value = 880;
+  const shimG = ctx.createGain();
+  shimG.gain.value = 0.012;
+  shim.connect(shimG);
+  shimG.connect(walkGain);
+  shim.start(now);
+  // LFO → filter cutoff
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.07;
+  const lfoG = ctx.createGain();
+  lfoG.gain.value = 180;
+  lfo.connect(lfoG);
+  lfoG.connect(filterNode.frequency);
+  lfo.start(now);
+  // second slower LFO on master for breath
+  const breath = ctx.createOscillator();
+  breath.type = 'sine';
+  breath.frequency.value = 0.045;
+  const breathG = ctx.createGain();
+  breathG.gain.value = 0.018;
+  breath.connect(breathG);
+  // breath modulates via periodic script in frame — keep simple: connect to walkGain as side
+  const breathAdd = ctx.createGain();
+  breathAdd.gain.value = 0.02;
+  breath.connect(breathAdd);
+  breathAdd.connect(walkGain);
+  breath.start(now);
+}
+
+async function ensureMusic() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    buildCorridorBed(audioCtx);
+  }
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  musicStarted = true;
+}
+
+function setMusicEnabled(on) {
+  musicOn = on;
+  btnMusic.classList.toggle('on', on);
+  btnMusic.textContent = on ? 'Mute' : 'Music';
+  if (!masterGain || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  masterGain.gain.cancelScheduledValues(t);
+  masterGain.gain.setTargetAtTime(on ? 0.42 : 0.0001, t, 0.35);
+}
+
+btnMusic.addEventListener('click', async () => {
+  await ensureMusic();
+  setMusicEnabled(!musicOn);
+});
+
+const gate = document.getElementById('gate');
+const btnEnter = document.getElementById('btn-enter');
+const embedMode = params.has('embed');
+const fromDay = params.get('from') === 'day';
+
+function siblingQuery(extra = {}) {
+  const q = new URLSearchParams();
+  if (embedMode) q.set('embed', '1');
+  if (reduceMotion || params.has('still')) q.set('still', '1');
+  for (const [k, v] of Object.entries(extra)) q.set(k, v);
+  const s = q.toString();
+  return s ? '?' + s : '';
+}
+const DAY_HREF = './spatial-drill-corridor-day.html' + siblingQuery({ from: 'dark' });
+let dayPortalLock = false;
+function goDayWing() {
+  if (dayPortalLock) return;
+  dayPortalLock = true;
+  const mode = document.getElementById('h-mode');
+  if (mode) mode.textContent = 'day wing';
+  location.assign(DAY_HREF);
+}
+if (embedMode) document.body.classList.add('embed-quiet');
+let entered = reduceMotion || params.has('still') || embedMode || fromDay;
+if (entered) gate.classList.add('hide');
+if (embedMode) {
+  document.body.classList.add('embed');
+  // Behind unlock veil: skip gate, start in walk-ready still/live view
+  document.getElementById('h-mode').textContent = reduceMotion ? 'still' : 'walk';
+}
+if (fromDay && !params.has('still')) {
+  // Arrive near day doorway, facing into night hall
+  pos.set(HALL_W / 2 - 2.4, EYE, DAY_DOOR_Z);
+  yaw.value = -Math.PI / 2; // look toward center / left
+  pitch.value = -0.04;
+  document.getElementById('h-mode').textContent = 'walk';
+}
+btnEnter.addEventListener('click', () => {
+  entered = true;
+  gate.classList.add('hide');
+  ensureMusic().then(() => { if (!musicOn) setMusicEnabled(true); });
+  document.getElementById('h-mode').textContent = 'walk';
+});
+
+function updateCaption(m) {
+  nearest = m;
+  let tag = 'App';
+  if (m && m.id === 'noctuary') tag = 'Live front door';
+  else if (m && m.live) tag = 'Live demo';
+  document.getElementById('cap-tag').textContent = tag;
+  document.getElementById('cap-title').textContent = m.name;
+  document.getElementById('cap-body').textContent = m.blurb;
+}
+updateCaption(portalApp);
+hangAll();
+
+function applyCamera() {
+  camera.position.copy(pos);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw.value;
+  camera.rotation.x = pitch.value;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!entered && !reduceMotion) return;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = true;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = true;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = false;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = false;
+});
+
+// On-screen joystick → same move.f/b/l/r flags as WASD
+const mobilePad = document.getElementById('mobile-pad');
+const padKnob = document.getElementById('pad-knob');
+const PAD_MAX = 42;
+const PAD_DEAD = 14;
+let padPointerId = null;
+
+function clearPadMove() {
+  move.f = move.b = move.l = move.r = false;
+  if (padKnob) {
+    padKnob.style.transform = '';
+  }
+  mobilePad.classList.remove('active');
+}
+
+function applyPadVector(dx, dy) {
+  const dist = Math.hypot(dx, dy);
+  let ux = dx, uy = dy;
+  if (dist > PAD_MAX) {
+    ux = (dx / dist) * PAD_MAX;
+    uy = (dy / dist) * PAD_MAX;
+  }
+  if (padKnob) padKnob.style.transform = `translate(${ux}px, ${uy}px)`;
+  const active = dist >= PAD_DEAD;
+  move.f = active && uy < -PAD_DEAD * 0.45;
+  move.b = active && uy > PAD_DEAD * 0.45;
+  move.l = active && ux < -PAD_DEAD * 0.45;
+  move.r = active && ux > PAD_DEAD * 0.45;
+  if (active && entered) document.getElementById('h-mode').textContent = 'walk';
+}
+
+mobilePad.addEventListener('pointerdown', (e) => {
+  if (!entered && !reduceMotion) return;
+  e.preventDefault();
+  e.stopPropagation();
+  padPointerId = e.pointerId;
+  mobilePad.classList.add('active');
+  try { mobilePad.setPointerCapture(e.pointerId); } catch {}
+  const rect = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (rect.left + rect.width / 2), e.clientY - (rect.top + rect.height / 2));
+});
+mobilePad.addEventListener('pointermove', (e) => {
+  if (padPointerId !== e.pointerId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const rect = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (rect.left + rect.width / 2), e.clientY - (rect.top + rect.height / 2));
+});
+function endPad(e) {
+  if (padPointerId !== e.pointerId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  padPointerId = null;
+  try { mobilePad.releasePointerCapture(e.pointerId); } catch {}
+  clearPadMove();
+}
+mobilePad.addEventListener('pointerup', endPad);
+mobilePad.addEventListener('pointercancel', endPad);
+
+function openAppUrl(app) {
+  if (!app || !app.url) return;
+  const abs = new URL(app.url, location.href).href;
+  const mode = document.getElementById('h-mode');
+  if (mode) mode.textContent = 'open ' + (app.name || 'panel');
+  // Same-origin demos: navigate this tab (Safari often blocks window.open from raycast clicks).
+  // External apps: try a tab, then fall back to same-tab.
+  const sameOrigin = abs.startsWith(location.origin) || !/^https?:/i.test(app.url);
+  if (sameOrigin) {
+    location.assign(abs);
+    return;
+  }
+  let w = null;
+  try { w = window.open(abs, '_blank'); } catch (_) {}
+  if (!w) location.assign(abs);
+}
+
+stage.addEventListener('pointerdown', (e) => {
+  if (!entered && !reduceMotion) return;
+  dragging = true;
+  stage.classList.add('dragging');
+  lastX = e.clientX; lastY = e.clientY;
+  downX = e.clientX; downY = e.clientY;
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', (e) => {
+  if (!dragging || reduceMotion) return;
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  yaw.value -= dx * 0.0025;
+  pitch.value -= dy * 0.002;
+  pitch.value = Math.max(-1.1, Math.min(0.85, pitch.value));
+  document.getElementById('h-mode').textContent = 'look';
+});
+stage.addEventListener('pointerup', (e) => {
+  const dragDist = Math.hypot(e.clientX - downX, e.clientY - downY);
+  dragging = false;
+  stage.classList.remove('dragging');
+  try { stage.releasePointerCapture(e.pointerId); } catch {}
+  // Click (not drag): open panel site — only after gate entered
+  if (!entered || dragDist >= 6) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const targets = hung.map((h) => h.canvas).filter(Boolean);
+  if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
+  const hits = raycaster.intersectObjects(targets, false);
+  if (!hits.length) return;
+  const ud = hits[0].object.userData;
+  if (ud.portal === 'day') {
+    goDayWing();
+    return;
+  }
+  const app = ud.app;
+  if (app) openAppUrl(app);
+});
+
+
+function setRoomBrightness(level) {
+  panelBright = level;
+  for (const s of panelSpots) {
+    const base = s.userData.baseIntensity || 14;
+    s.intensity = base * level;
+  }
+  hemi.intensity = 0.85 * level;
+  fill.intensity = 24 * level;
+  winLight.intensity = 17 * level;
+  // fog: brighter room = thinner fog
+  scene.fog.density = 0.014 / Math.max(0.5, level);
+  const ids = { 0.75: 'btn-bright-dim', 1.0: 'btn-bright-mid', 1.15: 'btn-bright-hi' };
+  for (const [lv, id] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('on', Math.abs(Number(lv) - level) < 0.02);
+  }
+}
+document.getElementById('btn-bright-dim')?.addEventListener('click', () => setRoomBrightness(0.75));
+document.getElementById('btn-bright-mid')?.addEventListener('click', () => setRoomBrightness(1.0));
+document.getElementById('btn-bright-hi')?.addEventListener('click', () => setRoomBrightness(1.15));
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  pos.set(0, EYE, CAM_DIST);
+  yaw.value = 0;
+  pitch.value = -0.08;
+  velocity.set(0, 0, 0);
+  updateCaption(portalApp);
+  document.getElementById('h-mode').textContent = reduceMotion ? 'still' : 'idle';
+});
+
+function resize() {
+  const w = Math.max(1, stage.clientWidth || innerWidth);
+  const h = Math.max(1, stage.clientHeight || innerHeight);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  cssRenderer.setSize(w, h);
+}
+addEventListener('resize', resize);
+resize();
+
+const clock = new THREE.Clock();
+const forward = new THREE.Vector3();
+const right = new THREE.Vector3();
+
+function pickNearest() {
+  let best = portalApp;
+  let bestD = Infinity;
+  for (const h of hung) {
+    const d = Math.abs(h.z - pos.z) + Math.abs(h.group.position.x) * 0.15;
+    // prefer side panels when close in z
+    const lateral = Math.abs(pos.x - h.group.position.x);
+    const score = Math.hypot(h.z - pos.z, lateral * 0.35);
+    if (score < bestD) { bestD = score; best = h.motif; }
+  }
+  if (best !== nearest) updateCaption(best);
+}
+
+function frame() {
+  const dt = Math.min(0.05, clock.getDelta());
+  const t = clock.elapsedTime;
+
+  if (!reduceMotion && entered) {
+    forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
+    right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
+    const wish = new THREE.Vector3();
+    if (move.f) wish.add(forward);
+    if (move.b) wish.sub(forward);
+    if (move.l) wish.sub(right);
+    if (move.r) wish.add(right);
+    if (wish.lengthSq() > 0) {
+      wish.normalize().multiplyScalar(9.5);
+      velocity.x += (wish.x - velocity.x) * Math.min(1, 8 * dt);
+      velocity.z += (wish.z - velocity.z) * Math.min(1, 8 * dt);
+      document.getElementById('h-mode').textContent = 'walk';
+    } else {
+      velocity.x *= Math.pow(0.88, dt * 60);
+      velocity.z *= Math.pow(0.88, dt * 60);
+    }
+    pos.x += velocity.x * dt;
+    pos.z += velocity.z * dt;
+    // corridor clamps
+    let limX = HALL_W / 2 - 1.1;
+    // Allow a step into the day aperture alcove
+    if (Math.abs(pos.z - DAY_DOOR_Z) < DAY_DOOR_W * 0.7) limX = HALL_W / 2 - 0.55;
+    const limZNear = CAM_DIST + 1.5;
+    const limZFar = -HALL_L / 2 + 2.2;
+    pos.x = Math.max(-limX, Math.min(limX, pos.x));
+    pos.z = Math.max(limZFar, Math.min(limZNear, pos.z));
+    pos.y = EYE;
+    // Day wing: walk into luminous right-wall aperture
+    if (pos.x > HALL_W / 2 - 1.35 && Math.abs(pos.z - DAY_DOOR_Z) < DAY_DOOR_W * 0.55) {
+      goDayWing();
+    }
+    pickNearest();
+    if (typeof daySpill !== 'undefined') {
+      daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
+    }
+    key.intensity = (1.35 * panelBright) + Math.sin(t * 0.7) * 0.1;
+    portalGlow.intensity = (28 * panelBright) + Math.sin(t * 1.1) * 4;
+    if (musicOn && walkGain && audioCtx) {
+      const spd = Math.hypot(velocity.x, velocity.z);
+      const target = 0.48 + Math.min(0.28, spd * 0.04);
+      const g = walkGain.gain;
+      const now = audioCtx.currentTime;
+      g.setTargetAtTime(target, now, 0.12);
+    }
+  } else {
+    // still / not entered: generous composed view
+    pos.set(0, EYE + 0.35, CAM_DIST);
+    yaw.value = 0;
+    pitch.value = -0.06;
+  }
+
+  applyCamera();
+  renderer.render(scene, camera);
+  cssRenderer.render(cssScene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if (params.has('still')) {
+  entered = true;
+  gate.classList.add('hide');
+  pos.set(0, EYE + 0.45, CAM_DIST);
+  yaw.value = 0;
+  pitch.value = -0.05;
+  updateCaption(portalApp);
+  document.getElementById('h-mode').textContent = 'still';
+  document.getElementById('h-motion').textContent = 'still';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>A Song with a Hole in It</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #05060a; --paper: #f2ebe0; --mute: rgba(242,235,224,0.55);
+    --line: rgba(242,235,224,0.18); --accent: #f0c24b; --violet: #8a7bb8;
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); font-family: var(--font-sans); }
+  body {
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 28px 24px 32px;
+    background:
+      radial-gradient(70% 50% at 50% 30%, rgba(138,123,184,0.22), transparent 70%),
+      radial-gradient(50% 40% at 70% 70%, rgba(240,194,75,0.08), transparent 65%),
+      var(--ink);
+  }
+  .lab { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--violet); margin: 0 0 10px; }
+  h1 { margin: 0; font-family: var(--font-display); font-weight: 650; font-size: clamp(1.6rem, 5vw, 2.4rem); letter-spacing: -0.03em; line-height: 1.05; }
+  .credit { margin: 12px 0 0; color: var(--mute); font-size: 13px; line-height: 1.45; max-width: 36ch; }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
+  button {
+    appearance: none; border: 1px solid rgba(240,194,75,0.45); background: rgba(240,194,75,0.12);
+    color: var(--accent); border-radius: 999px; padding: 12px 18px; font: inherit;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer;
+  }
+  button:hover, button.on { background: rgba(240,194,75,0.22); }
+  .time { font-family: var(--font-mono); font-size: 11px; color: var(--mute); letter-spacing: 0.06em; }
+  audio { display: none; }
+  .bar {
+    margin-top: 16px; height: 3px; border-radius: 999px; background: rgba(242,235,224,0.12); overflow: hidden;
+  }
+  .bar > i { display: block; height: 100%; width: 0%; background: var(--accent); }
+  body.embed { padding: 20px 18px 24px; }
+</style>
+</head>
+<body>
+  <p class="lab">Corridor · listen</p>
+  <h1>A Song with a Hole in It</h1>
+  <p class="credit">Virgil Renfroe · AI-assisted</p>
+  <div class="row">
+    <button type="button" id="btn" aria-pressed="false">Play</button>
+    <span class="time" id="time">0:00 / 0:00</span>
+  </div>
+  <div class="bar" aria-hidden="true"><i id="fill"></i></div>
+  <audio id="audio" preload="metadata" src="./demo-assets/audio/corridor-song.mp3"></audio>
+  <script>
+    if (new URLSearchParams(location.search).has('embed')) document.body.classList.add('embed');
+    const audio = document.getElementById('audio');
+    const btn = document.getElementById('btn');
+    const time = document.getElementById('time');
+    const fill = document.getElementById('fill');
+    const fmt = (s) => {
+      if (!Number.isFinite(s)) return '0:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ':' + String(sec).padStart(2, '0');
+    };
+    function sync() {
+      const d = audio.duration || 0;
+      const t = audio.currentTime || 0;
+      time.textContent = fmt(t) + ' / ' + fmt(d);
+      fill.style.width = (d ? (t / d) * 100 : 0) + '%';
+      btn.textContent = audio.paused ? 'Play' : 'Pause';
+      btn.classList.toggle('on', !audio.paused);
+      btn.setAttribute('aria-pressed', audio.paused ? 'false' : 'true');
+    }
+    btn.addEventListener('click', async () => {
+      try {
+        if (audio.paused) {
+          await audio.play();
+          try { parent.postMessage({ type: 'corridor-song', playing: true }, '*'); } catch (_) {}
+        } else {
+          audio.pause();
+          try { parent.postMessage({ type: 'corridor-song', playing: false }, '*'); } catch (_) {}
+        }
+      } catch (e) { console.warn(e); }
+      sync();
+    });
+    audio.addEventListener('timeupdate', sync);
+    audio.addEventListener('loadedmetadata', sync);
+    audio.addEventListener('ended', () => {
+      try { parent.postMessage({ type: 'corridor-song', playing: false }, '*'); } catch (_) {}
+      sync();
+    });
+    sync();
+  </script>
+</body>
+</html>

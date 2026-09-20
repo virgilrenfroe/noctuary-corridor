@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Noctuary — spatial drill · burn</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #05060a;
+    --paper: #f2ebe0;
+    --mute: rgba(242,235,224,0.62);
+    --line: rgba(242,235,224,0.18);
+    --accent: #f0c24b;
+    --violet: #8a7bb8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper);
+    font-family: var(--font-sans); }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(5,6,10,0.45); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(5,6,10,0.5);
+    color: var(--paper); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+  .pill:hover { border-color: rgba(242,235,224,0.45); background: rgba(20,24,36,0.72); }
+  .pill.on { border-color: rgba(240,194,75,0.55); color: var(--accent); }
+  .pill.tech {
+    cursor: default; letter-spacing: 0.1em;
+    border-color: rgba(138,123,184,0.35); color: rgba(242,235,224,0.85);
+  }
+  .hero {
+    position: absolute; left: 6vw; top: 16vh; max-width: min(720px, 84vw);
+  }
+  .hero .stack {
+    font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 650; line-height: 0.92; letter-spacing: -0.03em;
+    font-size: clamp(3.2rem, 9vw, 7rem); margin: 0;
+  }
+  .hero .stack span { display: block; color: rgba(242,235,224,0.28); }
+  .hero .stack span.focus { color: var(--paper); }
+  .hero p { margin: 18px 0 0; max-width: 40ch; color: var(--mute); font-size: 15px; line-height: 1.5; }
+  .note {
+    position: absolute; left: 18px; bottom: 18px; font-size: 11px;
+    opacity: 0.45; max-width: 360px; line-height: 1.45;
+  }
+  .hud {
+    position: absolute; right: 18px; bottom: 18px;
+    min-width: 158px; padding: 14px 16px; border-radius: 14px;
+    border: 1px solid var(--line); background: rgba(5,6,10,0.55);
+    backdrop-filter: blur(14px); font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 0.06em; line-height: 1.65;
+  }
+  .hud .row { display: flex; justify-content: space-between; gap: 16px; color: var(--mute); }
+  .hud .row strong { color: var(--paper); font-weight: 400; }
+  .hud .label {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Noctuary · drill</div>
+      <div class="pills">
+        <div class="pill tech" title="Technique">Burn · ember</div>
+        <button class="pill on" id="btnBurn" type="button">Burn</button>
+        <button class="pill" id="btnHeal" type="button">Heal</button>
+        <button class="pill" id="btnReignite" type="button">Reignite</button>
+        <button class="pill" id="btnClear" type="button">Clear</button>
+      </div>
+    </div>
+    <div class="hero">
+      <h1 class="stack"><span class="focus">Burn</span><span>shader</span></h1>
+      <p>Pointer is an ember — dual-band white-hot + orange rim, papery noise stamps, velocity-aware char, ash flecks. Heat, not a clean mask wipe.</p>
+    </div>
+    <p class="note">Local drill · burn / ember shader interactions · technique transfer · distinct from mask tear · not live</p>
+    <div class="hud">
+      <div class="label">Heat</div>
+      <div class="row"><span>mode</span><strong id="h-mode">burn</strong></div>
+      <div class="row"><span>embers</span><strong id="h-embers">0</strong></div>
+      <div class="row"><span>char</span><strong id="h-char">0%</strong></div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js"}}
+  </script>
+  <script type="module">
+import * as THREE from 'three';
+
+const params = new URLSearchParams(location.search);
+const embed = params.has('embed');
+const still = params.get('still') === '1';
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || still;
+if (embed) document.body.classList.add('embed');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.autoClear = false;
+document.body.appendChild(renderer.domElement);
+
+const clock = new THREE.Clock();
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+const scale = Math.min(devicePixelRatio, 2);
+let rw = Math.max(2, Math.floor(innerWidth * scale));
+let rh = Math.max(2, Math.floor(innerHeight * scale));
+
+let burnRT = new THREE.WebGLRenderTarget(rw, rh, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
+  depthBuffer: false, stencilBuffer: false,
+});
+let burnRTB = burnRT.clone();
+
+const stampScene = new THREE.Scene();
+const stampCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+
+/* Noise-warped papery disk stamp (not a perfect circle) */
+const stampMat = new THREE.ShaderMaterial({
+  transparent: true, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendSrc: THREE.SrcAlphaFactor,
+  blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.OneFactor,
+  blendDstAlpha: THREE.OneFactor,
+  uniforms: {
+    uStrength: { value: 0.35 },
+    uSeed: { value: 0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    precision highp float;
+    uniform float uStrength, uSeed;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+      vec2 i=floor(p), f=fract(p);
+      float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+      vec2 u=f*f*(3.-2.*f);
+      return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+    }
+    void main(){
+      vec2 p=vUv*2.-1.;
+      float n = noise(p*3.5 + uSeed);
+      float d = length(p) + (n - 0.5) * 0.25;
+      float core=1.-smoothstep(0.04,0.5,d);
+      float halo=1.-smoothstep(0.15,1.0,d);
+      float a=max(core*0.92, halo*0.32)*uStrength;
+      gl_FragColor=vec4(a,a*0.55,a*0.18,a);
+    }`,
+});
+const stampMesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), stampMat);
+stampScene.add(stampMesh);
+
+const healMat = new THREE.ShaderMaterial({
+  transparent: true, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendSrc: THREE.ZeroFactor,
+  blendDst: THREE.OneMinusSrcAlphaFactor,
+  uniforms: { uStrength: { value: 0.4 }, uSeed: { value: 0 } },
+  vertexShader: stampMat.vertexShader,
+  fragmentShader: `
+    precision highp float; uniform float uStrength, uSeed; varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+      vec2 i=floor(p), f=fract(p);
+      float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+      vec2 u=f*f*(3.-2.*f);
+      return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+    }
+    void main(){
+      vec2 p=vUv*2.-1.;
+      float d=length(p)+(noise(p*3.+uSeed)-0.5)*0.2;
+      float a=(1.-smoothstep(0.08,1.0,d))*uStrength;
+      gl_FragColor=vec4(0.,0.,0.,a);
+    }`,
+});
+const healMesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), healMat);
+
+const persistMat = new THREE.ShaderMaterial({
+  depthTest:false, depthWrite:false,
+  uniforms: { uTex: { value: null }, uFade: { value: 1 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
+  fragmentShader: `precision highp float; uniform sampler2D uTex; uniform float uFade; varying vec2 vUv;
+    void main(){ gl_FragColor = texture2D(uTex,vUv)*uFade; }`,
+});
+const persistScene = new THREE.Scene();
+persistScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), persistMat));
+
+/* Dual-band ember display: narrow white-hot core + wide orange outer */
+const displayMat = new THREE.ShaderMaterial({
+  depthTest:false, depthWrite:false,
+  uniforms: {
+    uBurn: { value: null },
+    uTime: { value: 0 },
+    uAmp: { value: reduceMotion ? 0 : 1 },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
+    uStill: { value: reduceMotion ? 1 : 0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }`,
+  fragmentShader: `
+    precision highp float;
+    uniform sampler2D uBurn;
+    uniform float uTime, uAmp, uStill;
+    uniform vec2 uRes;
+    varying vec2 vUv;
+
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+      vec2 i=floor(p), f=fract(p);
+      float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+      vec2 u=f*f*(3.-2.*f);
+      return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+    }
+    float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p=p*2.03+vec2(1.7,9.2); a*=.5;} return v; }
+
+    void main(){
+      vec2 uv=vUv;
+      float aspect=uRes.x/max(uRes.y,1.);
+      vec2 p=(uv-.5)*vec2(aspect,1.);
+      float t=uTime*uAmp;
+
+      float n=fbm(p*2.4+vec2(t*.03,-t*.02));
+      float fiber=fbm(p*vec2(14.,3.)+n);
+      vec3 ink=vec3(0.02,0.023,0.039);
+      vec3 paper=vec3(0.95,0.92,0.88);
+      vec3 viol=vec3(0.54,0.48,0.72);
+      vec3 field=mix(ink, viol, 0.08+n*0.18);
+      field=mix(field, paper*0.15, fiber*0.12);
+      float vig=smoothstep(1.2,0.25,length(p));
+      field*=0.55+0.45*vig;
+
+      float burn=texture2D(uBurn, uv).r;
+      if (uStill > 0.5) {
+        float oval = 1. - smoothstep(0.18, 0.42, length((uv-vec2(0.55,0.48))*vec2(1.15,1.0)));
+        burn = max(burn, oval*0.92);
+      }
+
+      float edgeNoise = fbm(p*8. + t*0.8) * 0.1;
+      float b = burn + edgeNoise;
+      float charAmt = smoothstep(0.08, 0.78, b);
+
+      // Dual-band rim (Moonjump): narrow white-hot + wide orange, sharpened falloff
+      float band = smoothstep(0.12, 0.38, b) * (1.0 - smoothstep(0.42, 0.88, b));
+      float coreW = 1.0 - smoothstep(0.0, 0.09, abs(b - 0.42));
+      float outerW = band * (1.0 - coreW * 0.55);
+      float flicker = 0.78 + 0.22 * sin(t*18. + noise(p*30.)*6.);
+      vec3 emberCore = vec3(1.0, 0.95, 0.7);
+      vec3 emberOuter = vec3(1.0, 0.35, 0.05);
+      vec3 ember = emberOuter * outerW * 1.35 + emberCore * coreW * 1.55;
+      ember *= flicker * (1.15 + 0.7*uAmp);
+
+      vec3 charCol = mix(vec3(0.08,0.06,0.05), vec3(0.02,0.02,0.02), charAmt);
+      charCol += vec3(0.12,0.08,0.05) * noise(p*20.) * charAmt;
+
+      vec3 hole = ink * 0.4 + viol * 0.06 * (1.-charAmt);
+      vec3 burned = mix(field, mix(charCol, hole, smoothstep(0.55,0.95,charAmt)), charAmt);
+      burned += ember;
+
+      float ash = step(0.93, hash(floor(uv*vec2(90.,70.)+t*2.))) * band;
+      burned += vec3(0.7,0.65,0.55) * ash * 0.5;
+
+      gl_FragColor = vec4(burned, 1.0);
+    }`,
+});
+displayMat.uniforms.uBurn.value = burnRT.texture;
+const displayScene = new THREE.Scene();
+displayScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), displayMat));
+
+const softScene = new THREE.Scene();
+const softCam = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 20);
+softCam.position.set(0,0,5);
+const hemi = new THREE.HemisphereLight(0x8a7bb8, 0x05060a, 0.3);
+const key = new THREE.PointLight(0xff6a1a, 0.8, 12);
+key.position.set(2,2,3);
+softScene.add(hemi, key);
+const emberOrb = new THREE.Mesh(
+  new THREE.SphereGeometry(0.08, 12, 12),
+  new THREE.MeshStandardMaterial({ color:0xff6a1a, emissive:0xff4a00, emissiveIntensity:1.2, roughness:0.4 })
+);
+emberOrb.visible = false;
+softScene.add(emberOrb);
+
+/* Ash Points — short-lived CPU particles near stamps */
+const ASH_MAX = 120;
+const ashPositions = new Float32Array(ASH_MAX * 3);
+const ashLife = new Float32Array(ASH_MAX);
+const ashGeo = new THREE.BufferGeometry();
+ashGeo.setAttribute('position', new THREE.BufferAttribute(ashPositions, 3));
+const ashMat = new THREE.PointsMaterial({
+  color: 0xc8b8a0, size: 0.045, transparent: true, opacity: 0.75,
+  depthWrite: false, sizeAttenuation: true,
+});
+const ashPoints = new THREE.Points(ashGeo, ashMat);
+ashPoints.frustumCulled = false;
+softScene.add(ashPoints);
+let ashHead = 0;
+
+function spawnAsh(nx, ny, count){
+  if (reduceMotion) return;
+  const n = Math.min(count, 40);
+  for (let i=0;i<n;i++){
+    const idx = ashHead % ASH_MAX;
+    ashHead++;
+    const j = idx * 3;
+    const jx = (nx - 0.5) * 4 + (Math.random()-0.5)*0.35;
+    const jy = (0.5 - ny) * 2.4 + (Math.random()-0.5)*0.25;
+    ashPositions[j] = jx;
+    ashPositions[j+1] = jy;
+    ashPositions[j+2] = (Math.random()-0.5)*0.2;
+    ashLife[idx] = 0.35 + Math.random()*0.55;
+  }
+  ashGeo.attributes.position.needsUpdate = true;
+}
+
+function updateAsh(dt){
+  if (reduceMotion) return;
+  let any = false;
+  for (let i=0;i<ASH_MAX;i++){
+    if (ashLife[i] <= 0) continue;
+    any = true;
+    ashLife[i] -= dt;
+    const j = i*3;
+    ashPositions[j+1] += dt * (0.35 + (i%5)*0.05);
+    ashPositions[j] += Math.sin(i + clock.elapsedTime*3) * dt * 0.08;
+    if (ashLife[i] <= 0) {
+      ashPositions[j] = ashPositions[j+1] = ashPositions[j+2] = 0;
+    }
+  }
+  if (any) ashGeo.attributes.position.needsUpdate = true;
+  ashMat.opacity = any ? 0.7 : 0;
+}
+
+const hMode = document.getElementById('h-mode');
+const hEmbers = document.getElementById('h-embers');
+const hChar = document.getElementById('h-char');
+const btnBurn = document.getElementById('btnBurn');
+const btnHeal = document.getElementById('btnHeal');
+const btnReignite = document.getElementById('btnReignite');
+const btnClear = document.getElementById('btnClear');
+
+let mode = 'burn';
+let painting = false;
+let lastX=0, lastY=0, lastT=0, stampCount=0;
+let coverageEst = 0; // running stamp-area coverage estimate (0..1)
+
+function clearBurn(){
+  const prev = renderer.getClearColor(new THREE.Color());
+  const pa = renderer.getClearAlpha();
+  renderer.setRenderTarget(burnRT);
+  renderer.setClearColor(0x000000, 0);
+  renderer.clear(true,true,true);
+  renderer.setRenderTarget(burnRTB);
+  renderer.clear(true,true,true);
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(prev, pa);
+  stampCount = 0;
+  coverageEst = 0;
+  hEmbers.textContent = '0';
+  hChar.textContent = '0%';
+  for (let i=0;i<ASH_MAX;i++){ ashLife[i]=0; ashPositions[i*3]=ashPositions[i*3+1]=ashPositions[i*3+2]=0; }
+  ashGeo.attributes.position.needsUpdate = true;
+}
+
+function stampAt(nx, ny, radiusPx, heal, strengthMul){
+  const sx = (4 * radiusPx * scale) / rw;
+  const sy = (4 * radiusPx * scale) / rh;
+  const mesh = heal ? healMesh : stampMesh;
+  stampScene.clear();
+  stampScene.add(mesh);
+  mesh.scale.set(sx, sy, 1);
+  mesh.position.set(nx*2-1, 1-ny*2, 0);
+  const seed = (nx * 17.3 + ny * 31.7 + stampCount * 0.13) % 50;
+  if (!heal) {
+    const base = mode === 'reignite' ? 0.55 : 0.32;
+    stampMat.uniforms.uStrength.value = base * (strengthMul ?? 1);
+    stampMat.uniforms.uSeed.value = seed;
+  } else {
+    healMat.uniforms.uStrength.value = 0.45 * (strengthMul ?? 1);
+    healMat.uniforms.uSeed.value = seed;
+  }
+
+  renderer.setRenderTarget(burnRT);
+  renderer.render(stampScene, stampCam);
+  renderer.setRenderTarget(null);
+  stampCount++;
+  hEmbers.textContent = String(stampCount);
+
+  // Coverage estimate from stamp area (overlap-damped, better than stampCount/8)
+  if (!heal) {
+    const areaFrac = Math.PI * (radiusPx/innerWidth) * (radiusPx/innerHeight) * 4;
+    const gain = Math.min(0.045, areaFrac * 2.2) * (strengthMul ?? 1);
+    coverageEst = Math.min(0.99, coverageEst + gain * (1 - coverageEst * 0.85));
+  } else {
+    const areaFrac = Math.PI * (radiusPx/innerWidth) * (radiusPx/innerHeight) * 4;
+    coverageEst = Math.max(0, coverageEst - areaFrac * 1.8);
+  }
+  hChar.textContent = Math.round(coverageEst * 100) + '%';
+}
+
+function setMode(m){
+  mode = m;
+  hMode.textContent = m;
+  btnBurn.classList.toggle('on', m==='burn');
+  btnHeal.classList.toggle('on', m==='heal');
+  btnReignite.classList.toggle('on', m==='reignite');
+}
+btnBurn.addEventListener('click', ()=>setMode('burn'));
+btnHeal.addEventListener('click', ()=>setMode('heal'));
+btnReignite.addEventListener('click', ()=>setMode('reignite'));
+btnClear.addEventListener('click', ()=>{
+  clearBurn();
+  if (reduceMotion) seedStill();
+});
+
+function clientUV(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/r.width, y:(e.clientY-r.top)/r.height, t: performance.now() };
+}
+
+function paintSeg(x0,y0,x1,y1, t0, t1){
+  const dx=x1-x0, dy=y1-y0;
+  const distPx = Math.hypot(dx*innerWidth, dy*innerHeight);
+  const dtMs = Math.max(1, (t1||performance.now()) - (t0||performance.now()-16));
+  const vel = distPx / dtMs; // px/ms
+  // Slow drag → deeper char; fast drag → thinner trail
+  const strengthMul = mode === 'heal'
+    ? 1
+    : THREE.MathUtils.clamp(1.35 - vel * 0.55, 0.45, 1.4);
+  const radiusScale = mode === 'heal' ? 1 : THREE.MathUtils.clamp(1.15 - vel * 0.35, 0.55, 1.2);
+
+  const step = mode==='heal' ? 16 : 10;
+  const n = Math.max(1, Math.ceil(distPx/step));
+  const radius = (mode==='reignite' ? 56 : mode==='heal' ? 70 : 48) * radiusScale;
+  for (let i=0;i<=n;i++){
+    const t=i/n;
+    stampAt(x0+dx*t, y0+dy*t, radius, mode==='heal', strengthMul);
+  }
+  if (mode !== 'heal' && !reduceMotion && Math.random() < 0.55) {
+    spawnAsh(x1, y1, 28 + Math.floor(Math.random()*14));
+  }
+}
+
+function onDown(e){
+  if (reduceMotion) return;
+  autoPlay = false;
+  painting = true;
+  renderer.domElement.setPointerCapture(e.pointerId);
+  const p = clientUV(e);
+  lastX=p.x; lastY=p.y; lastT=p.t;
+  paintSeg(p.x,p.y,p.x,p.y, p.t, p.t);
+  emberOrb.visible = mode !== 'heal';
+}
+function onMove(e){
+  if (!painting || reduceMotion) return;
+  const p = clientUV(e);
+  paintSeg(lastX,lastY,p.x,p.y, lastT, p.t);
+  lastX=p.x; lastY=p.y; lastT=p.t;
+  emberOrb.position.set((p.x-0.5)*4, (0.5-p.y)*2.4, 0);
+}
+function onUp(e){
+  painting=false;
+  emberOrb.visible=false;
+  try{ renderer.domElement.releasePointerCapture(e.pointerId);}catch(_){}
+}
+renderer.domElement.addEventListener('pointerdown', onDown);
+renderer.domElement.addEventListener('pointermove', onMove);
+renderer.domElement.addEventListener('pointerup', onUp);
+renderer.domElement.addEventListener('pointercancel', onUp);
+
+function seedStill(){
+  stampAt(0.55, 0.48, Math.min(innerWidth,innerHeight)*0.18, false, 1);
+  stampAt(0.52, 0.52, Math.min(innerWidth,innerHeight)*0.1, false, 1);
+  coverageEst = 0.62;
+  hChar.textContent = '62%';
+}
+
+function onResize(){
+  renderer.setSize(innerWidth, innerHeight);
+  softCam.aspect = innerWidth/innerHeight;
+  softCam.updateProjectionMatrix();
+  rw = Math.max(2, Math.floor(innerWidth*scale));
+  rh = Math.max(2, Math.floor(innerHeight*scale));
+  burnRT.setSize(rw,rh);
+  burnRTB.setSize(rw,rh);
+  displayMat.uniforms.uRes.value.set(innerWidth,innerHeight);
+  clearBurn();
+  if (reduceMotion) seedStill();
+}
+addEventListener('resize', onResize);
+
+clearBurn();
+if (reduceMotion) {
+  seedStill();
+  hMode.textContent = 'still';
+} else {
+  stampAt(0.62, 0.45, 40, false, 1);
+  stampAt(0.64, 0.48, 28, false, 1);
+  spawnAsh(0.63, 0.46, 20);
+}
+
+
+/* Corridor embed: scripted heat trail so the panel stays alive without pointer */
+let autoPlay = embed && !reduceMotion;
+let autoT = 0;
+function autoBurn(dt) {
+  if (!autoPlay) return;
+  autoT += dt;
+  const w = innerWidth, h = innerHeight;
+  // slow looping figure-eight / circle path across the paper
+  const u = (autoT * 0.22) % (Math.PI * 2);
+  const cx = 0.50 + Math.cos(u) * 0.22;
+  const cy = 0.48 + Math.sin(u * 2) * 0.16;
+  const px = cx * w, py = cy * h;
+  if (!autoBurn._has) {
+    autoBurn._has = true;
+    autoBurn.lx = px; autoBurn.ly = py; autoBurn.lt = performance.now();
+    return;
+  }
+  paintSeg(autoBurn.lx, autoBurn.ly, px, py, autoBurn.lt, performance.now());
+  autoBurn.lx = px; autoBurn.ly = py; autoBurn.lt = performance.now();
+  // gentle heal pulse so the field never goes fully black/charred solid
+  if (Math.sin(autoT * 0.4) > 0.92) {
+    stampAt(0.5 + Math.sin(autoT) * 0.1, 0.5, Math.min(w, h) * 0.12, true, 0.35);
+  }
+}
+
+let raf=0;
+function frame(){
+  raf = requestAnimationFrame(frame);
+  const dt = clock.getDelta();
+  const t = reduceMotion ? 0 : clock.getElapsedTime();
+  displayMat.uniforms.uTime.value = t;
+  displayMat.uniforms.uBurn.value = burnRT.texture;
+  updateAsh(dt);
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(0x05060a, 1);
+  renderer.clear();
+  renderer.render(displayScene, ortho);
+  renderer.clearDepth();
+  renderer.render(softScene, softCam);
+}
+raf = requestAnimationFrame(frame);
+
+addEventListener('pagehide', ()=>{
+  cancelAnimationFrame(raf);
+  stampMat.dispose(); healMat.dispose(); persistMat.dispose(); displayMat.dispose();
+  ashGeo.dispose(); ashMat.dispose();
+  emberOrb.geometry.dispose(); emberOrb.material.dispose();
+  burnRT.dispose(); burnRTB.dispose();
+  renderer.dispose();
+});
+  </script>
+</body>
+</html>
