@@ -152,7 +152,7 @@
 </style>
 </head>
 <body>
-  <iframe id="corridorBehind" title="Portfolio corridor" src="./spatial-drill-samuclima-beyond.html?embed=1&v=circle1" loading="eager" referrerpolicy="no-referrer" allow="autoplay"></iframe>
+  <iframe id="corridorBehind" title="Portfolio corridor" src="./spatial-drill-samuclima-beyond.html?embed=1&v=nogate2" loading="eager" referrerpolicy="no-referrer" allow="autoplay"></iframe>
   <div class="layer">
     <div class="topbar">
       <div class="brand">Noctuary · drill</div>
@@ -240,7 +240,7 @@ renderer.domElement.classList.add('webgl-veil');
 document.body.prepend(renderer.domElement);
 
 const corridorFrame = document.getElementById('corridorBehind');
-const CORRIDOR_URL = './spatial-drill-samuclima-beyond.html?embed=1&v=circle1';
+const CORRIDOR_URL = './spatial-drill-samuclima-beyond.html?embed=1&v=nogate2';
 if (corridorFrame) {
   corridorFrame.src = CORRIDOR_URL + (reduceMotion ? '&still=1' : '');
 }
@@ -335,7 +335,7 @@ const veilFS = /* glsl */`
     float mistA = (0.42 + 0.08*n) * smoothstep(1.35, 0.18, length(p)*1.05);
     // Simple whole-veil fade — no expanding fire front
     float fade = 1.0 - smoothstep(0.0, 1.0, uDissolve);
-    float veilAlpha = clamp(mistA * fade, 0.0, 0.55);
+    float veilAlpha = clamp(mistA * fade, 0.0, 0.88);
     gl_FragColor = vec4(mist, veilAlpha);
   }
 `;
