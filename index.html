@@ -152,7 +152,7 @@
 </style>
 </head>
 <body>
-  <iframe id="corridorBehind" title="Portfolio corridor" src="./spatial-drill-samuclima-beyond.html?embed=1&v=nogate2" loading="eager" referrerpolicy="no-referrer" allow="autoplay"></iframe>
+  <iframe id="corridorBehind" title="Portfolio corridor" src="./spatial-drill-samuclima-beyond.html?embed=1&v=back1" loading="eager" referrerpolicy="no-referrer" allow="autoplay"></iframe>
   <div class="layer">
     <div class="topbar">
       <div class="brand">Noctuary · drill</div>
@@ -240,7 +240,7 @@ renderer.domElement.classList.add('webgl-veil');
 document.body.prepend(renderer.domElement);
 
 const corridorFrame = document.getElementById('corridorBehind');
-const CORRIDOR_URL = './spatial-drill-samuclima-beyond.html?embed=1&v=nogate2';
+const CORRIDOR_URL = './spatial-drill-samuclima-beyond.html?embed=1&v=back1';
 if (corridorFrame) {
   corridorFrame.src = CORRIDOR_URL + (reduceMotion ? '&still=1' : '');
 }

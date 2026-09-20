@@ -334,6 +334,7 @@ const APPS = [
   { id: 'noctuary', name: 'Noctuary', blurb: 'Plays live on the end screen — walk the hall to see the city move.', accent: '#8a7bb8',
     url: FRONT_DOOR_BASE,
     embedUrl: FRONT_DOOR_EMBED,
+    live: true,
     candidates: ['jpg/noctuary.jpg', 'noctuary.png', 'noctuary-og.png'] },
   { id: 'nestlight', name: 'NestLight', blurb: 'Live nestlight-packs on this panel — Enter gate.', accent: '#e8a87c',
     url: 'https://nestlight-packs.up.railway.app/',
@@ -422,7 +423,10 @@ scene.add(key);
 const fill = new THREE.PointLight(0xa898d0, 28, 48);
 fill.position.set(-3, 4, 6);
 scene.add(fill);
-/* end-wall Noctuary portal removed — glow parked */
+const portalGlow = new THREE.PointLight(0xf0c24b, 32, 34);
+portalGlow.position.set(0, 3.2, -HALL_L / 2 + 2);
+scene.add(portalGlow);
+
 
 // —— Day wing threshold (luminous aperture on right wall, far half) ——
 const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
@@ -455,13 +459,13 @@ dayRim.rotation.y = -Math.PI / 2;
 dayRim.position.set(-0.1, 0, 0);
 dayDoorGroup.add(dayRim);
 dayDoorGroup.position.set(HALL_W / 2 - 0.08, DAY_DOOR_H / 2 + 0.2, DAY_DOOR_Z);
-scene.add(dayDoorGroup);
+/* day wing portal removed */ // scene.add(dayDoorGroup);
 const daySpill = new THREE.PointLight(0xfff4e4, 42, 22);
 daySpill.position.set(HALL_W / 2 - 1.6, 3.4, DAY_DOOR_Z);
-scene.add(daySpill);
+/* daySpill parked */
 const daySkyFill = new THREE.PointLight(0xc9d6ea, 16, 18);
 daySkyFill.position.set(HALL_W / 2 - 2.2, 5.2, DAY_DOOR_Z);
-scene.add(daySkyFill);
+/* daySkyFill parked */
 
 // Architecture
 const floorMat = new THREE.MeshStandardMaterial({
@@ -730,8 +734,8 @@ async function hangAll() {
     hangSide(app, tex, HALL_W / 2 - 0.12, 3.1, rightZ[i], -Math.PI / 2);
   });
 
-  // End-wall Noctuary portal removed for now — default caption to first left panel
-  portalApp = (byId.nestlight && byId.nestlight.app) || APPS.find((a) => a.id !== 'noctuary') || APPS[0];
+  portalApp = byId.noctuary.app;
+  hung.push(hangLivePortal(byId.noctuary.app, 0, 3.4, -HALL_L / 2 + 0.2, 0, 7.2, 4.4));
   updateCaption(portalApp);
   console.info('[corridor apps]', APPS.map((a) => ({ id: a.id, live: !!a.live, source: a._source, image: a.image })));
 }
@@ -1055,7 +1059,8 @@ stage.addEventListener('pointerup', (e) => {
   pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNDC, camera);
   const targets = hung.map((h) => h.canvas).filter(Boolean);
-  if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
+  // day wing portal removed — do not raycast
+  // if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
   const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) return;
   const ud = hits[0].object.userData;
@@ -1167,6 +1172,7 @@ function frame() {
       daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
     }
     key.intensity = (1.35 * panelBright) + Math.sin(t * 0.7) * 0.1;
+    if (typeof portalGlow !== 'undefined') portalGlow.intensity = (28 * panelBright) + Math.sin(t * 1.1) * 4;
     if (musicOn && walkGain && audioCtx) {
       const spd = Math.hypot(velocity.x, velocity.z);
       const target = 0.48 + Math.min(0.28, spd * 0.04);
