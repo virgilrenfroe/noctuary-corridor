@@ -252,7 +252,7 @@
     <div class="topbar">
       <div class="brand">Noctuary · drill</div>
       <div class="pills">
-        <div class="pill tech" title="Technique">Corridor · portal · WASD</div>
+        <div class="pill tech" title="Technique">Corridor · WASD</div>
         <button class="pill" id="btn-bright-dim" type="button">Dim</button>
         <button class="pill" id="btn-bright-mid" type="button">Mid</button>
         <button class="pill on" id="btn-bright-hi" type="button">Bright</button>
@@ -268,7 +268,7 @@
     </div>
     <div class="hud">
       <div class="caption" id="caption">
-        <p class="tag" id="cap-tag">Live front door</p>
+        <p class="tag" id="cap-tag">Hall</p>
         <h2 id="cap-title">Noctuary</h2>
         <p id="cap-body">Plays live on the end screen — walk the hall to see the city move.</p>
       </div>
@@ -430,9 +430,7 @@ scene.add(key);
 const fill = new THREE.PointLight(0xa898d0, 28, 48);
 fill.position.set(-3, 4, 6);
 scene.add(fill);
-const portalGlow = new THREE.PointLight(0xf0c24b, 32, 34);
-portalGlow.position.set(0, 3.2, -HALL_L / 2 + 2);
-scene.add(portalGlow);
+/* end-wall Noctuary portal removed — glow parked */
 
 // —— Day wing threshold (luminous aperture on right wall, far half) ——
 const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
@@ -740,8 +738,8 @@ async function hangAll() {
     hangSide(app, tex, HALL_W / 2 - 0.12, 3.1, rightZ[i], -Math.PI / 2);
   });
 
-  portalApp = byId.noctuary.app;
-  hung.push(hangLivePortal(byId.noctuary.app, 0, 3.4, -HALL_L / 2 + 0.2, 0, 7.2, 4.4));
+  // End-wall Noctuary portal removed for now — default caption to first left panel
+  portalApp = (byId.nestlight && byId.nestlight.app) || APPS.find((a) => a.id !== 'noctuary') || APPS[0];
   updateCaption(portalApp);
   console.info('[corridor apps]', APPS.map((a) => ({ id: a.id, live: !!a.live, source: a._source, image: a.image })));
 }
@@ -929,7 +927,7 @@ btnEnter.addEventListener('click', () => {
 function updateCaption(m) {
   nearest = m;
   let tag = 'App';
-  if (m && m.id === 'noctuary') tag = 'Live front door';
+  if (m && m.id === 'noctuary') tag = 'Noctuary';
   else if (m && m.live) tag = 'Live demo';
   document.getElementById('cap-tag').textContent = tag;
   document.getElementById('cap-title').textContent = m.name;
@@ -1177,7 +1175,6 @@ function frame() {
       daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
     }
     key.intensity = (1.35 * panelBright) + Math.sin(t * 0.7) * 0.1;
-    portalGlow.intensity = (28 * panelBright) + Math.sin(t * 1.1) * 4;
     if (musicOn && walkGain && audioCtx) {
       const spd = Math.hypot(velocity.x, velocity.z);
       const target = 0.48 + Math.min(0.28, spd * 0.04);
