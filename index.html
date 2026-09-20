@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<title>Noctuary — spatial drill · corridor exhibit</title>
+<title>Noctuary · draw a circle</title>
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -14,40 +14,17 @@
     --font-mono: "Space Mono", ui-monospace, monospace;
     --ink: #05060a;
     --paper: #f2ebe0;
-    --mute: rgba(242,235,224,0.55);
-    --line: rgba(242,235,224,0.16);
+    --mute: rgba(242,235,224,0.62);
+    --line: rgba(242,235,224,0.18);
     --accent: #f0c24b;
     --violet: #8a7bb8;
   }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0; height: 100%; overflow: hidden;
-    background: var(--ink); color: var(--paper);
-    font-family: var(--font-sans);
-    touch-action: none;
-    overscroll-behavior: none;
-  }
-  #stage {
-    position: fixed; inset: 0; z-index: 0;
-    cursor: grab;
-    touch-action: none;
-  }
-  #stage.dragging { cursor: grabbing; }
-  #stage > canvas,
-  #stage > div {
-    position: absolute; inset: 0;
-    display: block; width: 100% !important; height: 100% !important;
-  }
-  #stage > div { pointer-events: none; z-index: 1; }
-  #stage > canvas { z-index: 0; }
-  .veil {
-    position: fixed; inset: 0; z-index: 1; pointer-events: none;
-    background:
-      radial-gradient(70% 55% at 50% 42%, transparent 0%, rgba(5,6,10,0.12) 68%, rgba(5,6,10,0.48) 100%),
-      linear-gradient(180deg, rgba(5,6,10,0.28) 0%, transparent 18%, transparent 80%, rgba(5,6,10,0.5) 100%);
-  }
-  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
-
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--paper);
+    font-family: var(--font-sans); }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  body.drawing-glove, body.drawing-glove canvas { cursor: none; }
+  .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
   .topbar {
     position: absolute; top: 18px; left: 18px; right: 18px;
     display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
@@ -64,1148 +41,1492 @@
     font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
     backdrop-filter: blur(12px);
   }
-  .pill:hover, .pill.on { border-color: rgba(242,235,224,0.45); background: rgba(20,24,36,0.72); }
+  .pill:hover { border-color: rgba(242,235,224,0.45); background: rgba(20,24,36,0.72); }
+  .pill.on { border-color: rgba(240,194,75,0.55); color: var(--accent); }
   .pill.tech {
     cursor: default; letter-spacing: 0.1em;
     border-color: rgba(138,123,184,0.35); color: rgba(242,235,224,0.85);
   }
-
-  .title-block {
-    position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
-    max-width: 24ch; pointer-events: none;
+  .hero {
+    position: absolute; left: 6vw; top: 16vh; max-width: min(720px, 84vw);
+    transition: opacity 0.5s ease, transform 0.5s ease;
   }
-  .title-block .kicker {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
-    text-transform: uppercase; color: var(--mute); margin: 0 0 10px;
+  .hero.gone { opacity: 0; transform: translateY(-10px); pointer-events: none; }
+  .hero .stack {
+    font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 650; line-height: 0.92; letter-spacing: -0.03em;
+    font-size: clamp(3.2rem, 9vw, 7rem); margin: 0;
   }
-  .title-block h1 {
-    margin: 0; font-family: var(--font-display); font-optical-sizing: auto;
-    font-weight: 700; font-stretch: condensed;
-    font-size: clamp(2rem, 4.5vw, 3.4rem);
-    line-height: 0.95; letter-spacing: -0.04em;
+  .hero .stack span { display: block; color: rgba(242,235,224,0.28); }
+  .hero .stack span.focus { color: var(--paper); }
+  .hero p { margin: 18px 0 0; max-width: 42ch; color: var(--mute); font-size: 15px; line-height: 1.5; }
+  .unlocked-hero {
+    position: absolute; left: 6vw; top: 16vh; max-width: min(720px, 84vw);
+    opacity: 0; transform: translateY(12px); transition: 0.55s ease; pointer-events: none;
   }
-  .title-block p {
-    margin: 14px 0 0; color: var(--mute); font-size: 13px; line-height: 1.45;
-    max-width: 28ch;
+  .unlocked-hero.on { opacity: 1; transform: none; }
+  .unlocked-hero .stack {
+    font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 650; line-height: 0.92; letter-spacing: -0.03em;
+    font-size: clamp(3.2rem, 9vw, 7rem); margin: 0;
   }
-
+  .unlocked-hero .stack span { display: block; color: rgba(242,235,224,0.28); }
+  .unlocked-hero .stack span.focus { color: var(--accent); }
+  .unlocked-hero p { margin: 18px 0 0; max-width: 40ch; color: var(--mute); font-size: 15px; line-height: 1.5; }
+  .note {
+    position: absolute; left: 18px; bottom: 18px; font-size: 11px;
+    opacity: 0.45; max-width: 400px; line-height: 1.45;
+  }
   .hud {
-    position: absolute; left: 18px; bottom: 18px; right: 18px;
-    display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
-  }
-  .caption {
-    max-width: 36ch; padding: 14px 16px; border-radius: 16px;
+    position: absolute; right: 18px; bottom: 18px;
+    min-width: 168px; padding: 14px 16px; border-radius: 14px;
     border: 1px solid var(--line); background: rgba(5,6,10,0.55);
-    backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px); font-family: var(--font-mono);
+    font-size: 11px; letter-spacing: 0.06em; line-height: 1.65;
   }
-  .caption .tag {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: var(--accent); margin: 0 0 6px;
+  .hud .row { display: flex; justify-content: space-between; gap: 16px; color: var(--mute); }
+  .hud .row strong { color: var(--paper); font-weight: 400; }
+  .hud .label {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px; opacity: 0.9;
   }
-  .caption h2 {
-    margin: 0; font-family: var(--font-display); font-weight: 650;
-    font-size: 1.35rem; letter-spacing: -0.03em; line-height: 1.1;
+  .ring-wrap {
+    position: absolute; left: 50%; top: 48%; transform: translate(-50%, -50%);
+    width: min(520px, 88vw); height: auto; min-height: 4rem; pointer-events: none;
+    opacity: 0.9; transition: opacity 0.35s ease;
   }
-  .caption p { margin: 8px 0 0; font-size: 12px; color: var(--mute); line-height: 1.45; }
-  .keys {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--mute); text-align: right;
-    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
-    background: rgba(5,6,10,0.4); backdrop-filter: blur(10px);
+  .ring-wrap.gone { opacity: 0; }
+  .ring-wrap.softfail .ring-track {
+    stroke: rgba(200,120,180,0.55);
+    filter: drop-shadow(0 0 8px rgba(180,80,140,0.55));
   }
-  .keys strong { color: var(--paper); font-weight: 400; }
+  .ring-wrap.softfail .ring-prog {
+    stroke: #c88ab8;
+  }
+  .ring-wrap svg { display: none; } /* no perforated / progress ring — cue text only */
+  .ring-track { fill: none; stroke: rgba(242,235,224,0.12); stroke-width: 3; transition: stroke 0.2s ease; }
+  .ring-ghost {
+    fill: none; stroke: rgba(240,194,75,0.22); stroke-width: 2;
+    stroke-dasharray: 6 10; opacity: 1; transition: opacity 0.15s linear;
+  }
+  .ring-prog {
+    fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round;
+    stroke-dasharray: 628; stroke-dashoffset: 628;
+    transition: stroke-dashoffset 0.08s linear, stroke 0.2s ease;
+  }
+  .ring-hint {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-family: var(--font-display); font-optical-sizing: auto;
+    font-weight: 650; font-size: clamp(1.85rem, 6.5vw, 3.4rem);
+    letter-spacing: -0.03em; line-height: 1.05;
+    text-transform: none; color: var(--paper); text-align: center; padding: 28px;
+    animation: cuePulse 2.4s ease-in-out infinite;
+  }
+  @keyframes cuePulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.045); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ring-hint { animation: none; opacity: 0.9; }
+  }
+  /* Locked screen copy: only "draw a circle" remains visible */
+  .topbar, .hero, .unlocked-hero, .note, .hud { display: none !important; }
+  body.unlocked-live .ring-hint { display: none; }
 
-  .gate {
-    position: fixed; inset: 0; z-index: 5;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(5,6,10,0.55);
-    backdrop-filter: blur(18px);
-    pointer-events: auto;
-    transition: opacity 0.35s ease, visibility 0.35s;
+  .stroke-layer {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none;
   }
-  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-  .gate-card {
-    text-align: center; max-width: 34ch; padding: 28px 32px;
-    border-radius: 24px; border: 1px solid var(--line);
-    background: rgba(5,6,10,0.72);
-  }
-  .gate-card .k {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
-  }
-  .gate-card h1 {
-    margin: 0; font-family: var(--font-display); font-weight: 700;
-    font-stretch: condensed; font-size: clamp(2.4rem, 6vw, 3.8rem);
-    letter-spacing: -0.04em; line-height: 0.95;
-  }
-  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
-  .gate-card .ctrl {
-    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
-    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(242,235,224,0.7);
-  }
-  .gate-card button {
-    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.45);
-    background: rgba(240,194,75,0.12); color: var(--paper);
-    border-radius: 999px; padding: 14px 28px; font: inherit;
-    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
-  }
-  .gate-card button:hover { background: rgba(240,194,75,0.22); }
-
-  body.reduce .gate { display: none; }
-
-  /* Post-unlock / embed: strip exhibit chrome; KEEP nav language + compass pad */
-  body.embed-quiet .topbar,
-  body.embed-quiet .title-block,
-  body.embed-quiet .caption,
-  body.embed-quiet .gate { display: none !important; }
-  body.embed-quiet .hud {
-    display: flex !important;
-    justify-content: flex-end;
-    align-items: flex-end;
-    pointer-events: none;
-    z-index: 6;
-  }
-  body.embed-quiet .keys {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    max-width: 48ch;
+  #corridorBehind {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    border: 0; z-index: 0; background: #05060a;
     pointer-events: none;
   }
-  body.embed-quiet .keys-mode { display: none; }
-  /* Compass (walk pad) always on after unlock — not only coarse pointers */
-  body.embed-quiet #mobile-pad {
-    display: block !important;
-    z-index: 6;
+  #corridorBehind.live { pointer-events: auto; }
+  canvas.webgl-veil {
+    position: fixed; inset: 0; z-index: 1;
   }
-
-
-  /* Virtual walk pad — shown on coarse pointer / narrow screens */
-  #mobile-pad {
-    display: none;
-    position: fixed;
-    left: max(12px, env(safe-area-inset-left));
-    bottom: max(12px, env(safe-area-inset-bottom));
-    z-index: 4;
-    width: 148px; height: 148px;
-    pointer-events: auto;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  #mobile-pad .pad-base {
-    position: absolute; inset: 0;
-    border-radius: 50%;
-    border: 1px solid rgba(242,235,224,0.28);
-    background: rgba(5,6,10,0.42);
-    backdrop-filter: blur(10px);
-    box-shadow: inset 0 0 0 1px rgba(5,6,10,0.35);
-  }
-  #mobile-pad .pad-knob {
-    position: absolute;
-    left: 50%; top: 50%;
-    width: 56px; height: 56px;
-    margin: -28px 0 0 -28px;
-    border-radius: 50%;
-    border: 1px solid rgba(240,194,75,0.45);
-    background: rgba(240,194,75,0.18);
-    pointer-events: none;
-    transition: background 0.12s ease;
-  }
-  #mobile-pad.active .pad-knob {
-    background: rgba(240,194,75,0.32);
-    border-color: rgba(240,194,75,0.7);
-  }
-  #mobile-pad .pad-cross {
-    position: absolute; inset: 18%;
-    pointer-events: none;
-    opacity: 0.35;
-    background:
-      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
-      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
-  }
-  .keys .keys-mobile { display: none; }
-  .gate-card .ctrl .ctrl-mobile { display: none; }
-
-  @media (pointer: coarse), (max-width: 900px) {
-    #mobile-pad { display: block; }
-    .keys .keys-desktop { display: none; }
-    .keys .keys-mobile { display: inline; }
-    .gate-card .ctrl .ctrl-desktop { display: none; }
-    .gate-card .ctrl .ctrl-mobile { display: inline; }
-    .hud {
-      left: 18px; right: 18px;
-      bottom: calc(168px + env(safe-area-inset-bottom, 0px));
-    }
-  }
-  @media (max-width: 720px) {
-    .title-block { display: none; }
-    .hud { flex-direction: column; align-items: stretch; }
-    .keys { text-align: left; }
-  }
+  body.unlocked-live .stroke-layer { visibility: hidden; }
+  body.unlocked-live canvas.webgl-veil { pointer-events: none; opacity: 0; transition: opacity 0.35s ease; }
+  body.unlocked-live .ring-wrap { opacity: 0; }
+  .ring-wrap.gone .ring-hint { display: none; }
 </style>
 </head>
 <body>
-  <div id="stage" aria-label="Corridor exhibit stage"></div>
-  <div class="veil" aria-hidden="true"></div>
+  <iframe id="corridorBehind" title="Portfolio corridor" src="./spatial-drill-samuclima-beyond.html?embed=1&v=circle1" loading="eager" referrerpolicy="no-referrer" allow="autoplay"></iframe>
   <div class="layer">
     <div class="topbar">
       <div class="brand">Noctuary · drill</div>
       <div class="pills">
-        <div class="pill tech" title="Technique">Corridor · WASD</div>
-        <button class="pill" id="btn-bright-dim" type="button">Dim</button>
-        <button class="pill" id="btn-bright-mid" type="button">Mid</button>
-        <button class="pill on" id="btn-bright-hi" type="button">Bright</button>
-        <button class="pill" id="btn-reset" type="button">Reset</button>
-        <button class="pill" id="btn-music" type="button" title="Ambient corridor bed">Music</button>
-        <div class="pill" id="h-motion">live</div>
+        <div class="pill tech" title="Technique">Circle · burn trail · corridor</div>
+        <button class="pill" id="btnUnlock" type="button" style="display:none">Unlock</button>
+        <button class="pill" id="btnReset" type="button">Clear / Reset</button>
       </div>
     </div>
-    <div class="title-block">
-      <p class="kicker">Spatial drill</p>
-      <h1>Corridor<br/>exhibit</h1>
-      <p>Hung app panels in depth. Walk the hall before the caption — work exhibit, not a scroll first.</p>
+    <div class="hero" id="hero">
+      <h1 class="stack"><span class="focus">Page</span><span>unlock</span></h1>
+      <p>Draw a closed circle on the veil. Finger leaves a burn heat trail — dual-band ember + char. Soft-fail teaches the gesture; unlock burns the veil open onto the portfolio corridor behind.</p>
     </div>
-    <div class="hud">
-      <div class="caption" id="caption">
-        <p class="tag" id="cap-tag">Hall</p>
-        <h2 id="cap-title">Noctuary</h2>
-        <p id="cap-body">Plays live on the end screen — walk the hall to see the city move.</p>
-      </div>
-      <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · click panel</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · tap panel</span><span class="keys-mode"> · <span id="h-mode">idle</span></span></div>
+    <div class="unlocked-hero" id="unlockedHero">
+      <h1 class="stack"><span class="focus">Unlocked</span><span>night</span></h1>
+      <p>Veil burned open along a dual-band ember edge. Portfolio corridor is live behind the gate.</p>
+    </div>
+    <div class="ring-wrap" id="ringWrap">
+      <svg viewBox="0 0 220 220" aria-hidden="true">
+        <circle class="ring-track" cx="110" cy="110" r="100" />
+        <circle class="ring-ghost" id="ringGhost" cx="110" cy="110" r="100" />
+        <circle class="ring-prog" id="ringProg" cx="110" cy="110" r="100" transform="rotate(-90 110 110)" />
+      </svg>
+      <div class="ring-hint" id="ringHint">draw a circle</div>
+    </div>
+    <p class="note">Local drill · burn finger trail · corridor behind veil · forearm yaw · technique transfer, no branding</p>
+    <div class="hud" id="hud">
+      <div class="label">Unlock</div>
+      <div class="row"><span>progress</span><strong id="h-prog">0%</strong></div>
+      <div class="row"><span>bins</span><strong id="h-bins">0/36</strong></div>
+      <div class="row"><span>circular</span><strong id="h-circ">—</strong></div>
+      <div class="row"><span>closed</span><strong id="h-closed">—</strong></div>
+      <div class="row"><span>glove</span><strong id="h-glove">—</strong></div>
+      <div class="row"><span>yaw</span><strong id="h-yaw">—</strong></div>
+      <div class="row"><span>state</span><strong id="h-state">locked</strong></div>
     </div>
   </div>
+  <canvas class="stroke-layer" id="strokeCanvas"></canvas>
 
-  <div class="gate" id="gate" role="dialog" aria-label="Enter the room">
-    <div class="gate-card">
-      <p class="k">Project room</p>
-      <h1>Enter the<br/>corridor</h1>
-      <p class="ctrl"><span class="ctrl-desktop">WASD to walk · drag to look</span><span class="ctrl-mobile">pad walk · drag look · tap panel</span></p>
-      <p style="margin-top:10px;font-size:12px;color:var(--mute)">Ambient bed starts on Enter · Mute anytime.</p>
-      <button type="button" id="btn-enter">Enter the room</button>
-    </div>
-  </div>
-
-  <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
-    <div class="pad-base"></div>
-    <div class="pad-cross" aria-hidden="true"></div>
-    <div class="pad-knob" id="pad-knob"></div>
-  </div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
-  }
-}
-</script>
-<script src="./app-shots/embedded-shots.js"></script>
-<script type="module">
+  <script type="importmap">
+  {"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js"}}
+  </script>
+  <script type="module">
 import * as THREE from 'three';
-import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
 const params = new URLSearchParams(location.search);
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
-if (reduceMotion) document.body.classList.add('reduce');
-document.getElementById('h-motion').textContent = reduceMotion ? 'still' : 'live';
+const still = params.get('still') === '1';
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || still;
 
-const FRONT_DOOR_BASE = /(?:^|\/)02-corridor(?:\/|$)/.test(location.pathname)
-  ? '../01-front-door/noctuary-front-door.html'
-  : './noctuary-front-door.html';
-const FRONT_DOOR_EMBED = FRONT_DOOR_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+const ATLAS_URL = '07-atlas-lab/hand-light-atlas.png';
+const ATLAS_META_URL = '07-atlas-lab/hand-light-atlas.json';
+const ATLAS_COLS = 4;
+const ATLAS_CELL = 256;
+/** Forearm yaw masters (Virgil locked framing) — black→alpha pre-cut + tip-aligned */
+const YAW_FRONT_URL = '07-atlas-lab/yaw-front-cut.png?v=plain2';
+const YAW_LEFT_URL  = '07-atlas-lab/yaw-left-cut.png?v=plain2';
+const YAW_RIGHT_URL = '07-atlas-lab/yaw-right-cut.png?v=plain2';
+const YAW_TIP_META = {"front":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596},"left":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596},"right":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596}};
 
-// Side-panel demos live beside this corridor HTML (box + Mac 02-corridor alike)
-const HQ_DEMO_BASE = './homework-quest-demo.html';
-const HQ_DEMO_EMBED = HQ_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const BARPAL_DEMO_BASE = './barpal-demo.html';
-const BARPAL_DEMO_EMBED = BARPAL_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const BARPAL_HOME_BASE = './barpal-home.html';
-const BARPAL_HOME_EMBED = BARPAL_HOME_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const NESTLIGHT_HOME_BASE = './nestlight-home.html';
-const NESTLIGHT_HOME_EMBED = NESTLIGHT_HOME_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const WORK_DEMO_BASE = './work-samples-demo.html';
-const WORK_DEMO_EMBED = WORK_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const COURSE_DEMO_BASE = './course-samples-demo.html';
-const COURSE_DEMO_EMBED = COURSE_DEMO_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const FLEISS_BASE = './fleiss-world-route.html';
-const FLEISS_EMBED = FLEISS_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
+/** Responsive glove CSS px — Virgil: not a tiny floating pointer */
+function gloveSize(){
+  // Virgil: bigger still — ~72% of short edge, up to 820px
+  return Math.round(Math.min(820, Math.max(520, Math.min(innerWidth, innerHeight) * 0.72)));
+}
+const TIP_R = 0.43; // fingertip radius from cell center (legacy atlas)
+/** Tip UV on tip-aligned yaw plates (upper-center of bottom-enter masters) */
+const YAW_TIP_U = 0.6955;
+const YAW_TIP_V = 0.0019;
+const YAW_SMOOTH_HZ = 10; // exponential blend smoothing (~8–12 Hz)
+const YAW_ROT_MAX = 16 * Math.PI / 180; // screen-X yaw cue
+const YAW_BASE_TILT = 11 * Math.PI / 180; // extra first-person reach tilt
+const YAW_FLANK_MAX = 0; // identical plates — side cue via rotate only until matched flanks // never fully swap plates — same arm identity (Virgil)
+const FROST_FADE = 0.972;
+const CROSSFADE_MS = 140;
+const TIP_MASK_R = 0.30; // fingertip stamp radius (fraction of glove size)
+const WRIST_FADE = { near: 0.0, mid: 0.10, far: 0.58 }; // more dissolve into veil
 
-const CAROUSEL_BASE = './spatial-drill-loop-carousel.html';
-const CAROUSEL_EMBED = CAROUSEL_BASE + '?embed=1' + (reduceMotion ? '&still' : '');
-const SONG_BASE = './spatial-drill-flow-atelier.html';
-const SONG_EMBED = SONG_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
-const BURN_BASE = './spatial-drill-burn.html';
-const BURN_EMBED = BURN_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.02;
+renderer.domElement.classList.add('webgl-veil');
+document.body.prepend(renderer.domElement);
 
-const APPS = [
-  { id: 'noctuary', name: 'Noctuary', blurb: 'Plays live on the end screen — walk the hall to see the city move.', accent: '#8a7bb8',
-    url: FRONT_DOOR_BASE,
-    embedUrl: FRONT_DOOR_EMBED,
-    candidates: ['jpg/noctuary.jpg', 'noctuary.png', 'noctuary-og.png'] },
-  { id: 'nestlight', name: 'NestLight', blurb: 'Live nestlight-packs on this panel — Enter gate.', accent: '#e8a87c',
-    url: 'https://nestlight-packs.up.railway.app/',
-    embedUrl: 'https://nestlight-packs.up.railway.app/?v=corridor',
-    embedBg: '#0c1424',
-    live: true,
-    candidates: ['jpg/nestlight.jpg', 'nestlight.png', 'nestlight.webp'] },
-  { id: 'oneshopbooks', name: 'OneShopBooks', blurb: 'Shop-isolated contractor books and deposit-as-liability.', accent: '#f0c24b',
-    url: 'https://oneshopbooks-production.up.railway.app/',
-    candidates: ['jpg/oneshopbooks.jpg', 'oneshopbooks.png', 'oneshopbooks-live.png'] },
-  { id: 'barpal', name: 'BarPal', blurb: 'Autoplay tip → round → settle on this panel — click to open the full demo.', accent: '#7ec8c4',
-    url: BARPAL_DEMO_BASE,
-    embedUrl: BARPAL_DEMO_EMBED,
-    embedBg: '#0e0b09',
-    live: true,
-    candidates: ['jpg/barpal.jpg', 'barpal.png'] },
-  { id: 'fleiss', name: 'Fleiss screenings', blurb: 'World-route globe — click to open the full tour.', accent: '#f0c24b',
-    url: FLEISS_BASE,
-    coverAlign: 'center',
-    candidates: ['jpg/fleiss-world-route.jpg', 'jpg/noctuary.jpg'] },
-  { id: 'cue-tip-shaper', name: 'Cue tip shaper', blurb: 'Motorized tip shaper — even scuff, DIY one-pager.', accent: '#4db6a4',
-    url: './app-shots/cue-tip-shaper.html',
-    candidates: ['jpg/cue-tip-shaper-panel.jpg', 'jpg/cue-tip-shaper.jpg', 'cue-tip-shaper.png'] },
-  { id: 'homework-quest', name: 'Homework Quest', blurb: 'Plays live on this panel — brief quest demo.', accent: '#f0c24b',
-    url: 'https://virgilrenfroe.github.io/course-samples/homework-quest/',
-    embedUrl: HQ_DEMO_EMBED,
-    embedBg: '#121816',
-    live: true,
-    candidates: ['jpg/homework-quest.jpg', 'homework-quest.png', 'homework-quest-retry.png'] },
-  { id: 'carousel', name: 'Carousel', blurb: 'Loop-agency carousel drill — front largest, sides angled away.', accent: '#f0c24b',
-    url: CAROUSEL_BASE,
-    embedUrl: CAROUSEL_EMBED,
-    embedBg: '#05060a',
-    live: true,
-    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
-  { id: 'song', name: 'A Song with a Hole in It', blurb: 'Music-driven flow — Song / A on the panel. Virgil Renfroe · AI-assisted.', accent: '#f0c24b',
-    url: SONG_BASE,
-    embedUrl: SONG_EMBED,
-    embedBg: '#05060a',
-    live: true,
-    interactiveEmbed: true,
-    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
-  { id: 'burn', name: 'Burn', blurb: 'Heat-trail craft on this panel — click for the full drill.', accent: '#e8a54b',
-    url: BURN_BASE,
-    embedUrl: BURN_EMBED,
-    embedBg: '#05060a',
-    live: true,
-    interactiveEmbed: true,
-    candidates: ['jpg/noctuary.jpg', 'noctuary.png'] },
-];
+const corridorFrame = document.getElementById('corridorBehind');
+const CORRIDOR_URL = './spatial-drill-samuclima-beyond.html?embed=1&v=circle1';
+if (corridorFrame) {
+  corridorFrame.src = CORRIDOR_URL + (reduceMotion ? '&still=1' : '');
+}
 
-const HALL_W = 12;
-const HALL_L = 42;
-const WALL_H = 7.2;
-const EYE = 1.65;
-const CAM_DIST = 14; // generous start distance looking down the hall
+const clock = new THREE.Clock();
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-const stage = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.5 : 2));
-renderer.setClearColor(0x05060a, 1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-stage.appendChild(renderer.domElement);
+const layerVS = /* glsl */`
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
 
-const cssRenderer = new CSS3DRenderer();
-cssRenderer.domElement.style.pointerEvents = 'none';
-stage.appendChild(cssRenderer.domElement);
+const fieldFS = /* glsl */`
+  precision highp float;
+  uniform float uTime;
+  uniform float uAmp;
+  uniform vec2 uRes;
+  uniform float uWarm;
+  varying vec2 vUv;
+  float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i=floor(p), f=fract(p);
+    float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
+    vec2 u=f*f*(3.-2.*f);
+    return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+  }
+  float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.07+vec2(1.7,9.2); a*=.5;} return v; }
+  float skyline(vec2 p, float seed){
+    float x=p.x*6.+seed; float cell=floor(x);
+    float h=.18+.55*hash(vec2(cell,seed*3.1));
+    h+=.12*hash(vec2(cell*2.3,seed));
+    float top=mix(.22,.72,h);
+    float win=step(.72,hash(floor(p*vec2(48.,28.)+seed)));
+    return step(p.y,top)*step(.08,p.y)*(.55+.45*win);
+  }
+  void main(){
+    vec2 uv=vUv; float aspect=uRes.x/max(uRes.y,1.);
+    vec2 p=(uv-.5)*vec2(aspect,1.); float t=uTime*uAmp;
+    float n=fbm(p*2.2+vec2(t*.04,-t*.03));
+    float bands=.5+.5*sin(p.y*4.2+n*3.+t*.2);
+    vec3 ink=vec3(.02,.023,.039);
+    vec3 gold=vec3(.94,.76,.29);
+    vec3 viol=vec3(.54,.48,.72);
+    vec3 blue=vec3(.43,.56,.71);
+    vec3 field=mix(ink, mix(gold,blue,1.-uWarm), .25+.55*n);
+    field=mix(field, gold, bands*.28*uWarm);
+    field=mix(field, viol, (1.-uWarm)*.22*n);
+    float sil=max(skyline(uv,1.+uWarm*2.), skyline(uv*vec2(1.15,1.)+vec2(.17,0.),4.4-uWarm));
+    vec3 city=mix(ink*1.2, mix(gold,viol,1.-uWarm), .55+.35*uWarm);
+    city+=gold*sil*(.15+.35*uWarm)*step(.4,sil);
+    float ground=smoothstep(.42,0.,uv.y);
+    vec3 col=mix(field,ink,ground*.55);
+    col=mix(col,city,sil*(.75+.2*(1.-uWarm)));
+    float vig=smoothstep(1.15,.25,length(p));
+    col*=.55+.45*vig;
+    gl_FragColor=vec4(col,1.);
+  }
+`;
+
+/* Soft mist veil — fades out on unlock (no expanding fire ring). Heat lives on the finger trail only. */
+const veilFS = /* glsl */`
+  precision highp float;
+  uniform float uTime;
+  uniform float uAmp;
+  uniform float uDissolve;
+  uniform vec2 uRes;
+  uniform vec2 uCircle;
+  uniform float uRadius;
+  varying vec2 vUv;
+  float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i=floor(p), f=fract(p);
+    float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
+    vec2 u=f*f*(3.-2.*f);
+    return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+  }
+  float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.1+vec2(3.1,7.4); a*=.5;} return v; }
+  void main(){
+    vec2 uv=vUv; float aspect=uRes.x/max(uRes.y,1.);
+    vec2 p=(uv-.5)*vec2(aspect,1.);
+    float t=uTime*uAmp;
+    float n=fbm(p*2.4+vec2(t*.03,-t*.02));
+    float fiber=fbm(p*vec2(14.,3.)+n);
+    vec3 ink=vec3(.02,.023,.039);
+    vec3 paper=vec3(.95,.92,.88);
+    vec3 mist=mix(ink, vec3(.12,.14,.2), .28+n*.2);
+    mist=mix(mist, paper*.1, fiber*.08);
+    // Keep corridor readable through the mist while locked
+    float mistA = (0.42 + 0.08*n) * smoothstep(1.35, 0.18, length(p)*1.05);
+    // Simple whole-veil fade — no expanding fire front
+    float fade = 1.0 - smoothstep(0.0, 1.0, uDissolve);
+    float veilAlpha = clamp(mistA * fade, 0.0, 0.55);
+    gl_FragColor = vec4(mist, veilAlpha);
+  }
+`;
+
+const fieldMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime:{value:0}, uAmp:{value:reduceMotion?0:1},
+    uRes:{value:new THREE.Vector2(innerWidth,innerHeight)},
+    uWarm:{value:1},
+  },
+  vertexShader: layerVS, fragmentShader: fieldFS,
+  depthTest:false, depthWrite:false,
+  transparent: true,
+});
+const veilMat = new THREE.ShaderMaterial({
+  transparent:true, depthTest:false, depthWrite:false,
+  uniforms: {
+    uTime:{value:0}, uAmp:{value:reduceMotion?0:1},
+    uDissolve:{value:0},
+    uRes:{value:new THREE.Vector2(innerWidth,innerHeight)},
+    uCircle:{value:new THREE.Vector2(0,0)},
+    uRadius:{value:0.32},
+  },
+  vertexShader: layerVS, fragmentShader: veilFS,
+});
+
+/* Burn finger-trail (from spatial-drill-burn.html): stamp RT + transparent displayMat */
+const burnScale = Math.min(devicePixelRatio, 2);
+let burnRW = Math.max(2, Math.floor(innerWidth * burnScale));
+let burnRH = Math.max(2, Math.floor(innerHeight * burnScale));
+let burnRT = new THREE.WebGLRenderTarget(burnRW, burnRH, {
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
+  depthBuffer: false, stencilBuffer: false,
+});
+let burnRTB = burnRT.clone();
+let burnStampCount = 0;
+let burnLastX = 0, burnLastY = 0, burnLastT = 0;
+let burnHasLast = false;
+
+const burnStampScene = new THREE.Scene();
+const burnStampCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const burnStampMat = new THREE.ShaderMaterial({
+  transparent: true, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendSrc: THREE.SrcAlphaFactor,
+  blendDst: THREE.OneFactor,
+  blendSrcAlpha: THREE.OneFactor,
+  blendDstAlpha: THREE.OneFactor,
+  uniforms: { uStrength: { value: 0.35 }, uSeed: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    precision highp float;
+    uniform float uStrength, uSeed;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+      vec2 i=floor(p), f=fract(p);
+      float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+      vec2 u=f*f*(3.-2.*f);
+      return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+    }
+    void main(){
+      vec2 p=vUv*2.-1.;
+      float n = noise(p*3.5 + uSeed);
+      float d = length(p) + (n - 0.5) * 0.25;
+      float core=1.-smoothstep(0.04,0.5,d);
+      float halo=1.-smoothstep(0.15,1.0,d);
+      float a=max(core*0.92, halo*0.32)*uStrength;
+      gl_FragColor=vec4(a,a*0.55,a*0.18,a);
+    }`,
+});
+const burnStampMesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), burnStampMat);
+burnStampScene.add(burnStampMesh);
+
+/* Transparent dual-band ember trail (displayMat craft, alpha only where heat) */
+const trailFS = /* glsl */`
+  precision highp float;
+  uniform sampler2D uBurn;
+  uniform float uTime, uAmp;
+  uniform vec2 uRes;
+  varying vec2 vUv;
+  float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i=floor(p), f=fract(p);
+    float a=hash(i), b=hash(i+vec2(1,0)), c=hash(i+vec2(0,1)), d=hash(i+vec2(1,1));
+    vec2 u=f*f*(3.-2.*f);
+    return mix(a,b,u.x)+(c-a)*u.y*(1.-u.x)+(d-b)*u.x*u.y;
+  }
+  float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p=p*2.03+vec2(1.7,9.2); a*=.5;} return v; }
+  void main(){
+    vec2 uv=vUv;
+    float aspect=uRes.x/max(uRes.y,1.);
+    vec2 p=(uv-.5)*vec2(aspect,1.);
+    float t=uTime*uAmp;
+    float burn=texture2D(uBurn, uv).r;
+    float edgeNoise = fbm(p*8. + t*0.8) * 0.1;
+    float b = burn + edgeNoise;
+    float charAmt = smoothstep(0.08, 0.78, b);
+    float band = smoothstep(0.12, 0.38, b) * (1.0 - smoothstep(0.42, 0.88, b));
+    float coreW = 1.0 - smoothstep(0.0, 0.09, abs(b - 0.42));
+    float outerW = band * (1.0 - coreW * 0.55);
+    float flicker = 0.78 + 0.22 * sin(t*18. + noise(p*30.)*6.);
+    vec3 emberCore = vec3(1.0, 0.95, 0.7);
+    vec3 emberOuter = vec3(1.0, 0.35, 0.05);
+    vec3 ember = emberOuter * outerW * 1.45 + emberCore * coreW * 1.65;
+    ember *= flicker * (1.15 + 0.7*uAmp);
+    vec3 charCol = mix(vec3(0.08,0.06,0.05), vec3(0.02,0.02,0.02), charAmt);
+    charCol += vec3(0.12,0.08,0.05) * noise(p*20.) * charAmt;
+    vec3 col = mix(charCol, ember, clamp(band + coreW, 0.0, 1.0));
+    col = mix(charCol, col, 0.55) + ember * 0.85;
+    float ash = step(0.93, hash(floor(uv*vec2(90.,70.)+t*2.))) * band;
+    col += vec3(0.7,0.65,0.55) * ash * 0.5;
+    float alpha = max(charAmt * 0.95, max(band * 1.0, coreW * 1.0));
+    alpha *= smoothstep(0.02, 0.10, burn);
+    // Hotter read to match burn-drill reference
+    ember *= 1.35;
+    if (alpha < 0.01) discard;
+    gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.95));
+  }
+`;
+const trailMat = new THREE.ShaderMaterial({
+  transparent: true, depthTest: false, depthWrite: false,
+  uniforms: {
+    uBurn: { value: null },
+    uTime: { value: 0 },
+    uAmp: { value: reduceMotion ? 0 : 1 },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
+  },
+  vertexShader: layerVS,
+  fragmentShader: trailFS,
+});
+trailMat.uniforms.uBurn.value = burnRT.texture;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x05060a, 0.010);
-const cssScene = new THREE.Scene();
+// No opaque city field — corridor iframe sits behind transparent WebGL
+const veilMesh = new THREE.Mesh(new THREE.PlaneGeometry(2,2), veilMat);
+scene.add(veilMesh);
+const trailMesh = new THREE.Mesh(new THREE.PlaneGeometry(2,2), trailMat);
+scene.add(trailMesh);
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-const yaw = { value: 0 };
-const pitch = { value: -0.08 };
-const pos = new THREE.Vector3(0, EYE, CAM_DIST);
+function clearBurnTrail(){
+  const prev = renderer.getClearColor(new THREE.Color());
+  const pa = renderer.getClearAlpha();
+  renderer.setRenderTarget(burnRT);
+  renderer.setClearColor(0x000000, 0);
+  renderer.clear(true, true, true);
+  renderer.setRenderTarget(burnRTB);
+  renderer.clear(true, true, true);
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(prev, pa);
+  burnStampCount = 0;
+  burnHasLast = false;
+}
 
-let panelBright = 1.15;
-const panelSpots = [];
-const hemi = new THREE.HemisphereLight(0xb8b0d0, 0x12141c, 1.05);
-scene.add(hemi);
-const key = new THREE.DirectionalLight(0xf7f2e8, 1.45);
-key.position.set(4, 10, 8);
-scene.add(key);
-const fill = new THREE.PointLight(0xa898d0, 28, 48);
-fill.position.set(-3, 4, 6);
-scene.add(fill);
-/* end-wall Noctuary portal removed — glow parked */
+function stampBurnAt(nx, ny, radiusPx, strengthMul){
+  const sx = (4 * radiusPx * burnScale) / burnRW;
+  const sy = (4 * radiusPx * burnScale) / burnRH;
+  burnStampScene.clear();
+  burnStampScene.add(burnStampMesh);
+  burnStampMesh.scale.set(sx, sy, 1);
+  burnStampMesh.position.set(nx * 2 - 1, 1 - ny * 2, 0);
+  const seed = (nx * 17.3 + ny * 31.7 + burnStampCount * 0.13) % 50;
+  burnStampMat.uniforms.uStrength.value = 0.72 * (strengthMul ?? 1);
+  burnStampMat.uniforms.uSeed.value = seed;
+  // Critical: accumulate stamps like corridor burn drill (autoClear would wipe the path)
+  const prevAC = renderer.autoClear;
+  renderer.autoClear = false;
+  renderer.setRenderTarget(burnRT);
+  renderer.render(burnStampScene, burnStampCam);
+  renderer.setRenderTarget(null);
+  renderer.autoClear = prevAC;
+  burnStampCount++;
+}
 
-// —— Day wing threshold (luminous aperture on right wall, far half) ——
-const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
-const DAY_DOOR_W = 2.2;
-const DAY_DOOR_H = 4.6;
-const dayDoorGroup = new THREE.Group();
-const dayFrameMat = new THREE.MeshStandardMaterial({
-  color: 0xe8dfd0, roughness: 0.55, metalness: 0.08,
-  emissive: 0xf2ebe0, emissiveIntensity: 0.35,
+function paintBurnSeg(x0, y0, x1, y1, t0, t1){
+  const dx = x1 - x0, dy = y1 - y0;
+  const distPx = Math.hypot(dx * innerWidth, dy * innerHeight);
+  const dtMs = Math.max(1, (t1 || performance.now()) - (t0 || performance.now() - 16));
+  const vel = distPx / dtMs;
+  const strengthMul = THREE.MathUtils.clamp(1.35 - vel * 0.55, 0.45, 1.4);
+  const radiusScale = THREE.MathUtils.clamp(1.15 - vel * 0.35, 0.55, 1.2);
+  const step = 10;
+  const n = Math.max(1, Math.ceil(distPx / step));
+  const radius = 44 * radiusScale;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    stampBurnAt(x0 + dx * t, y0 + dy * t, radius, strengthMul);
+  }
+}
+
+function burnStampScreen(x, y, t){
+  const nx = x / Math.max(1, innerWidth);
+  const ny = y / Math.max(1, innerHeight);
+  if (!burnHasLast) {
+    paintBurnSeg(nx, ny, nx, ny, t, t);
+  } else {
+    paintBurnSeg(burnLastX, burnLastY, nx, ny, burnLastT, t);
+  }
+  burnLastX = nx; burnLastY = ny; burnLastT = t;
+  burnHasLast = true;
+}
+
+function revealCorridor(){
+  if (!corridorFrame) return;
+  corridorFrame.classList.add('live');
+  document.body.classList.add('unlocked-live');
+  renderer.domElement.style.pointerEvents = 'none';
+}
+
+function hideCorridor(){
+  if (!corridorFrame) return;
+  corridorFrame.classList.remove('live');
+  document.body.classList.remove('unlocked-live');
+  renderer.domElement.style.pointerEvents = '';
+  renderer.domElement.style.opacity = '';
+}
+
+const softScene = new THREE.Scene();
+const softCam = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 40);
+softCam.position.set(0, 1.2, 4.2);
+const hemi = new THREE.HemisphereLight(0x8a7bb8, 0x05060a, 0.55);
+const key = new THREE.PointLight(0xf0c24b, 1.1, 18);
+key.position.set(2.2, 3.2, 2.4);
+softScene.add(hemi, key);
+const orb = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(0.35, 1),
+  new THREE.MeshStandardMaterial({ color:0xf0c24b, roughness:0.45, metalness:0.2, emissive:0xf0c24b, emissiveIntensity:0.15 })
+);
+orb.position.set(1.6, 0.4, -0.6);
+softScene.add(orb);
+orb.visible = false;
+
+/* Ash Points — brief flecks along burn rim on unlock (from burn drill) */
+const ASH_MAX = 120;
+const ashPositions = new Float32Array(ASH_MAX * 3);
+const ashLife = new Float32Array(ASH_MAX);
+const ashGeo = new THREE.BufferGeometry();
+ashGeo.setAttribute('position', new THREE.BufferAttribute(ashPositions, 3));
+const ashMat = new THREE.PointsMaterial({
+  color: 0xc8b8a0, size: 0.045, transparent: true, opacity: 0,
+  depthWrite: false, sizeAttenuation: true,
 });
-const dayFrame = new THREE.Mesh(
-  new THREE.BoxGeometry(0.22, DAY_DOOR_H + 0.35, DAY_DOOR_W + 0.35),
-  dayFrameMat
-);
-dayDoorGroup.add(dayFrame);
-const dayAperture = new THREE.Mesh(
-  new THREE.PlaneGeometry(DAY_DOOR_W, DAY_DOOR_H),
-  new THREE.MeshBasicMaterial({ color: 0xf5efe4, fog: false, side: THREE.DoubleSide })
-);
-dayAperture.rotation.y = -Math.PI / 2;
-dayAperture.position.set(-0.12, 0, 0);
-dayAperture.userData.portal = 'day';
-dayAperture.userData.clickable = true;
-dayDoorGroup.add(dayAperture);
-const dayRim = new THREE.Mesh(
-  new THREE.PlaneGeometry(DAY_DOOR_W + 0.12, DAY_DOOR_H + 0.12),
-  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.22, fog: false, side: THREE.DoubleSide })
-);
-dayRim.rotation.y = -Math.PI / 2;
-dayRim.position.set(-0.1, 0, 0);
-dayDoorGroup.add(dayRim);
-dayDoorGroup.position.set(HALL_W / 2 - 0.08, DAY_DOOR_H / 2 + 0.2, DAY_DOOR_Z);
-scene.add(dayDoorGroup);
-const daySpill = new THREE.PointLight(0xfff4e4, 42, 22);
-daySpill.position.set(HALL_W / 2 - 1.6, 3.4, DAY_DOOR_Z);
-scene.add(daySpill);
-const daySkyFill = new THREE.PointLight(0xc9d6ea, 16, 18);
-daySkyFill.position.set(HALL_W / 2 - 2.2, 5.2, DAY_DOOR_Z);
-scene.add(daySkyFill);
+const ashPoints = new THREE.Points(ashGeo, ashMat);
+ashPoints.frustumCulled = false;
+softScene.add(ashPoints);
+let ashHead = 0;
+let ashActive = false;
 
-// Architecture
-const floorMat = new THREE.MeshStandardMaterial({
-  color: 0x141820, roughness: 0.28, metalness: 0.3,
-});
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALL_W, HALL_L), floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.position.z = -HALL_L / 2 + CAM_DIST * 0.15;
-floor.receiveShadow = true;
-scene.add(floor);
+function spawnAshAtNdc(nx, ny, count){
+  if (reduceMotion) return;
+  const n = Math.min(count, 28);
+  for (let i=0;i<n;i++){
+    const idx = ashHead % ASH_MAX;
+    ashHead++;
+    const j = idx * 3;
+    ashPositions[j] = (nx - 0.5) * 4 + (Math.random()-0.5)*0.35;
+    ashPositions[j+1] = (0.5 - ny) * 2.4 + (Math.random()-0.5)*0.25;
+    ashPositions[j+2] = (Math.random()-0.5)*0.2;
+    ashLife[idx] = 0.4 + Math.random()*0.65;
+  }
+  ashGeo.attributes.position.needsUpdate = true;
+  ashActive = true;
+}
 
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x181c28, roughness: 0.88, metalness: 0.06 });
-const sideGeo = new THREE.PlaneGeometry(HALL_L, WALL_H);
-const wallL = new THREE.Mesh(sideGeo, wallMat);
-wallL.rotation.y = Math.PI / 2;
-wallL.position.set(-HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
-scene.add(wallL);
-const wallR = new THREE.Mesh(sideGeo, wallMat);
-wallR.rotation.y = -Math.PI / 2;
-wallR.position.set(HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
-scene.add(wallR);
+function spawnAshAlongPath(pts){
+  if (reduceMotion || !pts || pts.length < 4) return;
+  const step = Math.max(1, Math.floor(pts.length / 18));
+  for (let i=0;i<pts.length;i+=step){
+    const p = pts[i];
+    spawnAshAtNdc(p.x / innerWidth, p.y / innerHeight, 3 + (i%3));
+  }
+  ashMat.opacity = 0.75;
+}
 
-const endMat = new THREE.MeshStandardMaterial({ color: 0x12151e, roughness: 0.88 });
-const endWall = new THREE.Mesh(new THREE.PlaneGeometry(HALL_W, WALL_H), endMat);
-endWall.position.set(0, WALL_H / 2, -HALL_L / 2 + 0.05);
-scene.add(endWall);
+function clearAsh(){
+  for (let i=0;i<ASH_MAX;i++){
+    ashLife[i]=0;
+    ashPositions[i*3]=ashPositions[i*3+1]=ashPositions[i*3+2]=0;
+  }
+  ashGeo.attributes.position.needsUpdate = true;
+  ashMat.opacity = 0;
+  ashActive = false;
+}
 
-// Soft aperture (window) on left near entrance
-const win = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.08, WALL_H * 0.72),
-  new THREE.MeshBasicMaterial({ color: 0x2a3558 })
-);
-win.position.set(-HALL_W / 2 + 0.06, WALL_H * 0.48, 4);
-scene.add(win);
-const winLight = new THREE.PointLight(0x8a9ad0, 20, 20);
-winLight.position.set(-HALL_W / 2 + 1.2, 3.5, 4);
-scene.add(winLight);
+function updateAsh(dt){
+  if (reduceMotion || !ashActive) return;
+  let any = false;
+  for (let i=0;i<ASH_MAX;i++){
+    if (ashLife[i] <= 0) continue;
+    any = true;
+    ashLife[i] -= dt;
+    const j = i*3;
+    ashPositions[j+1] += dt * (0.35 + (i%5)*0.05);
+    ashPositions[j] += Math.sin(i + clock.elapsedTime*3) * dt * 0.08;
+    if (ashLife[i] <= 0) {
+      ashPositions[j] = ashPositions[j+1] = ashPositions[j+2] = 0;
+    }
+  }
+  if (any) ashGeo.attributes.position.needsUpdate = true;
+  ashMat.opacity = any ? 0.7 : 0;
+  ashActive = any;
+}
+
+const strokeCanvas = document.getElementById('strokeCanvas');
+const sctx = strokeCanvas.getContext('2d');
+
+/* Frost ping-pong buffers (2D Codrops-style fade+stamp → reads as frost, not gold ink) */
+let frostA = document.createElement('canvas');
+let frostB = document.createElement('canvas');
+let frostActx = frostA.getContext('2d');
+let frostBctx = frostB.getContext('2d');
+let frostFront = frostA;
+let frostBack = frostB;
+let frostFrontCtx = frostActx;
+let frostBackCtx = frostBctx;
+
+function sizeFrost(){
+  const w = Math.max(1, Math.floor(innerWidth * Math.min(devicePixelRatio,2)));
+  const h = Math.max(1, Math.floor(innerHeight * Math.min(devicePixelRatio,2)));
+  for (const c of [frostA, frostB]) {
+    if (c.width !== w || c.height !== h) {
+      c.width = w; c.height = h;
+    }
+  }
+}
+
+function sizeStroke(){
+  strokeCanvas.width = innerWidth * Math.min(devicePixelRatio,2);
+  strokeCanvas.height = innerHeight * Math.min(devicePixelRatio,2);
+  strokeCanvas.style.width = innerWidth+'px';
+  strokeCanvas.style.height = innerHeight+'px';
+  sctx.setTransform(Math.min(devicePixelRatio,2),0,0,Math.min(devicePixelRatio,2),0,0);
+  sizeFrost();
+}
+sizeStroke();
+
+const hProg = document.getElementById('h-prog');
+const hBins = document.getElementById('h-bins');
+const hCirc = document.getElementById('h-circ');
+const hClosed = document.getElementById('h-closed');
+const hGlove = document.getElementById('h-glove');
+const hYaw = document.getElementById('h-yaw');
+const hState = document.getElementById('h-state');
+const ringProg = document.getElementById('ringProg');
+const ringGhost = document.getElementById('ringGhost');
+const ringHint = document.getElementById('ringHint');
+const ringWrap = document.getElementById('ringWrap');
+const hero = document.getElementById('hero');
+const unlockedHero = document.getElementById('unlockedHero');
+const btnReset = document.getElementById('btnReset');
+const btnUnlock = document.getElementById('btnUnlock');
+
+let points = [];
+let drawing = false;
+let unlocked = false;
+let dissolve = 0;
+let dissolveTarget = 0;
+const DISSOLVE_SEC = 0.55; // quick mist fade — no expanding fire
+let unlockHeroTimer = 0;
+let lastMove = 0;
+let softFailUntil = 0;
+let lastPressure = 0.35;
+let lastSpeed = 0;
+let tipX = 0, tipY = 0;
+let tipVisible = false;
+
+/* Atlas / glove state (legacy 16-cell path kept as fallback) */
+let atlasImg = null;
+let atlasReady = false;
+let atlasMeta = null;
+let gloveSlotA = 0;
+let gloveSlotB = 0;
+let gloveBlend = 1; // 0=A, 1=B
+let gloveBlendT0 = 0;
+let lastPickedFrame = 0;
+
+/* Forearm yaw masters — primary tip visual while drawing */
+let yawFront = null, yawLeft = null, yawRight = null;
+let yawReady = false;
+let yawSmooth = 0;   // smoothed t in [-1,1]
+let yawTarget = 0;
+let lastYawDt = 1/60;
+const gloveOffA = document.createElement('canvas');
+const gloveOffB = document.createElement('canvas');
+const gloveUnder = document.createElement('canvas');
+const gloveOver = document.createElement('canvas');
+const gloveOffActx = gloveOffA.getContext('2d');
+const gloveOffBctx = gloveOffB.getContext('2d');
+const gloveUnderCtx = gloveUnder.getContext('2d');
+const gloveOverCtx = gloveOver.getContext('2d');
+let gloveOffW = 0, gloveOffH = 0;
+/** Yaw plate draw size: height ≈ gloveSize, width keeps master aspect (~16:9). */
+function yawDrawSize(){
+  // Prefer downscale from hi-res plates (never blow up a soft tip)
+  const nativeH = (yawFront && yawFront.naturalHeight) ? yawFront.naturalHeight : 1596;
+  const nativeW = (yawFront && yawFront.naturalWidth) ? yawFront.naturalWidth : 1008;
+  const h = Math.min(gloveSize(), nativeH);
+  const aspect = nativeW / Math.max(1, nativeH);
+  const w = Math.round(h * aspect);
+  return { w, h };
+}
+function ensureGloveOffscreens(w, h){
+  if (h == null) { h = w; } // legacy square call
+  if (gloveOffW === w && gloveOffH === h) return;
+  gloveOffW = w; gloveOffH = h;
+  for (const c of [gloveOffA, gloveOffB, gloveUnder, gloveOver]) {
+    c.width = w; c.height = h;
+  }
+}
+ensureGloveOffscreens(gloveSize(), gloveSize());
+
+const CIRC = 2 * Math.PI * 100;
+const BIN_COUNT = 30; // mid: was 36 (hard) → 24 (easy)
+const RESAMPLE_N = 64;
+
+/** $1 Unistroke-style: even arc-length resample before scoring */
+function resamplePath(pts, n){
+  if (pts.length < 2) return pts.slice();
+  let total = 0;
+  for (let i=1;i<pts.length;i++) total += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  if (total < 1e-6) return [pts[0]];
+  const step = total / (n - 1);
+  const out = [{ x: pts[0].x, y: pts[0].y, t: pts[0].t }];
+  let dist = 0;
+  let i = 1;
+  let prev = pts[0];
+  while (out.length < n && i < pts.length) {
+    const cur = pts[i];
+    const seg = Math.hypot(cur.x-prev.x, cur.y-prev.y);
+    if (seg < 1e-9) { i++; continue; }
+    if (dist + seg >= step) {
+      const t = (step - dist) / seg;
+      const nx = prev.x + t * (cur.x - prev.x);
+      const ny = prev.y + t * (cur.y - prev.y);
+      const nt = (prev.t||0) + t * ((cur.t||0) - (prev.t||0));
+      out.push({ x: nx, y: ny, t: nt });
+      prev = { x: nx, y: ny, t: nt };
+      dist = 0;
+    } else {
+      dist += seg;
+      prev = cur;
+      i++;
+    }
+  }
+  while (out.length < n) out.push({ x: pts[pts.length-1].x, y: pts[pts.length-1].y, t: pts[pts.length-1].t });
+  return out;
+}
+
+function circDistDeg(a, b){
+  let d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/** Screen tangent (y-down atan2) → atlas angleDeg where 0 = pointing up */
+function tangentToAtlasDeg(dx, dy){
+  const screenDeg = Math.atan2(dy, dx) * 180 / Math.PI; // 0=right, 90=down
+  return ((screenDeg + 90) % 360 + 360) % 360;
+}
+
+function smoothTangent(pts){
+  if (pts.length < 2) return { dx: 0, dy: -1, angleDeg: 0 };
+  const n = Math.min(6, pts.length - 1);
+  let dx = 0, dy = 0;
+  for (let i = pts.length - n; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    dx += b.x - a.x;
+    dy += b.y - a.y;
+  }
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  return { dx, dy, angleDeg: tangentToAtlasDeg(dx, dy) };
+}
+
+function tipUVForAngle(angleDeg){
+  const ax = Math.sin(angleDeg * Math.PI / 180);
+  const ay = -Math.cos(angleDeg * Math.PI / 180);
+  return { u: 0.5 + ax * TIP_R, v: 0.5 + ay * TIP_R };
+}
+
+function cellUV(index){
+  const col = index % ATLAS_COLS;
+  const row = Math.floor(index / ATLAS_COLS);
+  return { sx: col * ATLAS_CELL, sy: row * ATLAS_CELL };
+}
+
+/**
+ * Map tangent + press/speed → atlas frame.
+ * Rest 0–7 (45° bins); press 8–11 (cardinals); trail 12–13 when fast.
+ */
+function pickGloveFrame(angleDeg, press01, speedPxMs){
+  // High speed → trail-lead cells
+  if (speedPxMs > 1.35) {
+    return circDistDeg(angleDeg, 45) <= circDistDeg(angleDeg, 225) ? 12 : 13;
+  }
+  if (press01 >= 0.52) {
+    const pressAngles = [0, 90, 180, 270];
+    let best = 0, bestD = 999;
+    for (let i = 0; i < 4; i++) {
+      const d = circDistDeg(angleDeg, pressAngles[i]);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return 8 + best;
+  }
+  return Math.round(angleDeg / 45) % 8;
+}
+
+function setGloveFrame(frame){
+  frame = Math.max(0, Math.min(15, frame|0));
+  if (frame === lastPickedFrame) return;
+  gloveSlotA = lastPickedFrame;
+  gloveSlotB = frame;
+  gloveBlend = 0;
+  gloveBlendT0 = performance.now();
+  lastPickedFrame = frame;
+}
+
+function clearFrost(){
+  frostActx.setTransform(1,0,0,1,0,0);
+  frostBctx.setTransform(1,0,0,1,0,0);
+  frostActx.clearRect(0,0,frostA.width,frostA.height);
+  frostBctx.clearRect(0,0,frostB.width,frostB.height);
+}
+
+function clearStroke(opts){
+  const keepBurn = !!(opts && opts.keepBurn);
+  sctx.clearRect(0,0,innerWidth,innerHeight);
+  clearFrost();
+  if (!keepBurn) clearBurnTrail();
+  points = [];
+  tipVisible = false;
+  document.body.classList.remove('drawing-glove');
+  updateHud(0,0,0,0);
+  hGlove.textContent = '—';
+  if (hYaw) hYaw.textContent = '—';
+  yawSmooth = 0; yawTarget = 0;
+  burnHasLast = false; // next stroke starts a fresh segment (RT may still hold burn)
+}
+
+function scorePath(rawPts){
+  // Mid difficulty: halfway between prior hard (36 bins / tight close) and easy (24 / soft close).
+  if (rawPts.length < 10) return { progress:0, circular:0, closed:0, binsFilled:0, coverage:0 };
+  const pts = resamplePath(rawPts, RESAMPLE_N);
+  let cx=0, cy=0;
+  for (const p of pts){ cx+=p.x; cy+=p.y; }
+  cx/=pts.length; cy/=pts.length;
+  const radii = pts.map(p=>Math.hypot(p.x-cx,p.y-cy));
+  const meanR = radii.reduce((a,b)=>a+b,0)/radii.length || 1;
+  const varR = radii.reduce((a,r)=>a+(r-meanR)**2,0)/radii.length;
+  const cv = Math.sqrt(varR)/meanR;
+  const circular = Math.max(0, 1 - cv*1.78);
+
+  const bins = new Array(BIN_COUNT).fill(0);
+  for (const p of pts){
+    let a = Math.atan2(p.y-cy, p.x-cx);
+    if (a<0) a+=Math.PI*2;
+    bins[Math.min(BIN_COUNT-1, Math.floor(a/(Math.PI*2)*BIN_COUNT))] = 1;
+  }
+  // Soft-fill neighbors (kept from easy — still forgives one-bin gaps).
+  const soft = bins.slice();
+  for (let i=0;i<BIN_COUNT;i++){
+    if (bins[i]) continue;
+    if (bins[(i-1+BIN_COUNT)%BIN_COUNT] || bins[(i+1)%BIN_COUNT]) soft[i] = 1;
+  }
+  const binsFilled = soft.reduce((a,b)=>a+b,0);
+  const coverage = binsFilled / BIN_COUNT;
+
+  const start = pts[0], end = pts[pts.length-1];
+  const closeDist = Math.hypot(end.x-start.x, end.y-start.y);
+  const closed = Math.max(0, 1 - closeDist/(meanR*0.80));
+
+  let len=0;
+  for (let i=1;i<pts.length;i++) len+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+  const ideal = Math.PI*2*meanR;
+  const lengthFit = 1 - Math.min(1, Math.abs(len-ideal)/(ideal*1.22));
+
+  const progress = Math.min(1, circular*0.32 + coverage*0.41 + closed*0.21 + lengthFit*0.06);
+  return { progress, circular, closed, coverage, binsFilled, meanR };
+}
+
+function updateHud(prog, circ, closed, binsFilled){
+  hProg.textContent = Math.round(prog*100)+'%';
+  hBins.textContent = `${binsFilled||0}/${BIN_COUNT}`;
+  hCirc.textContent = circ ? circ.toFixed(2) : '—';
+  hClosed.textContent = closed ? closed.toFixed(2) : '—';
+  ringProg.style.strokeDashoffset = String(CIRC * (1-prog));
+  ringGhost.style.opacity = String(Math.max(0, 1 - prog * 1.15));
+  if (ringHint) ringHint.textContent = 'draw a circle';
+}
 
 
-function makeFallbackTexture(app, w = 768, h = 1024) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0, '#05060a');
-  g.addColorStop(0.55, '#12162a');
-  g.addColorStop(1, '#05060a');
+/** Map screen-space stroke to aspect-corrected circle uniforms for burn rim */
+function setBurnCircleFromPoints(rawPts){
+  const aspect = innerWidth / Math.max(innerHeight, 1);
+  if (!rawPts || rawPts.length < 8) {
+    veilMat.uniforms.uCircle.value.set(0, 0);
+    veilMat.uniforms.uRadius.value = 0.32;
+    return { cx: innerWidth*0.5, cy: innerHeight*0.5, r: Math.min(innerWidth,innerHeight)*0.18 };
+  }
+  const pts = resamplePath(rawPts, RESAMPLE_N);
+  let cx=0, cy=0;
+  for (const p of pts){ cx+=p.x; cy+=p.y; }
+  cx/=pts.length; cy/=pts.length;
+  let meanR=0;
+  for (const p of pts) meanR += Math.hypot(p.x-cx, p.y-cy);
+  meanR/=pts.length;
+  // screen → aspect-corrected NDC-like (same as veilFS p)
+  const ndcX = ((cx / innerWidth) - 0.5) * aspect;
+  const ndcY = 0.5 - (cy / innerHeight);
+  const ndcR = (meanR / innerHeight); // y-scale matches p=(uv-0.5)*vec2(aspect,1)
+  veilMat.uniforms.uCircle.value.set(ndcX, ndcY);
+  veilMat.uniforms.uRadius.value = Math.max(0.12, Math.min(0.55, ndcR));
+  return { cx, cy, r: meanR };
+}
+
+function doUnlock(){
+  if (unlocked) return;
+  unlocked = true;
+  // Mist fades; finger burn trail stays as-is until clearStroke — no expanding fire ring
+  dissolveTarget = 1;
+  if (!reduceMotion) dissolve = Math.max(dissolve, 0.02);
+  hState.textContent = 'unlocked';
+  hero.classList.add('gone');
+  unlockedHero.classList.remove('on');
+  if (unlockHeroTimer) clearTimeout(unlockHeroTimer);
+  // unlocked-hero copy hidden — no post-unlock language
+  ringWrap.classList.add('gone');
+  ringWrap.classList.remove('softfail');
+  orb.visible = false;
+  tipVisible = false;
+  document.body.classList.remove('drawing-glove');
+  clearStroke(); // wipe burn trail on unlock — path only lives while drawing
+  if (reduceMotion) {
+    dissolve = 1;
+    dissolveTarget = 1;
+    veilMat.uniforms.uDissolve.value = 1;
+    revealCorridor();
+  }
+}
+
+function resetAll(){
+  unlocked = false;
+  dissolve = 0;
+  dissolveTarget = 0;
+  veilMat.uniforms.uDissolve.value = 0;
+  veilMat.uniforms.uCircle.value.set(0, 0);
+  veilMat.uniforms.uRadius.value = 0.32;
+  hState.textContent = 'locked';
+  hero.classList.remove('gone');
+  unlockedHero.classList.remove('on');
+  if (unlockHeroTimer) { clearTimeout(unlockHeroTimer); unlockHeroTimer = 0; }
+  ringWrap.classList.remove('gone');
+  ringWrap.classList.remove('softfail');
+  orb.visible = false;
+  softFailUntil = 0;
+  clearAsh();
+  clearStroke();
+  hideCorridor();
+  // Reload corridor so gate/embed state is fresh behind the veil
+  if (corridorFrame) {
+    const src = CORRIDOR_URL + (reduceMotion ? '&still=1' : '') + '&t=' + Date.now();
+    corridorFrame.src = src;
+  }
+}
+
+function softFailFlash(){
+  ringWrap.classList.add('softfail');
+  hState.textContent = 'retry';
+  softFailUntil = performance.now() + 380;
+  tipVisible = false;
+  document.body.classList.remove('drawing-glove');
+  setTimeout(()=>{
+    if (!unlocked) {
+      ringWrap.classList.remove('softfail');
+      clearStroke();
+      hState.textContent = 'locked';
+    }
+  }, 380);
+}
+
+function clientPt(e){
+  const pressure = (typeof e.pressure === 'number' && e.pressure > 0) ? e.pressure : null;
+  return { x:e.clientX, y:e.clientY, t:performance.now(), pressure };
+}
+
+/** Fade previous frost + stamp soft violet/cream brush at tip (ping-pong). */
+function frostStamp(x, y, intensity){
+  const dpr = Math.min(devicePixelRatio, 2);
+  const bw = frostFront.width, bh = frostFront.height;
+  // Ping-pong: draw faded+blurred front into back, then stamp
+  frostBackCtx.setTransform(1,0,0,1,0,0);
+  frostBackCtx.clearRect(0,0,bw,bh);
+  frostBackCtx.save();
+  frostBackCtx.globalAlpha = FROST_FADE;
+  frostBackCtx.filter = 'blur(1.2px)';
+  frostBackCtx.drawImage(frostFront, 0, 0);
+  frostBackCtx.restore();
+
+  const px = x * dpr, py = y * dpr;
+  const r = (18 + intensity * 14) * dpr;
+  const g = frostBackCtx.createRadialGradient(px, py, 0, px, py, r);
+  // cool violet-gray core → cream rim → transparent (frost, not gold)
+  g.addColorStop(0, `rgba(210,205,230,${0.22 + intensity * 0.18})`);
+  g.addColorStop(0.35, `rgba(138,123,184,${0.28 + intensity * 0.2})`);
+  g.addColorStop(0.7, `rgba(90,100,130,${0.12 + intensity * 0.08})`);
+  g.addColorStop(1, 'rgba(5,6,10,0)');
+  frostBackCtx.globalCompositeOperation = 'lighter';
+  frostBackCtx.fillStyle = g;
+  frostBackCtx.beginPath();
+  frostBackCtx.arc(px, py, r, 0, Math.PI * 2);
+  frostBackCtx.fill();
+  frostBackCtx.globalCompositeOperation = 'source-over';
+
+  // swap
+  const tmpC = frostFront, tmpX = frostFrontCtx;
+  frostFront = frostBack; frostFrontCtx = frostBackCtx;
+  frostBack = tmpC; frostBackCtx = tmpX;
+}
+
+/** Soft decay without adding ink — keeps frost ephemeral between stamps. */
+function frostFadeOnly(){
+  const bw = frostFront.width, bh = frostFront.height;
+  frostBackCtx.setTransform(1,0,0,1,0,0);
+  frostBackCtx.clearRect(0,0,bw,bh);
+  frostBackCtx.save();
+  frostBackCtx.globalAlpha = FROST_FADE;
+  frostBackCtx.filter = 'blur(0.8px)';
+  frostBackCtx.drawImage(frostFront, 0, 0);
+  frostBackCtx.restore();
+  const tmpC = frostFront, tmpX = frostFrontCtx;
+  frostFront = frostBack; frostFrontCtx = frostBackCtx;
+  frostBack = tmpC; frostBackCtx = tmpX;
+}
+
+function sampleCell(ctx, index, dx, dy, dw, dh){
+  if (!atlasReady) return;
+  const { sx, sy } = cellUV(index);
+  ctx.drawImage(atlasImg, sx, sy, ATLAS_CELL, ATLAS_CELL, dx, dy, dw, dh);
+}
+
+/** Soft alpha falloff along pointing axis: wrist dissolves into veil. */
+function applyWristFade(ctx, w, h, tipU, tipV){
+  const tipPx = tipU * w, tipPy = tipV * h;
+  // Bottom-enter masters: dissolve hard plate cutoff into the veil
+  const wristPx = w * 0.5, wristPy = h * 1.02;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  const g = ctx.createLinearGradient(wristPx, wristPy, tipPx, tipPy);
+  g.addColorStop(0, `rgba(0,0,0,${WRIST_FADE.near})`);
+  g.addColorStop(0.18, `rgba(0,0,0,${WRIST_FADE.mid})`);
+  g.addColorStop(0.48, `rgba(0,0,0,${WRIST_FADE.far})`);
+  g.addColorStop(0.78, 'rgba(0,0,0,0.94)');
+  g.addColorStop(1, 'rgba(0,0,0,1)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
-  // accent rule — labeled plate, not city massing
-  ctx.fillStyle = app.accent;
-  ctx.globalAlpha = 0.85;
-  ctx.fillRect(48, 72, 72, 6);
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = '#f2ebe0';
-  ctx.font = '700 56px "Bricolage Grotesque", sans-serif';
-  const lines = String(app.name).split(' ');
-  let ty = h * 0.42;
-  for (const line of lines) {
-    ctx.fillText(line, 48, ty);
-    ty += 68;
-  }
-  ctx.font = '12px "Space Mono", monospace';
-  ctx.fillStyle = 'rgba(242,235,224,0.55)';
-  ctx.fillText(app.id.toUpperCase(), 48, h - 56);
-  ctx.fillText('APP · FALLBACK', 48, h - 36);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
-  return tex;
+  ctx.restore();
 }
 
-function applyCover(tex, planeW, planeH, align = 'center') {
-  const img = tex.image;
-  if (!img || !img.width || !img.height) return;
-  const imgAspect = img.width / img.height;
-  const planeAspect = planeW / planeH;
-  // Landscape onto portrait: horizontal crop. 'left' keeps H1/start of shot visible.
-  if (imgAspect > planeAspect) {
-    const ratio = planeAspect / imgAspect;
-    tex.repeat.set(ratio, 1);
-    if (align === 'left') tex.offset.set(0, 0);
-    else if (align === 'right') tex.offset.set(1 - ratio, 0);
-    else tex.offset.set((1 - ratio) / 2, 0);
+/** Keep only the fingertip region (sharp stamp on frost plane). */
+function applyTipMask(ctx, w, h, tipU, tipV){
+  const tipPx = tipU * w, tipPy = tipV * h;
+  const r = Math.min(w, h) * TIP_MASK_R;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  const g = ctx.createRadialGradient(tipPx, tipPy, 0, tipPx, tipPy, r);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(0.5, 'rgba(0,0,0,0.92)');
+  g.addColorStop(0.78, 'rgba(0,0,0,0.35)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+/**
+ * Zero motion / Virgil yaw mapping:
+ *   nx = tipX / innerWidth  (0 left … 1 right)
+ *   t  = clamp((nx - 0.5) * 2, -1, 1)
+ *   t < 0 (hand LEFT)  → blend front ↔ RIGHT flank, weight |t|
+ *   t > 0 (hand RIGHT) → blend front ↔ LEFT  flank, weight  t
+ */
+function yawAmountFromTipX(x){
+  const nx = x / Math.max(1, innerWidth);
+  return Math.max(-1, Math.min(1, (nx - 0.5) * 2));
+}
+
+function tickYawSmooth(dt){
+  const a = 1 - Math.exp(-YAW_SMOOTH_HZ * 2 * Math.PI * Math.max(0, dt));
+  yawSmooth += (yawTarget - yawSmooth) * a;
+}
+
+function formatYawHud(t){
+  const a = Math.abs(t);
+  if (a < 0.04) return 'front';
+  if (t < 0) return `R ${a.toFixed(2)}`; // showing right flank
+  return `L ${a.toFixed(2)}`;            // showing left flank
+}
+
+/**
+ * Primary: forearm yaw crossfade into under/over buffers.
+ * Zero rule: left screen → right flank, right screen → left flank.
+ * Returns placement { dx, dy, size, w, h, tipU, tipV, rot } or null.
+ */
+function prepareYawGlove(x, y){
+  if (!yawReady || !tipVisible) return null;
+  const t = yawSmooth;
+  // Soft flank: keep front dominant so edges don't read as a different arm
+  const wFlank = Math.min(YAW_FLANK_MAX, Math.abs(t)) * (Math.abs(t) > 0.08 ? 1 : Math.abs(t) / 0.08);
+  const wFront = 1 - wFlank;
+  const flankImg = t < 0 ? yawRight : yawLeft; // t<0 left side → RIGHT flank
+
+  const { w, h } = yawDrawSize();
+  ensureGloveOffscreens(w, h);
+  // Blend tip UV with same weights as plates so fingertip stays locked while yawing
+  const mf = YAW_TIP_META.front, mFl = t < 0 ? YAW_TIP_META.right : YAW_TIP_META.left;
+  const tipU = mf.tipU * wFront + mFl.tipU * wFlank;
+  const tipV = mf.tipV * wFront + mFl.tipV * wFlank;
+  const dx = x - tipU * w;
+  const dy = y - tipV * h;
+  const rot = YAW_BASE_TILT + t * YAW_ROT_MAX; // base reach tilt + screen yaw
+
+  function paintBlend(ctx){
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.globalAlpha = wFront;
+    ctx.drawImage(yawFront, 0, 0, w, h);
+    ctx.globalAlpha = wFlank;
+    ctx.drawImage(flankImg, 0, 0, w, h);
+    ctx.restore();
+  }
+
+  paintBlend(gloveUnderCtx);
+  // Soft wrist dissolve into veil (kills hard plate cutoff)
+  applyWristFade(gloveUnderCtx, w, h, tipU, tipV);
+  paintBlend(gloveOverCtx);
+  applyWristFade(gloveOverCtx, w, h, tipU, tipV);
+
+  if (hYaw) hYaw.textContent = formatYawHud(t);
+  return { dx, dy, size: Math.min(w, h), w, h, tipU, tipV, rot };
+}
+
+/**
+ * Fallback: 16-cell lighting atlas tip (legacy).
+ */
+function prepareAtlasGlove(x, y, angleDeg){
+  if (!atlasReady || !tipVisible) return null;
+  const now = performance.now();
+  if (gloveBlend < 1) {
+    gloveBlend = Math.min(1, (now - gloveBlendT0) / CROSSFADE_MS);
+  }
+  const size = gloveSize();
+  ensureGloveOffscreens(size, size);
+  const frameForTip = gloveBlend > 0.5 ? gloveSlotB : gloveSlotA;
+  const tipAngle = (atlasMeta?.frames?.[frameForTip]?.angleDeg) ?? angleDeg;
+  const tip = tipUVForAngle(tipAngle);
+  const dx = x - tip.u * size;
+  const dy = y - tip.v * size;
+
+  gloveOffActx.clearRect(0, 0, size, size);
+  gloveOffBctx.clearRect(0, 0, size, size);
+  sampleCell(gloveOffActx, gloveSlotA, 0, 0, size, size);
+  sampleCell(gloveOffBctx, gloveSlotB, 0, 0, size, size);
+
+  gloveUnderCtx.clearRect(0, 0, size, size);
+  gloveUnderCtx.save();
+  gloveUnderCtx.globalAlpha = 1 - gloveBlend;
+  gloveUnderCtx.drawImage(gloveOffA, 0, 0);
+  gloveUnderCtx.globalAlpha = gloveBlend;
+  gloveUnderCtx.drawImage(gloveOffB, 0, 0);
+  gloveUnderCtx.restore();
+  applyWristFade(gloveUnderCtx, size, size, tip.u, tip.v);
+
+  gloveOverCtx.clearRect(0, 0, size, size);
+  gloveOverCtx.save();
+  gloveOverCtx.globalAlpha = 1 - gloveBlend;
+  gloveOverCtx.drawImage(gloveOffA, 0, 0);
+  gloveOverCtx.globalAlpha = gloveBlend;
+  gloveOverCtx.drawImage(gloveOffB, 0, 0);
+  gloveOverCtx.restore();
+  applyTipMask(gloveOverCtx, size, size, tip.u, tip.v);
+
+  return { dx, dy, size, w: size, h: size, tipU: tip.u, tipV: tip.v, rot: 0 };
+}
+
+function prepareGlove(x, y, angleDeg){
+  if (yawReady) return prepareYawGlove(x, y);
+  return prepareAtlasGlove(x, y, angleDeg);
+}
+
+/** Draw glove buffers with optional secondary yaw rotate about the frost tip. */
+function drawGloveAt(place, img, alpha, blurPx){
+  if (!place) return;
+  const tipX = place.dx + place.tipU * place.w;
+  const tipY = place.dy + place.tipV * place.h;
+  sctx.save();
+  if (place.rot) {
+    sctx.translate(tipX, tipY);
+    sctx.rotate(place.rot);
+    sctx.translate(-tipX, -tipY);
+  }
+  if (blurPx) sctx.filter = `blur(${blurPx}px)`;
+  sctx.globalAlpha = alpha;
+  sctx.drawImage(img, place.dx, place.dy);
+  sctx.restore();
+}
+
+/** Under frost: soft/blurred wrist-faded body emerging from veil. */
+function drawGloveUnder(place){
+  if (!place) return;
+  drawGloveAt(place, gloveUnder, 0.78, 1.6);
+  drawGloveAt(place, gloveUnder, 0.55, 0);
+}
+
+/** Cool violet/cream contact glow at tip (under the sharp fingertip stamp). */
+function drawContactGlow(x, y, size){
+  // Disabled — was reading as a smear off the fingertip on dark masters.
+  return;
+}
+
+/** On top of frost: sharp fingertip so the finger touches the frost plane. */
+function drawGloveOver(place){
+  if (!place) return;
+  drawGloveAt(place, gloveOver, 1, 0);
+}
+
+function compositeStrokeLayer(){
+  sctx.clearRect(0,0,innerWidth,innerHeight);
+  let place = null;
+  if (tipVisible && points.length) {
+    const tang = smoothTangent(points);
+    place = prepareGlove(tipX, tipY, tang.angleDeg);
+  }
+  // Subtle frost underlayer (burn heat trail is the dominant path read, in WebGL)
+  if (frostFront.width > 0) {
+    sctx.save();
+    sctx.setTransform(1,0,0,1,0,0);
+    sctx.globalAlpha = 0.28;
+    sctx.drawImage(frostFront, 0, 0, strokeCanvas.width, strokeCanvas.height);
+    sctx.restore();
+    sctx.setTransform(Math.min(devicePixelRatio,2),0,0,Math.min(devicePixelRatio,2),0,0);
+  }
+  // Single solid arm (no under-blur ghost / no tip contact glow)
+  if (place) {
+    // Use under buffer as the full blended plate; draw once at full opacity
+    drawGloveAt(place, gloveUnder, 1, 0);
+  }
+}
+
+function paintStroke(){
+  // Kept for call-sites: composite only (stamps happen on move)
+  compositeStrokeLayer();
+}
+
+function onDown(e){
+  if (unlocked || reduceMotion) return;
+  drawing = true;
+  document.body.classList.add('drawing-glove');
+  renderer.domElement.setPointerCapture?.(e.pointerId);
+  const p = clientPt(e);
+  points = [p];
+  tipX = p.x; tipY = p.y; tipVisible = true;
+  lastMove = performance.now();
+  lastPressure = p.pressure != null ? p.pressure : 0.4;
+  lastSpeed = 0;
+  lastPickedFrame = 0;
+  gloveSlotA = 0; gloveSlotB = 0; gloveBlend = 1;
+  yawTarget = yawAmountFromTipX(p.x);
+  yawSmooth = yawTarget;
+  /* frost muted on down — burn trail is the ink */
+  burnStampScreen(p.x, p.y, p.t);
+  paintStroke();
+}
+function onMove(e){
+  if (!drawing || unlocked || reduceMotion) return;
+  const p = clientPt(e);
+  const last = points[points.length-1];
+  const dist = Math.hypot(p.x-last.x,p.y-last.y);
+  if (dist < 1.5) return;
+  const dt = Math.max(1, p.t - (last.t || p.t));
+  lastSpeed = dist / dt; // px/ms
+  if (p.pressure != null) lastPressure = p.pressure;
+  else {
+    // speed proxy: slow → press, fast → rest/trail
+    lastPressure = Math.max(0.05, Math.min(1, 1 - lastSpeed * 0.55));
+  }
+  points.push(p);
+  tipX = p.x; tipY = p.y; tipVisible = true;
+  lastMove = performance.now();
+
+  yawTarget = yawAmountFromTipX(p.x);
+  if (yawReady) {
+    hGlove.textContent = 'forearm-yaw';
   } else {
-    const ratio = imgAspect / planeAspect;
-    tex.repeat.set(1, ratio);
-    tex.offset.set(0, (1 - ratio) / 2);
+    const tang = smoothTangent(points);
+    const frame = pickGloveFrame(tang.angleDeg, lastPressure, lastSpeed);
+    setGloveFrame(frame);
+    const name = atlasMeta?.frames?.[frame]?.name || `#${frame}`;
+    hGlove.textContent = name.replace(/-rest|-press/, m => m);
   }
-  tex.needsUpdate = true;
+
+  const intensity = 0.18 + lastPressure * 0.22; // frost whisper under burn
+  /* frost muted — burn trail is the ink */
+  burnStampScreen(p.x, p.y, p.t);
+  paintStroke();
+  const sc = scorePath(points);
+  updateHud(sc.progress, sc.circular, sc.closed, sc.binsFilled);
+  if (sc.progress >= 0.74 && sc.closed >= 0.42 && sc.circular >= 0.36) doUnlock();
+}
+function onUp(){
+  if (!drawing) return;
+  drawing = false;
+  tipVisible = false;
+  document.body.classList.remove('drawing-glove');
+  paintStroke();
+  if (unlocked) return;
+  const s = scorePath(points);
+  updateHud(s.progress, s.circular, s.closed, s.binsFilled);
+  if (s.progress >= 0.69 && s.closed >= 0.37 && s.circular >= 0.32) {
+    doUnlock();
+  } else if (s.progress >= 0.38 && s.progress < 0.78) {
+    softFailFlash();
+  } else {
+    hState.textContent = 'retry';
+    setTimeout(()=>{ if(!unlocked){ clearStroke(); hState.textContent='locked'; }}, 320);
+  }
 }
 
-function loadTextureUrl(url) {
-  // Image + Texture works under file:// on Mac; TextureLoader often fails there.
-  return new Promise((resolve, reject) => {
+renderer.domElement.addEventListener('pointerdown', onDown);
+addEventListener('pointermove', onMove);
+addEventListener('pointerup', onUp);
+addEventListener('pointercancel', onUp);
+
+btnReset.addEventListener('click', resetAll);
+// Quiet reset: R key (no on-screen label)
+addEventListener('keydown', (e)=>{
+  if (e.key === 'r' || e.key === 'R') { if (!e.metaKey && !e.ctrlKey) resetAll(); }
+});
+if (reduceMotion) {
+  btnUnlock.style.display = '';
+  btnUnlock.addEventListener('click', doUnlock);
+  if (ringHint) ringHint.textContent = 'draw a circle';
+  if (still) {
+    doUnlock();
+    dissolve = 1;
+    dissolveTarget = 1;
+    veilMat.uniforms.uDissolve.value = 1;
+    updateHud(1, 1, 1, BIN_COUNT);
+    hProg.textContent = '100%';
+  }
+}
+
+function onResize(){
+  renderer.setSize(innerWidth, innerHeight);
+  softCam.aspect = innerWidth/innerHeight;
+  softCam.updateProjectionMatrix();
+  fieldMat.uniforms.uRes.value.set(innerWidth,innerHeight);
+  veilMat.uniforms.uRes.value.set(innerWidth,innerHeight);
+  trailMat.uniforms.uRes.value.set(innerWidth,innerHeight);
+  burnRW = Math.max(2, Math.floor(innerWidth * burnScale));
+  burnRH = Math.max(2, Math.floor(innerHeight * burnScale));
+  burnRT.setSize(burnRW, burnRH);
+  burnRTB.setSize(burnRW, burnRH);
+  clearBurnTrail();
+  {
+    const sz = yawReady ? yawDrawSize() : { w: gloveSize(), h: gloveSize() };
+    ensureGloveOffscreens(sz.w, sz.h);
+  }
+  sizeStroke();
+  paintStroke();
+}
+addEventListener('resize', onResize);
+
+let raf = 0;
+function frame(){
+  raf = requestAnimationFrame(frame);
+  const dt = clock.getDelta();
+  const t = reduceMotion ? 0 : clock.getElapsedTime();
+  fieldMat.uniforms.uTime.value = t;
+  veilMat.uniforms.uTime.value = t;
+  trailMat.uniforms.uTime.value = t;
+  trailMat.uniforms.uBurn.value = burnRT.texture;
+  // Linear ease ~1.85s so dual-band rim stays readable (was dt*2.4 ≈ 0.4s wipe)
+  if (dissolveTarget > dissolve) {
+    dissolve = Math.min(dissolveTarget, dissolve + dt / DISSOLVE_SEC);
+  } else if (dissolveTarget < dissolve) {
+    dissolve = dissolveTarget;
+  }
+  veilMat.uniforms.uDissolve.value = dissolve;
+  // Once dissolve finishes, hand pointer events to live corridor iframe
+  if (unlocked && dissolve >= 0.98 && !document.body.classList.contains('unlocked-live')) {
+    revealCorridor();
+  }
+  updateAsh(dt);
+  if (drawing && !unlocked && performance.now() - lastMove > 1400) {
+    drawing = false;
+    tipVisible = false;
+    document.body.classList.remove('drawing-glove');
+    hState.textContent = 'abandoned';
+    clearStroke();
+    setTimeout(()=>{ if(!unlocked) hState.textContent='locked'; }, 500);
+  }
+  lastYawDt = dt;
+  if (yawReady && tipVisible) tickYawSmooth(dt);
+  // Gentle frost decay between stamps (~10 Hz); keep yaw / atlas crossfade animating
+  const nowF = performance.now();
+  if (drawing && tipVisible && nowF - lastMove > 120) {
+    if (!frame._lastFrostFade || nowF - frame._lastFrostFade > 100) {
+      frame._lastFrostFade = nowF;
+      frostFadeOnly();
+      paintStroke();
+    }
+  } else if (tipVisible && (yawReady ? Math.abs(yawTarget - yawSmooth) > 0.002 : gloveBlend < 1)) {
+    paintStroke();
+  } else if (tipVisible && yawReady && drawing) {
+    // keep smoothed yaw painting every frame while drawing
+    paintStroke();
+  }
+  if (orb.visible) {
+    orb.rotation.y += dt * 0.35;
+    orb.rotation.x = Math.sin(t*0.6)*0.15;
+  }
+  renderer.autoClear = true;
+  renderer.setClearColor(0x000000, 0);
+  renderer.render(scene, ortho);
+  if (orb.visible || ashActive) {
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(softScene, softCam);
+  }
+}
+clearBurnTrail();
+raf = requestAnimationFrame(frame);
+
+function loadImage(url){
+  return new Promise((res, rej) => {
     const img = new Image();
-    img.onload = () => {
-      const tex = new THREE.Texture(img);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.needsUpdate = true;
-      resolve(tex);
-    };
-    img.onerror = () => reject(new Error('image load failed: ' + url));
+    img.crossOrigin = 'anonymous';
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('fail '+url));
     img.src = url;
   });
 }
 
-async function resolveAppTexture(app) {
-  const embedded = (typeof window !== 'undefined' && window.NOCTUARY_APP_SHOTS)
-    ? window.NOCTUARY_APP_SHOTS[app.id]
-    : null;
-  if (embedded) {
-    try {
-      const tex = await loadTextureUrl(embedded);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
-      app.image = 'embedded:' + app.id;
-      app._source = 'image';
-      return tex;
-    } catch {
-      // fall through to file candidates
-    }
-  }
-  for (const file of app.candidates || []) {
-    const url = `./app-shots/${file}`;
-    try {
-      const tex = await loadTextureUrl(url);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
-      app.image = url;
-      app._source = 'image';
-      return tex;
-    } catch {
-      // try next candidate
-    }
-  }
-  app.image = null;
-  app._source = 'fallback';
-  return makeFallbackTexture(app);
-}
-
-function hangPanel(app, tex, x, y, z, rotY, w, h) {
-  const group = new THREE.Group();
-  const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x1a1d28, roughness: 0.55, metalness: 0.2 })
-  );
-  group.add(frame);
-  if (app._source === 'image') applyCover(tex, w, h, app.coverAlign || 'center');
-  // Basic map so screenshots read clearly (not washed/dark under lights)
-  const mat = new THREE.MeshBasicMaterial({ map: tex, fog: false, side: THREE.DoubleSide });
-  const canvas = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-  canvas.position.z = 0.05;
-  canvas.userData.app = app;
-  canvas.userData.clickable = true;
-  group.add(canvas);
-  group.position.set(x, y, z);
-  group.rotation.y = rotY;
-  scene.add(group);
-
-  const off = new THREE.Vector3(0, 0, 2.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-  const spot = new THREE.SpotLight(0xf2ebe0, 14, 16, Math.PI / 5.2, 0.5);
-  spot.position.set(x + off.x, 6.2, z + off.z);
-  spot.target = group;
-  scene.add(spot);
-  scene.add(spot.target);
-  panelSpots.push(spot);
-  spot.userData.baseIntensity = spot.intensity;
-  spot.intensity *= panelBright;
-
-  return { group, canvas, motif: app, app, z, spot };
-}
-
-function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
-  const group = new THREE.Group();
-  const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x1a1d28, roughness: 0.55, metalness: 0.2 })
-  );
-  group.add(frame);
-
-  // Invisible hit plane — click opens app URL; iframe itself is pointer-events:none
-  const hit = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
-    new THREE.MeshBasicMaterial({
-      transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false,
-    })
-  );
-  hit.position.z = 0.06;
-  hit.userData.app = app;
-  hit.userData.clickable = true;
-  group.add(hit);
-
-  group.position.set(x, y, z);
-  group.rotation.y = rotY;
-  scene.add(group);
-
-  // CSS px size: optional override, else 100px per world unit (720×440 → 7.2×4.4; 260×380 → 2.6×3.8)
-  const cssW = (iframePx && iframePx.w) || Math.round(w * 100);
-  const cssH = (iframePx && iframePx.h) || Math.round(h * 100);
-  const scale = w / cssW;
-
-  const iframe = document.createElement('iframe');
-  iframe.src = app.embedUrl || FRONT_DOOR_EMBED;
-  iframe.title = (app.name || 'Live') + ' — live';
-  iframe.setAttribute('loading', 'eager');
-  iframe.setAttribute('referrerpolicy', 'no-referrer');
-  iframe.style.width = cssW + 'px';
-  iframe.style.height = cssH + 'px';
-  iframe.style.border = '0';
-  iframe.style.background = app.embedBg || '#05060a';
-  iframe.style.pointerEvents = app.interactiveEmbed ? 'auto' : 'none';
-  iframe.style.borderRadius = '2px';
-
-  const cssObj = new CSS3DObject(iframe);
-  cssObj.scale.set(scale, scale, scale);
-  // Offset along panel normal so side walls (rotY ±π/2) sit in front of the frame
-  const face = new THREE.Vector3(0, 0, 0.04).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-  cssObj.position.set(x + face.x, y + face.y, z + face.z);
-  cssObj.rotation.y = rotY;
-  cssScene.add(cssObj);
-
-  const off = new THREE.Vector3(0, 0, 2.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-  const spot = new THREE.SpotLight(0xf2ebe0, 14, 16, Math.PI / 5.2, 0.5);
-  spot.position.set(x + off.x, 6.2, z + off.z);
-  spot.target = group;
-  scene.add(spot);
-  scene.add(spot.target);
-  panelSpots.push(spot);
-  spot.userData.baseIntensity = spot.intensity;
-  spot.intensity *= panelBright;
-
-  return { group, canvas: hit, motif: app, app, z, cssObj, iframe, spot };
-}
-
-const hung = [];
-let portalApp = APPS[0];
-
-async function hangAll() {
-  const textures = await Promise.all(APPS.map((app) => (
-    app.live && app.embedUrl ? Promise.resolve(null) : resolveAppTexture(app)
-  )));
-  const byId = Object.fromEntries(APPS.map((a, i) => [a.id, { app: a, tex: textures[i] }]));
-
-  const leftIds = ['nestlight', 'oneshopbooks', 'barpal', 'carousel'];
-  const rightIds = ['fleiss', 'burn', 'homework-quest', 'song'];
-  const leftZ = [-3, -8, -13, -18];
-  const rightZ = [-4, -10, -16, -21];
-  const PANEL_W = 2.6;
-  const PANEL_H = 3.8;
-
-  function hangSide(app, tex, x, y, z, rotY) {
-    if (app.live && app.embedUrl) {
-      hung.push(hangLivePortal(app, x, y, z, rotY, PANEL_W, PANEL_H));
-    } else {
-      hung.push(hangPanel(app, tex, x, y, z, rotY, PANEL_W, PANEL_H));
-    }
-  }
-
-  leftIds.forEach((id, i) => {
-    const { app, tex } = byId[id];
-    hangSide(app, tex, -HALL_W / 2 + 0.12, 3.1, leftZ[i], Math.PI / 2);
-  });
-  rightIds.forEach((id, i) => {
-    const { app, tex } = byId[id];
-    hangSide(app, tex, HALL_W / 2 - 0.12, 3.1, rightZ[i], -Math.PI / 2);
-  });
-
-  // End-wall Noctuary portal removed for now — default caption to first left panel
-  portalApp = (byId.nestlight && byId.nestlight.app) || APPS.find((a) => a.id !== 'noctuary') || APPS[0];
-  updateCaption(portalApp);
-  console.info('[corridor apps]', APPS.map((a) => ({ id: a.id, live: !!a.live, source: a._source, image: a.image })));
-}
-
-// Thin ceiling glow strip
-const ceil = new THREE.Mesh(
-  new THREE.PlaneGeometry(HALL_W * 0.7, HALL_L * 0.85),
-  new THREE.MeshBasicMaterial({ color: 0x12162a, transparent: true, opacity: 0.35 })
-);
-ceil.rotation.x = Math.PI / 2;
-ceil.position.set(0, WALL_H - 0.05, -HALL_L / 2 + 4);
-scene.add(ceil);
-
-// Locomotion
-const move = { f: false, b: false, l: false, r: false };
-const velocity = new THREE.Vector3();
-let dragging = false;
-let lastX = 0, lastY = 0;
-let downX = 0, downY = 0;
-const raycaster = new THREE.Raycaster();
-const pointerNDC = new THREE.Vector2();
-let nearest = portalApp;
-
-
-/* —— corridor ambient (procedural Web Audio; penguin.music art-dir vibe, no ripped tracks) —— */
-window.addEventListener('message', (ev) => {
-  const d = ev && ev.data;
-  if (!d || d.type !== 'corridor-song') return;
-  if (d.playing) {
-    if (musicOn && masterGain && audioCtx) {
-      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
-      masterGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
-    }
-  } else if (musicOn && masterGain && audioCtx) {
-    masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(0.42, audioCtx.currentTime + 0.4);
-  }
+/* Load forearm yaw masters (primary) + glove atlas (fallback) */
+atlasImg = new Image();
+atlasImg.crossOrigin = 'anonymous';
+Promise.all([
+  loadImage(YAW_FRONT_URL),
+  loadImage(YAW_LEFT_URL),
+  loadImage(YAW_RIGHT_URL),
+]).then(([f, l, r]) => {
+  yawFront = f; yawLeft = l; yawRight = r;
+  yawReady = true;
+  const sz = yawDrawSize();
+  ensureGloveOffscreens(sz.w, sz.h);
+  hGlove.textContent = 'yaw ready';
+  if (hYaw) hYaw.textContent = 'front';
+}).catch(err => {
+  console.warn('Yaw masters load failed — falling back to atlas', err);
+  hGlove.textContent = 'yaw miss';
+  if (hYaw) hYaw.textContent = 'atlas';
 });
 
-const btnMusic = document.getElementById('btn-music');
-let audioCtx = null;
-let musicOn = false;
-let masterGain = null;
-let walkGain = null;
-let filterNode = null;
-let musicStarted = false;
-
-function buildCorridorBed(ctx) {
-  masterGain = ctx.createGain();
-  masterGain.gain.value = 0.0001;
-  walkGain = ctx.createGain();
-  walkGain.gain.value = 0.55;
-  filterNode = ctx.createBiquadFilter();
-  filterNode.type = 'lowpass';
-  filterNode.frequency.value = 520;
-  filterNode.Q.value = 0.7;
-  walkGain.connect(filterNode);
-  filterNode.connect(masterGain);
-  masterGain.connect(ctx.destination);
-
-  const now = ctx.currentTime;
-  // soft detuned pad (A minor-ish night)
-  const padFreqs = [110, 164.81, 220, 261.63, 329.63];
-  padFreqs.forEach((f, i) => {
-    const o = ctx.createOscillator();
-    o.type = i % 2 === 0 ? 'sine' : 'triangle';
-    o.frequency.value = f;
-    o.detune.value = (i - 2) * 6;
-    const g = ctx.createGain();
-    g.gain.value = 0.045 + (i === 0 ? 0.03 : 0);
-    o.connect(g);
-    g.connect(walkGain);
-    o.start(now);
-  });
-  // slow sub pulse
-  const sub = ctx.createOscillator();
-  sub.type = 'sine';
-  sub.frequency.value = 55;
-  const subG = ctx.createGain();
-  subG.gain.value = 0.07;
-  sub.connect(subG);
-  subG.connect(walkGain);
-  sub.start(now);
-  // high shimmer (very quiet)
-  const shim = ctx.createOscillator();
-  shim.type = 'sine';
-  shim.frequency.value = 880;
-  const shimG = ctx.createGain();
-  shimG.gain.value = 0.012;
-  shim.connect(shimG);
-  shimG.connect(walkGain);
-  shim.start(now);
-  // LFO → filter cutoff
-  const lfo = ctx.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.value = 0.07;
-  const lfoG = ctx.createGain();
-  lfoG.gain.value = 180;
-  lfo.connect(lfoG);
-  lfoG.connect(filterNode.frequency);
-  lfo.start(now);
-  // second slower LFO on master for breath
-  const breath = ctx.createOscillator();
-  breath.type = 'sine';
-  breath.frequency.value = 0.045;
-  const breathG = ctx.createGain();
-  breathG.gain.value = 0.018;
-  breath.connect(breathG);
-  // breath modulates via periodic script in frame — keep simple: connect to walkGain as side
-  const breathAdd = ctx.createGain();
-  breathAdd.gain.value = 0.02;
-  breath.connect(breathAdd);
-  breathAdd.connect(walkGain);
-  breath.start(now);
-}
-
-async function ensureMusic() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    buildCorridorBed(audioCtx);
-  }
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  musicStarted = true;
-}
-
-function setMusicEnabled(on) {
-  musicOn = on;
-  btnMusic.classList.toggle('on', on);
-  btnMusic.textContent = on ? 'Mute' : 'Music';
-  if (!masterGain || !audioCtx) return;
-  const t = audioCtx.currentTime;
-  masterGain.gain.cancelScheduledValues(t);
-  masterGain.gain.setTargetAtTime(on ? 0.42 : 0.0001, t, 0.35);
-}
-
-btnMusic.addEventListener('click', async () => {
-  await ensureMusic();
-  setMusicEnabled(!musicOn);
+Promise.all([
+  fetch(ATLAS_META_URL).then(r => r.ok ? r.json() : null).catch(() => null),
+  new Promise((res, rej) => {
+    atlasImg.onload = res;
+    atlasImg.onerror = rej;
+    atlasImg.src = ATLAS_URL;
+  }),
+]).then(([meta]) => {
+  atlasMeta = meta;
+  atlasReady = true;
+  if (!yawReady) hGlove.textContent = meta?.version ? `${meta.version} ready` : 'ready';
+}).catch(err => {
+  console.warn('Glove atlas load failed', err);
+  if (!yawReady) hGlove.textContent = 'atlas miss';
 });
 
-const gate = document.getElementById('gate');
-const btnEnter = document.getElementById('btn-enter');
-const embedMode = params.has('embed');
-const fromDay = params.get('from') === 'day';
-
-function siblingQuery(extra = {}) {
-  const q = new URLSearchParams();
-  if (embedMode) q.set('embed', '1');
-  if (reduceMotion || params.has('still')) q.set('still', '1');
-  for (const [k, v] of Object.entries(extra)) q.set(k, v);
-  const s = q.toString();
-  return s ? '?' + s : '';
-}
-const DAY_HREF = './spatial-drill-corridor-day.html' + siblingQuery({ from: 'dark' });
-let dayPortalLock = false;
-function goDayWing() {
-  if (dayPortalLock) return;
-  dayPortalLock = true;
-  const mode = document.getElementById('h-mode');
-  if (mode) mode.textContent = 'day wing';
-  location.assign(DAY_HREF);
-}
-if (embedMode) document.body.classList.add('embed-quiet');
-let entered = reduceMotion || params.has('still') || embedMode || fromDay;
-if (entered) gate.classList.add('hide');
-if (embedMode) {
-  document.body.classList.add('embed');
-  // Behind unlock veil: skip gate, start in walk-ready still/live view
-  document.getElementById('h-mode').textContent = reduceMotion ? 'still' : 'walk';
-}
-if (fromDay && !params.has('still')) {
-  // Arrive near day doorway, facing into night hall
-  pos.set(HALL_W / 2 - 2.4, EYE, DAY_DOOR_Z);
-  yaw.value = -Math.PI / 2; // look toward center / left
-  pitch.value = -0.04;
-  document.getElementById('h-mode').textContent = 'walk';
-}
-btnEnter.addEventListener('click', () => {
-  entered = true;
-  gate.classList.add('hide');
-  ensureMusic().then(() => { if (!musicOn) setMusicEnabled(true); });
-  document.getElementById('h-mode').textContent = 'walk';
+addEventListener('pagehide', () => {
+  cancelAnimationFrame(raf);
+  if (unlockHeroTimer) clearTimeout(unlockHeroTimer);
+  fieldMat.dispose(); veilMat.dispose(); trailMat.dispose();
+  burnStampMat.dispose();
+  orb.geometry.dispose(); orb.material.dispose();
+  ashGeo.dispose(); ashMat.dispose();
+  burnRT.dispose(); burnRTB.dispose();
+  renderer.dispose();
 });
-
-function updateCaption(m) {
-  nearest = m;
-  let tag = 'App';
-  if (m && m.id === 'noctuary') tag = 'Noctuary';
-  else if (m && m.live) tag = 'Live demo';
-  document.getElementById('cap-tag').textContent = tag;
-  document.getElementById('cap-title').textContent = m.name;
-  document.getElementById('cap-body').textContent = m.blurb;
-}
-updateCaption(portalApp);
-hangAll();
-
-function applyCamera() {
-  camera.position.copy(pos);
-  camera.rotation.order = 'YXZ';
-  camera.rotation.y = yaw.value;
-  camera.rotation.x = pitch.value;
-}
-
-document.addEventListener('keydown', (e) => {
-  if (!entered && !reduceMotion) return;
-  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = true;
-  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = true;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
-});
-document.addEventListener('keyup', (e) => {
-  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = false;
-  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = false;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = false;
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = false;
-});
-
-// On-screen joystick → same move.f/b/l/r flags as WASD
-const mobilePad = document.getElementById('mobile-pad');
-const padKnob = document.getElementById('pad-knob');
-const PAD_MAX = 42;
-const PAD_DEAD = 14;
-let padPointerId = null;
-
-function clearPadMove() {
-  move.f = move.b = move.l = move.r = false;
-  if (padKnob) {
-    padKnob.style.transform = '';
-  }
-  mobilePad.classList.remove('active');
-}
-
-function applyPadVector(dx, dy) {
-  const dist = Math.hypot(dx, dy);
-  let ux = dx, uy = dy;
-  if (dist > PAD_MAX) {
-    ux = (dx / dist) * PAD_MAX;
-    uy = (dy / dist) * PAD_MAX;
-  }
-  if (padKnob) padKnob.style.transform = `translate(${ux}px, ${uy}px)`;
-  const active = dist >= PAD_DEAD;
-  move.f = active && uy < -PAD_DEAD * 0.45;
-  move.b = active && uy > PAD_DEAD * 0.45;
-  move.l = active && ux < -PAD_DEAD * 0.45;
-  move.r = active && ux > PAD_DEAD * 0.45;
-  if (active && entered) document.getElementById('h-mode').textContent = 'walk';
-}
-
-mobilePad.addEventListener('pointerdown', (e) => {
-  if (!entered && !reduceMotion) return;
-  e.preventDefault();
-  e.stopPropagation();
-  padPointerId = e.pointerId;
-  mobilePad.classList.add('active');
-  try { mobilePad.setPointerCapture(e.pointerId); } catch {}
-  const rect = mobilePad.getBoundingClientRect();
-  applyPadVector(e.clientX - (rect.left + rect.width / 2), e.clientY - (rect.top + rect.height / 2));
-});
-mobilePad.addEventListener('pointermove', (e) => {
-  if (padPointerId !== e.pointerId) return;
-  e.preventDefault();
-  e.stopPropagation();
-  const rect = mobilePad.getBoundingClientRect();
-  applyPadVector(e.clientX - (rect.left + rect.width / 2), e.clientY - (rect.top + rect.height / 2));
-});
-function endPad(e) {
-  if (padPointerId !== e.pointerId) return;
-  e.preventDefault();
-  e.stopPropagation();
-  padPointerId = null;
-  try { mobilePad.releasePointerCapture(e.pointerId); } catch {}
-  clearPadMove();
-}
-mobilePad.addEventListener('pointerup', endPad);
-mobilePad.addEventListener('pointercancel', endPad);
-
-function openAppUrl(app) {
-  if (!app || !app.url) return;
-  const abs = new URL(app.url, location.href).href;
-  const mode = document.getElementById('h-mode');
-  if (mode) mode.textContent = 'open ' + (app.name || 'panel');
-  // Same-origin demos: navigate this tab (Safari often blocks window.open from raycast clicks).
-  // External apps: try a tab, then fall back to same-tab.
-  const sameOrigin = abs.startsWith(location.origin) || !/^https?:/i.test(app.url);
-  if (sameOrigin) {
-    location.assign(abs);
-    return;
-  }
-  let w = null;
-  try { w = window.open(abs, '_blank'); } catch (_) {}
-  if (!w) location.assign(abs);
-}
-
-stage.addEventListener('pointerdown', (e) => {
-  if (!entered && !reduceMotion) return;
-  dragging = true;
-  stage.classList.add('dragging');
-  lastX = e.clientX; lastY = e.clientY;
-  downX = e.clientX; downY = e.clientY;
-  stage.setPointerCapture(e.pointerId);
-});
-stage.addEventListener('pointermove', (e) => {
-  if (!dragging || reduceMotion) return;
-  const dx = e.clientX - lastX;
-  const dy = e.clientY - lastY;
-  lastX = e.clientX; lastY = e.clientY;
-  yaw.value -= dx * 0.0025;
-  pitch.value -= dy * 0.002;
-  pitch.value = Math.max(-1.1, Math.min(0.85, pitch.value));
-  document.getElementById('h-mode').textContent = 'look';
-});
-stage.addEventListener('pointerup', (e) => {
-  const dragDist = Math.hypot(e.clientX - downX, e.clientY - downY);
-  dragging = false;
-  stage.classList.remove('dragging');
-  try { stage.releasePointerCapture(e.pointerId); } catch {}
-  // Click (not drag): open panel site — only after gate entered
-  if (!entered || dragDist >= 6) return;
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointerNDC, camera);
-  const targets = hung.map((h) => h.canvas).filter(Boolean);
-  if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
-  const hits = raycaster.intersectObjects(targets, false);
-  if (!hits.length) return;
-  const ud = hits[0].object.userData;
-  if (ud.portal === 'day') {
-    goDayWing();
-    return;
-  }
-  const app = ud.app;
-  if (app) openAppUrl(app);
-});
-
-
-function setRoomBrightness(level) {
-  panelBright = level;
-  for (const s of panelSpots) {
-    const base = s.userData.baseIntensity || 14;
-    s.intensity = base * level;
-  }
-  hemi.intensity = 0.85 * level;
-  fill.intensity = 24 * level;
-  winLight.intensity = 17 * level;
-  // fog: brighter room = thinner fog
-  scene.fog.density = 0.014 / Math.max(0.5, level);
-  const ids = { 0.75: 'btn-bright-dim', 1.0: 'btn-bright-mid', 1.15: 'btn-bright-hi' };
-  for (const [lv, id] of Object.entries(ids)) {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('on', Math.abs(Number(lv) - level) < 0.02);
-  }
-}
-document.getElementById('btn-bright-dim')?.addEventListener('click', () => setRoomBrightness(0.75));
-document.getElementById('btn-bright-mid')?.addEventListener('click', () => setRoomBrightness(1.0));
-document.getElementById('btn-bright-hi')?.addEventListener('click', () => setRoomBrightness(1.15));
-
-document.getElementById('btn-reset').addEventListener('click', () => {
-  pos.set(0, EYE, CAM_DIST);
-  yaw.value = 0;
-  pitch.value = -0.08;
-  velocity.set(0, 0, 0);
-  updateCaption(portalApp);
-  document.getElementById('h-mode').textContent = reduceMotion ? 'still' : 'idle';
-});
-
-function resize() {
-  const w = Math.max(1, stage.clientWidth || innerWidth);
-  const h = Math.max(1, stage.clientHeight || innerHeight);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  renderer.setSize(w, h, false);
-  cssRenderer.setSize(w, h);
-}
-addEventListener('resize', resize);
-resize();
-
-const clock = new THREE.Clock();
-const forward = new THREE.Vector3();
-const right = new THREE.Vector3();
-
-function pickNearest() {
-  let best = portalApp;
-  let bestD = Infinity;
-  for (const h of hung) {
-    const d = Math.abs(h.z - pos.z) + Math.abs(h.group.position.x) * 0.15;
-    // prefer side panels when close in z
-    const lateral = Math.abs(pos.x - h.group.position.x);
-    const score = Math.hypot(h.z - pos.z, lateral * 0.35);
-    if (score < bestD) { bestD = score; best = h.motif; }
-  }
-  if (best !== nearest) updateCaption(best);
-}
-
-function frame() {
-  const dt = Math.min(0.05, clock.getDelta());
-  const t = clock.elapsedTime;
-
-  if (!reduceMotion && entered) {
-    forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
-    right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
-    const wish = new THREE.Vector3();
-    if (move.f) wish.add(forward);
-    if (move.b) wish.sub(forward);
-    if (move.l) wish.sub(right);
-    if (move.r) wish.add(right);
-    if (wish.lengthSq() > 0) {
-      wish.normalize().multiplyScalar(9.5);
-      velocity.x += (wish.x - velocity.x) * Math.min(1, 8 * dt);
-      velocity.z += (wish.z - velocity.z) * Math.min(1, 8 * dt);
-      document.getElementById('h-mode').textContent = 'walk';
-    } else {
-      velocity.x *= Math.pow(0.88, dt * 60);
-      velocity.z *= Math.pow(0.88, dt * 60);
-    }
-    pos.x += velocity.x * dt;
-    pos.z += velocity.z * dt;
-    // corridor clamps
-    let limX = HALL_W / 2 - 1.1;
-    // Allow a step into the day aperture alcove
-    if (Math.abs(pos.z - DAY_DOOR_Z) < DAY_DOOR_W * 0.7) limX = HALL_W / 2 - 0.55;
-    const limZNear = CAM_DIST + 1.5;
-    const limZFar = -HALL_L / 2 + 2.2;
-    pos.x = Math.max(-limX, Math.min(limX, pos.x));
-    pos.z = Math.max(limZFar, Math.min(limZNear, pos.z));
-    pos.y = EYE;
-    // Day wing: walk into luminous right-wall aperture
-    if (pos.x > HALL_W / 2 - 1.35 && Math.abs(pos.z - DAY_DOOR_Z) < DAY_DOOR_W * 0.55) {
-      goDayWing();
-    }
-    pickNearest();
-    if (typeof daySpill !== 'undefined') {
-      daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
-    }
-    key.intensity = (1.35 * panelBright) + Math.sin(t * 0.7) * 0.1;
-    if (musicOn && walkGain && audioCtx) {
-      const spd = Math.hypot(velocity.x, velocity.z);
-      const target = 0.48 + Math.min(0.28, spd * 0.04);
-      const g = walkGain.gain;
-      const now = audioCtx.currentTime;
-      g.setTargetAtTime(target, now, 0.12);
-    }
-  } else {
-    // still / not entered: generous composed view
-    pos.set(0, EYE + 0.35, CAM_DIST);
-    yaw.value = 0;
-    pitch.value = -0.06;
-  }
-
-  applyCamera();
-  renderer.render(scene, camera);
-  cssRenderer.render(cssScene, camera);
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-
-if (params.has('still')) {
-  entered = true;
-  gate.classList.add('hide');
-  pos.set(0, EYE + 0.45, CAM_DIST);
-  yaw.value = 0;
-  pitch.value = -0.05;
-  updateCaption(portalApp);
-  document.getElementById('h-mode').textContent = 'still';
-  document.getElementById('h-motion').textContent = 'still';
-}
-</script>
+  </script>
 </body>
 </html>
