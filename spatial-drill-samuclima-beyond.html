@@ -270,8 +270,8 @@
     <div class="hud">
       <div class="caption" id="caption">
         <p class="tag" id="cap-tag">Hall</p>
-        <h2 id="cap-title">Noctuary</h2>
-        <p id="cap-body">Plays live on the end screen — walk the hall to see the city move.</p>
+        <h2 id="cap-title">Harbor</h2>
+        <p id="cap-body">Live Harbor on the end screen — walk the hall.</p>
       </div>
       <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · click panel</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · tap panel</span><span class="keys-mode"> · <span id="h-mode">idle</span></span></div>
     </div>
@@ -329,13 +329,22 @@ const SONG_BASE = './spatial-drill-flow-atelier.html';
 const SONG_EMBED = SONG_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
 const BURN_BASE = './spatial-drill-burn.html';
 const BURN_EMBED = BURN_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
+const HARBOR_BASE = 'https://flow-atelier.up.railway.app/harbor.html';
+const HARBOR_EMBED = HARBOR_BASE + '?embed=1' + (reduceMotion ? '&still=1' : '');
 
 const APPS = [
-  { id: 'noctuary', name: 'Noctuary', blurb: 'Plays live on the end screen — walk the hall to see the city move.', accent: '#8a7bb8',
+  { id: 'noctuary', name: 'Noctuary', blurb: 'Live front door on this panel — city moves as you walk past.', accent: '#8a7bb8',
     url: FRONT_DOOR_BASE,
     embedUrl: FRONT_DOOR_EMBED,
     live: true,
     candidates: ['jpg/noctuary.jpg', 'noctuary.png', 'noctuary-og.png'] },
+  { id: 'harbor', name: 'Harbor', blurb: 'Live Harbor on the end screen — walk the hall.', accent: '#7ec8c4',
+    url: HARBOR_BASE,
+    embedUrl: HARBOR_EMBED,
+    embedBg: '#05060a',
+    live: true,
+    lazyEmbed: true,
+    candidates: ['jpg/harbor.jpg', 'harbor.jpg', 'harbor.png', 'jpg/noctuary.jpg'] },
   { id: 'nestlight', name: 'NestLight', blurb: 'Live nestlight-packs on this panel — Enter gate.', accent: '#e8a87c',
     url: 'https://nestlight-packs.up.railway.app/',
     embedUrl: 'https://nestlight-packs.up.railway.app/?v=corridor',
@@ -639,13 +648,25 @@ function hangPanel(app, tex, x, y, z, rotY, w, h) {
   return { group, canvas, motif: app, app, z, spot };
 }
 
-function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
+function hangLivePortal(app, x, y, z, rotY, w, h, iframePx, coverTex) {
   const group = new THREE.Group();
   const frame = new THREE.Mesh(
     new THREE.BoxGeometry(w + 0.16, h + 0.16, 0.08),
     new THREE.MeshStandardMaterial({ color: 0x1a1d28, roughness: 0.55, metalness: 0.2 })
   );
   group.add(frame);
+
+  // Lazy end-wall: show Harbor screenshot until camera approaches (avoids extra WebGL contexts on load)
+  let cover = null;
+  if (app.lazyEmbed && coverTex) {
+    if (app._source === 'image') applyCover(coverTex, w, h, app.coverAlign || 'center');
+    const coverMat = new THREE.MeshBasicMaterial({ map: coverTex, fog: false, side: THREE.DoubleSide });
+    cover = new THREE.Mesh(new THREE.PlaneGeometry(w, h), coverMat);
+    cover.position.z = 0.045;
+    cover.userData.app = app;
+    cover.userData.clickable = true;
+    group.add(cover);
+  }
 
   // Invisible hit plane — click opens app URL; iframe itself is pointer-events:none
   const hit = new THREE.Mesh(
@@ -669,9 +690,15 @@ function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
   const scale = w / cssW;
 
   const iframe = document.createElement('iframe');
-  iframe.src = app.embedUrl || FRONT_DOOR_EMBED;
+  // Lazy: blank until near; eager live portals load embed immediately
+  if (app.lazyEmbed) {
+    iframe.src = 'about:blank';
+    iframe.setAttribute('loading', 'lazy');
+  } else {
+    iframe.src = app.embedUrl || FRONT_DOOR_EMBED;
+    iframe.setAttribute('loading', 'eager');
+  }
   iframe.title = (app.name || 'Live') + ' — live';
-  iframe.setAttribute('loading', 'eager');
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   iframe.style.width = cssW + 'px';
   iframe.style.height = cssH + 'px';
@@ -679,6 +706,7 @@ function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
   iframe.style.background = app.embedBg || '#05060a';
   iframe.style.pointerEvents = app.interactiveEmbed ? 'auto' : 'none';
   iframe.style.borderRadius = '2px';
+  if (app.lazyEmbed) iframe.style.opacity = '0';
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
@@ -698,21 +726,21 @@ function hangLivePortal(app, x, y, z, rotY, w, h, iframePx) {
   spot.userData.baseIntensity = spot.intensity;
   spot.intensity *= panelBright;
 
-  return { group, canvas: hit, motif: app, app, z, cssObj, iframe, spot };
+  return { group, canvas: hit, motif: app, app, z, cssObj, iframe, spot, cover, lazyEmbed: !!app.lazyEmbed, embedArmed: false };
 }
 
 const hung = [];
-let portalApp = APPS[0];
+let portalApp = APPS.find((a) => a.id === 'harbor') || APPS[0];
 
 async function hangAll() {
   const textures = await Promise.all(APPS.map((app) => (
-    app.live && app.embedUrl ? Promise.resolve(null) : resolveAppTexture(app)
+    app.live && app.embedUrl && !app.lazyEmbed ? Promise.resolve(null) : resolveAppTexture(app)
   )));
   const byId = Object.fromEntries(APPS.map((a, i) => [a.id, { app: a, tex: textures[i] }]));
 
-  const leftIds = ['nestlight', 'oneshopbooks', 'barpal', 'carousel'];
+  const leftIds = ['nestlight', 'oneshopbooks', 'barpal', 'carousel', 'noctuary'];
   const rightIds = ['fleiss', 'burn', 'homework-quest', 'song'];
-  const leftZ = [-3, -8, -13, -18];
+  const leftZ = [-3, -8, -13, -18, -23];
   const rightZ = [-4, -10, -16, -21];
   const PANEL_W = 2.6;
   const PANEL_H = 3.8;
@@ -734,8 +762,8 @@ async function hangAll() {
     hangSide(app, tex, HALL_W / 2 - 0.12, 3.1, rightZ[i], -Math.PI / 2);
   });
 
-  portalApp = byId.noctuary.app;
-  hung.push(hangLivePortal(byId.noctuary.app, 0, 3.4, -HALL_L / 2 + 0.2, 0, 7.2, 4.4));
+  portalApp = byId.harbor.app;
+  hung.push(hangLivePortal(byId.harbor.app, 0, 3.4, -HALL_L / 2 + 0.2, 0, 7.2, 4.4, undefined, byId.harbor.tex));
   updateCaption(portalApp);
   console.info('[corridor apps]', APPS.map((a) => ({ id: a.id, live: !!a.live, source: a._source, image: a.image })));
 }
@@ -923,7 +951,8 @@ btnEnter && btnEnter.addEventListener('click', () => {
 function updateCaption(m) {
   nearest = m;
   let tag = 'App';
-  if (m && m.id === 'noctuary') tag = 'Noctuary';
+  if (m && m.id === 'harbor') tag = 'Harbor';
+  else if (m && m.id === 'noctuary') tag = 'Noctuary';
   else if (m && m.live) tag = 'Live demo';
   document.getElementById('cap-tag').textContent = tag;
   document.getElementById('cap-title').textContent = m.name;
@@ -1118,6 +1147,26 @@ const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 
+function updateLazyEmbeds() {
+  for (const h of hung) {
+    if (!h.lazyEmbed || !h.iframe || !h.app) continue;
+    const dist = Math.hypot(pos.x - h.group.position.x, pos.z - h.z);
+    const near = pos.z < -12 || dist < 18;
+    if (near && !h.embedArmed) {
+      h.iframe.src = h.app.embedUrl || HARBOR_EMBED;
+      h.iframe.style.opacity = '1';
+      h.embedArmed = true;
+      if (h.cover) h.cover.visible = false;
+    } else if (!near && h.embedArmed) {
+      // Free Harbor WebGL when walking away from the end wall
+      h.iframe.src = 'about:blank';
+      h.iframe.style.opacity = '0';
+      h.embedArmed = false;
+      if (h.cover) h.cover.visible = true;
+    }
+  }
+}
+
 function pickNearest() {
   let best = portalApp;
   let bestD = Infinity;
@@ -1168,6 +1217,7 @@ function frame() {
       goDayWing();
     }
     pickNearest();
+    updateLazyEmbeds();
     if (typeof daySpill !== 'undefined') {
       daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
     }
