@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>01 · Clear + triangle · WebGPU Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); --warn:#3a1212; --warn-ink:#ffd6d6; }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.fallback{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:rgba(10,11,16,.92);padding:28px}
+.fallback.show{display:flex}
+.fallback-card{max-width:42ch;padding:28px 32px;border-radius:18px;border:1px solid var(--line);background:rgba(20,22,30,.95);text-align:center}
+.fallback-card h1{margin:0 0 10px;font:600 22px/1.2 system-ui;letter-spacing:-0.02em}
+.fallback-card p{margin:0;color:var(--mute);font-size:14px;line-height:1.5}
+.fallback-card code{color:var(--accent);font-size:12px}
+.fallback-card a{color:var(--accent)}
+.error{position:fixed;inset:auto 14px 14px 14px;background:var(--warn);color:var(--warn-ink);padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGPU Lab</a> · 01 Clear + triangle</div>
+    <div class="pill">WGSL</div>
+  </div>
+  <div class="note"><b>Clear + triangle.</b> Adapter → device → canvas configure → render pipeline. Triangle positions from <code>vertex_index</code> — no vertex buffer.</div>
+</div>
+<div class="fallback" id="fallback" role="alert">
+  <div class="fallback-card">
+    <h1>WebGPU not available</h1>
+    <p>This drill needs <code>navigator.gpu</code>. Try <strong>Chrome</strong> or <strong>Edge</strong> (desktop, recent). Safari 17+ and Firefox may need a flag. <a href="./INDEX.html">Back to lab</a></p>
+  </div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+const errEl = document.getElementById('err');
+const fallback = document.getElementById('fallback');
+function fail(msg) {
+  fallback.classList.add('show');
+  if (msg) { errEl.style.display = 'block'; errEl.textContent = msg; }
+}
+window.addEventListener('unhandledrejection', e => fail(String(e.reason)));
+
+async function main() {
+  if (!navigator.gpu) {
+    fail('navigator.gpu is missing');
+    return;
+  }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    fail('requestAdapter() returned null — GPU disabled or blocked');
+    return;
+  }
+  const device = await adapter.requestDevice();
+  device.lost.then((info) => {
+    if (info.reason !== 'destroyed') fail('GPU device lost: ' + info.message);
+  });
+
+  const canvas = document.getElementById('c');
+  const context = canvas.getContext('webgpu');
+  const format = navigator.gpu.getPreferredCanvasFormat();
+
+  const shader = device.createShaderModule({
+    label: 'triangle',
+    code: /* wgsl */ `
+struct VSOut {
+  @builtin(position) pos: vec4f,
+  @location(0) color: vec4f,
+};
+
+@vertex
+fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  var positions = array<vec2f, 3>(
+    vec2f( 0.0,  0.65),
+    vec2f(-0.65, -0.55),
+    vec2f( 0.65, -0.55),
+  );
+  var colors = array<vec4f, 3>(
+    vec4f(0.94, 0.76, 0.29, 1.0),
+    vec4f(0.54, 0.48, 0.72, 1.0),
+    vec4f(0.91, 0.66, 0.49, 1.0),
+  );
+  var o: VSOut;
+  o.pos = vec4f(positions[vi], 0.0, 1.0);
+  o.color = colors[vi];
+  return o;
+}
+
+@fragment
+fn fs(i: VSOut) -> @location(0) vec4f {
+  return i.color;
+}
+`,
+  });
+
+  const pipeline = device.createRenderPipeline({
+    label: 'triangle-pipeline',
+    layout: 'auto',
+    vertex: { module: shader, entryPoint: 'vs' },
+    fragment: {
+      module: shader,
+      entryPoint: 'fs',
+      targets: [{ format }],
+    },
+    primitive: { topology: 'triangle-list' },
+  });
+
+  // Paper-warm clear (matches lab ink floor feel inverted lightly)
+  const clearValue = { r: 0.08, g: 0.085, b: 0.1, a: 1 };
+
+  function resize() {
+    const dpr = Math.min(devicePixelRatio, 2);
+    const w = Math.floor(canvas.clientWidth * dpr);
+    const h = Math.floor(canvas.clientHeight * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      context.configure({ device, format, alphaMode: 'opaque' });
+    }
+  }
+
+  function frame() {
+    resize();
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        view: context.getCurrentTexture().createView(),
+        clearValue,
+        loadOp: 'clear',
+        storeOp: 'store',
+      }],
+    });
+    pass.setPipeline(pipeline);
+    pass.draw(3);
+    pass.end();
+    device.queue.submit([encoder.finish()]);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+main().catch((e) => fail(e && e.message ? e.message : String(e)));
+</script>
+</body>
+</html>
