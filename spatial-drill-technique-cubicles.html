@@ -30,6 +30,7 @@
     cursor: grab; touch-action: none;
   }
   #stage.dragging { cursor: grabbing; }
+  #stage.panel-hover { cursor: pointer; }
   #stage > canvas, #stage > div {
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
@@ -276,7 +277,8 @@ const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
 const MAX_ARMED = 8;
 const ARM_DIST = 12;
-const INTERACT_DIST = Math.max(7.5, CELL_D * 1.85);
+const INTERACT_DIST = Math.max(6.5, CELL_D * 1.35);
+let hoverPanel = null; // panel under cursor (screen ray)
 /** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
 const SPAWN = {
   x: 0,
@@ -948,14 +950,63 @@ function facingPanelWithin(maxDist) {
   return panel;
 }
 
+function eventToNDC(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function raycastPanels(e) {
+  eventToNDC(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  return raycaster.intersectObjects(hung.map((h) => h.hit), false);
+}
+
+function panelUnderPointer(e) {
+  eventToNDC(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
+  if (!hits.length) return null;
+  const panel = hung[hits[0].object.userData.cellIndex];
+  if (!panel || panelDist(panel) > INTERACT_DIST * 1.15) return null;
+  return panel;
+}
+
+function setInteractTarget(panel) {
+  for (const h of hung) {
+    h.canInteract = false;
+    h.iframe.style.pointerEvents = 'none';
+    h.iframe.style.cursor = '';
+  }
+  if (!panel) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
+  if (!panel.embedArmed) {
+    panel.iframe.src = panel.embedUrl;
+    panel.iframe.style.opacity = '1';
+    panel.embedArmed = true;
+  }
+  panel.canInteract = true;
+  panel.iframe.style.pointerEvents = 'auto';
+  panel.iframe.style.cursor = 'pointer';
+  stage.classList.add('panel-hover');
+}
+
 function updateLazyEmbeds() {
-  if (overviewOn) return;
+  if (overviewOn) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
 
   const scored = hung.map((h) => ({ h, dist: panelDist(h) }))
     .sort((a, b) => a.dist - b.dist);
 
-  // Always arm activeCell when inside a zone, plus nearest-N within ARM_DIST.
+  // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
   const armSet = new Set();
+  if (hoverPanel) armSet.add(hoverPanel);
+  const facing = facingPanelWithin(INTERACT_DIST);
+  if (facing) armSet.add(facing);
   if (activeCell) armSet.add(activeCell);
   for (const { h, dist } of scored) {
     if (armSet.size >= MAX_ARMED) break;
@@ -968,34 +1019,28 @@ function updateLazyEmbeds() {
       h.iframe.src = h.embedUrl;
       h.iframe.style.opacity = '1';
       h.embedArmed = true;
-    } else if (!want && h.embedArmed && !panelPointerLock) {
+    } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;
     }
-    h.canInteract = false;
-    h.iframe.style.pointerEvents = 'none';
     h.group.visible = true;
   }
 
-  // Prefer activeCell → center-screen facing → nearest armed (all within INTERACT_DIST).
+  // Cursor-over-frame wins → center facing → activeCell → nearest.
   let best = null;
-  if (activeCell && activeCell.embedArmed && panelDist(activeCell) < INTERACT_DIST) {
+  if (hoverPanel && hoverPanel.embedArmed && panelDist(hoverPanel) < INTERACT_DIST * 1.15) {
+    best = hoverPanel;
+  } else if (facing && facing.embedArmed) {
+    best = facing;
+  } else if (activeCell && activeCell.embedArmed && panelDist(activeCell) < INTERACT_DIST) {
     best = activeCell;
   } else {
-    const facing = facingPanelWithin(INTERACT_DIST);
-    if (facing && facing.embedArmed) {
-      best = facing;
-    } else {
-      for (const { h, dist } of scored) {
-        if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
-      }
+    for (const { h, dist } of scored) {
+      if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
     }
   }
-  if (best) {
-    best.canInteract = true;
-    best.iframe.style.pointerEvents = 'auto';
-  }
+  if (!panelPointerLock) setInteractTarget(best);
 }
 
 // —— Controls ——
@@ -1200,49 +1245,15 @@ mobilePad.addEventListener('pointerup', (e) => {
 });
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
-function eventToNDC(e) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-}
-
-function raycastPanels(e) {
-  eventToNDC(e);
-  raycaster.setFromCamera(pointerNDC, camera);
-  return raycaster.intersectObjects(hung.map((h) => h.hit), false);
-}
-
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
   if (!overview.on) {
-    const hits = raycastPanels(e);
-    if (hits.length) {
-      const idx = hits[0].object.userData.cellIndex;
-      const panel = hung[idx];
-      const dist = panel ? panelDist(panel) : Infinity;
-      const facing = facingPanelWithin(INTERACT_DIST);
-      // activeCell, center-facing, or generous distance — same rules as updateLazyEmbeds
-      const allow = panel && (
-        (panel === activeCell && dist < INTERACT_DIST) ||
-        panel === facing ||
-        dist < INTERACT_DIST
-      );
-      if (allow) {
-        // Ensure this panel is armed and is the sole interactive target
-        if (!panel.embedArmed) {
-          panel.iframe.src = panel.embedUrl;
-          panel.iframe.style.opacity = '1';
-          panel.embedArmed = true;
-        }
-        for (const h of hung) {
-          h.canInteract = false;
-          h.iframe.style.pointerEvents = 'none';
-        }
-        panel.canInteract = true;
-        panel.iframe.style.pointerEvents = 'auto';
-        panelPointerLock = true;
-        return;
-      }
+    const panel = panelUnderPointer(e);
+    if (panel) {
+      hoverPanel = panel;
+      setInteractTarget(panel);
+      panelPointerLock = true;
+      return;
     }
   }
   panelPointerLock = false;
