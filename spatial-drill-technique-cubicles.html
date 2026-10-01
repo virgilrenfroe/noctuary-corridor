@@ -210,10 +210,47 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
   }
 }
+</script>
+<script>
+/* Boot guard: if three/module fails (CDN/blocker), beige UI alone must not be silent. */
+(function () {
+  const tip = document.getElementById('gl-tip');
+  let shown = false;
+  function showBootFail(err) {
+    if (shown || !tip) return;
+    const stageEl = document.getElementById('stage');
+    if (stageEl && stageEl.querySelector('canvas')) return; // module already started
+    shown = true;
+    const detail = (err && (err.message || String(err))) || 'unknown error';
+    tip.hidden = false;
+    tip.classList.add('show');
+    tip.innerHTML = '3D failed to load — tap to reload<br><span style="font-size:11px;color:rgba(26,29,38,0.55);word-break:break-word"></span>';
+    tip.querySelector('span').textContent = detail.slice(0, 220);
+  }
+  window.addEventListener('error', (e) => {
+    const msg = e.message || (e.error && e.error.message) || '';
+    if (!msg && !e.filename) return;
+    // Ignore benign resize/resource noise; catch module / fetch / import failures
+    if (/Failed to (fetch|load)|Importing a module|error loading dynamically|SyntaxError|TypeError|three/i.test(msg) ||
+        (e.filename && /three|spatial-drill|vendor\/three/i.test(e.filename))) {
+      showBootFail(e.error || new Error(msg || 'script error'));
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    showBootFail(e.reason || new Error('unhandled rejection'));
+  });
+  if (tip) tip.addEventListener('click', () => { location.reload(); });
+  setTimeout(() => {
+    const stage = document.getElementById('stage');
+    if (stage && !stage.querySelector('canvas')) {
+      showBootFail(new Error('module did not start (no WebGL canvas)'));
+    }
+  }, 4000);
+})();
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -459,11 +496,14 @@ function createWallpaper() {
   wallpaperOk = true;
 }
 
-try {
-  createWallpaper();
-} catch (err) {
-  console.warn('[cubicles] wallpaper create failed; room stays usable', err);
-  disposeWallpaper();
+// Mobile: skip wallpaper entirely (room geometry must not depend on it).
+if (!mobileLike) {
+  try {
+    createWallpaper();
+  } catch (err) {
+    console.warn('[cubicles] wallpaper create failed; room stays usable', err);
+    disposeWallpaper();
+  }
 }
 
 function updateWallpaper(t) {
