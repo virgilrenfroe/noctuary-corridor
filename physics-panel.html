@@ -62,6 +62,29 @@
   }
   body.embed .label { background: rgba(247,241,230,0.92); }
   body.still .hint { opacity: 0.35; }
+  .open-full {
+    display: none;
+    position: fixed; z-index: 3;
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    appearance: none; text-decoration: none;
+    border: 1px solid rgba(18,21,28,0.14);
+    background: rgba(247,241,230,0.9);
+    color: var(--ink); border-radius: 999px;
+    padding: 8px 12px; font: inherit;
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    backdrop-filter: blur(10px); pointer-events: auto;
+    cursor: pointer;
+  }
+  body.embed .open-full { display: inline-block; }
+  @media (pointer: coarse), (max-width: 900px) {
+    body.embed .open-full {
+      padding: 10px 14px; font-size: 10px;
+      background: rgba(247,241,230,0.96);
+      border-color: rgba(240,194,75,0.45);
+    }
+  }
 </style>
 </head>
 <body>
@@ -73,6 +96,7 @@
     </div>
     <div class="hint" id="hint">click · drag</div>
   </div>
+  <a class="open-full" id="open-full" href="#" target="_blank" rel="noopener">Open full</a>
 
 <script type="importmap">
 {
@@ -146,6 +170,15 @@ document.getElementById('title').textContent = meta.title;
 document.getElementById('blurb').textContent = meta.blurb;
 document.getElementById('hint').textContent = meta.hint;
 document.title = `Noctuary — ${meta.title}`;
+
+const openFull = document.getElementById('open-full');
+if (openFull) {
+  const fullQ = new URLSearchParams({ demo });
+  if (still || params.has('still')) fullQ.set('still', '1');
+  openFull.href = './physics-panel.html?' + fullQ.toString();
+  // Optional escape hatch — small on desktop, easier on phone (see CSS)
+  if (!embed) openFull.style.display = 'none';
+}
 
 const BG = 0xd8d2c6;
 const INK = 0x12151c;

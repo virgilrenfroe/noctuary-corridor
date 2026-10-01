@@ -61,6 +61,11 @@
   }
   .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
   .pill.tech { cursor: default; letter-spacing: 0.1em; color: rgba(26,29,38,0.72); }
+  a.pill { text-decoration: none; display: inline-flex; align-items: center; }
+  a.pill[hidden] { display: none !important; }
+  @media (pointer: fine) and (min-width: 901px) {
+    #btn-open-full { opacity: 0.72; font-size: 10px; padding: 8px 12px; }
+  }
   .title-block {
     position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
     max-width: 24ch; pointer-events: none;
@@ -201,6 +206,7 @@
       <div class="brand">Noctuary · physics room</div>
       <div class="pills">
         <div class="pill tech" title="Technique">cannon-es · spring · cloth · flow</div>
+        <a class="pill" id="btn-open-full" href="#" target="_blank" rel="noopener" hidden>Open full</a>
         <button class="pill" id="btn-hall" type="button">Back to hall</button>
         <div class="pill" id="h-motion">live</div>
       </div>
@@ -214,9 +220,9 @@
       <div class="caption" id="caption">
         <p class="tag" id="cap-tag">Physics</p>
         <h2 id="cap-title">Principles</h2>
-        <p id="cap-body">Walk the room. Click a panel for the full demo · door returns to the portfolio hall.</p>
+        <p id="cap-body">Walk up to a panel — play on the wall. Open full only if you need phone / deep focus · door returns to the hall.</p>
       </div>
-      <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · click panel / door</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · tap panel</span><span class="keys-mode"> · <span id="h-mode">idle</span></span></div>
+      <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · play on panels · door</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · play on panels</span><span class="keys-mode"> · <span id="h-mode">idle</span></span></div>
     </div>
   </div>
 
@@ -445,7 +451,7 @@ function hangLive(app, x, y, z, rotY, w, h) {
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
   iframe.style.background = '#d8d2c6';
-  iframe.style.pointerEvents = 'auto';
+  iframe.style.pointerEvents = 'none';
   iframe.style.borderRadius = '2px';
   iframe.style.opacity = '0';
 
@@ -466,7 +472,7 @@ function hangLive(app, x, y, z, rotY, w, h) {
 
   const entry = {
     group, canvas: hit, motif: app, app, z, cssObj, iframe, spot,
-    lazyEmbed: true, embedArmed: false, embedUrl: panelUrl(app.demo),
+    lazyEmbed: true, embedArmed: false, canInteract: false, embedUrl: panelUrl(app.demo),
   };
   hung.push(entry);
   return entry;
@@ -537,12 +543,27 @@ btnEnter.addEventListener('click', () => {
   document.getElementById('h-mode').textContent = 'walk';
 });
 
+function refreshOpenFull(m) {
+  const btn = document.getElementById('btn-open-full');
+  if (!btn) return;
+  if (!m || m.id === 'return' || !m.demo) {
+    btn.hidden = true;
+    return;
+  }
+  const q = new URLSearchParams({ demo: m.demo });
+  if (reduceMotion) q.set('still', '1');
+  btn.href = './physics-panel.html?' + q.toString();
+  btn.hidden = false;
+  btn.title = 'Open ' + m.name + ' full-page (phone / deep focus)';
+}
+
 function updateCaption(m) {
   nearest = m;
   const isPortal = m && m.id === 'return';
   document.getElementById('cap-tag').textContent = isPortal ? 'Threshold' : 'Physics';
   document.getElementById('cap-title').textContent = m.name;
   document.getElementById('cap-body').textContent = m.blurb;
+  refreshOpenFull(m);
 }
 updateCaption(PANELS[0]);
 
@@ -615,13 +636,48 @@ mobilePad.addEventListener('pointerup', (e) => {
 });
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
+const INTERACT_DIST = 5.8;
+let panelPointerLock = false; // user meant to play inside a hung iframe — walk look must not steal
+
+function eventToNDC(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  return pointerNDC;
+}
+
+function raycastStage(e) {
+  eventToNDC(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const targets = hung.map((h) => h.canvas).concat([hallAperture]);
+  return raycaster.intersectObjects(targets, false);
+}
+
+function hungFromHit(hits) {
+  if (!hits.length) return null;
+  const ud = hits[0].object.userData;
+  if (!ud.app) return null;
+  return hung.find((h) => h.app === ud.app || h.motif === ud.app) || null;
+}
+
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
+  // Near/armed panel under cursor → stay in room; do not start look-drag.
+  const hits = raycastStage(e);
+  const panel = hungFromHit(hits);
+  if (panel && panel.canInteract) {
+    panelPointerLock = true;
+    document.getElementById('h-mode').textContent = 'play ' + panel.app.name;
+    panel.iframe.style.pointerEvents = 'auto';
+    return;
+  }
+  panelPointerLock = false;
   dragging = true; stage.classList.add('dragging');
   lastX = downX = e.clientX; lastY = downY = e.clientY;
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
 stage.addEventListener('pointermove', (e) => {
+  if (panelPointerLock) return;
   if (!dragging || reduceMotion) return;
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
@@ -630,24 +686,18 @@ stage.addEventListener('pointermove', (e) => {
   document.getElementById('h-mode').textContent = 'look';
 });
 stage.addEventListener('pointerup', (e) => {
+  const wasPanel = panelPointerLock;
+  panelPointerLock = false;
   const dragDist = Math.hypot(e.clientX - downX, e.clientY - downY);
   dragging = false; stage.classList.remove('dragging');
   try { stage.releasePointerCapture(e.pointerId); } catch {}
+  if (wasPanel) return; // play stayed inside hung iframe — never navigate away
   if (!entered || dragDist >= 6) return;
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointerNDC, camera);
-  const targets = hung.map((h) => h.canvas).concat([hallAperture]);
-  const hits = raycaster.intersectObjects(targets, false);
+  const hits = raycastStage(e);
   if (!hits.length) return;
   const ud = hits[0].object.userData;
-  if (ud.portal === 'hall') { goHall(); return; }
-  if (ud.app) {
-    const url = './physics-panel.html?demo=' + ud.app.demo + (reduceMotion ? '&still=1' : '');
-    window.open(url, '_blank', 'noopener');
-    document.getElementById('h-mode').textContent = 'open ' + ud.app.name;
-  }
+  // Only the return door leaves the room
+  if (ud.portal === 'hall') goHall();
 });
 
 function resize() {
@@ -672,6 +722,10 @@ function updateLazyEmbeds() {
 
   scored.forEach(({ h, dist }, i) => {
     const want = dist < 9 && i < MAX_ARMED;
+    const interact = want && dist < INTERACT_DIST;
+    h.canInteract = interact;
+    // Pointer only when near enough to play — farther armed panels stay visual-only
+    h.iframe.style.pointerEvents = interact ? 'auto' : 'none';
     if (want && !h.embedArmed) {
       h.iframe.src = h.embedUrl;
       h.iframe.style.opacity = '1';
@@ -680,6 +734,8 @@ function updateLazyEmbeds() {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;
+      h.canInteract = false;
+      h.iframe.style.pointerEvents = 'none';
     }
   });
 }
