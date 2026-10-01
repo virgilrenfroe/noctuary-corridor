@@ -185,7 +185,7 @@
     <div class="gate-card">
       <p class="k">Technique cubicles</p>
       <h1>One box ·<br/>twenty cells</h1>
-      <p>Outer walls stay visible. Inner 5×4 partitions are invisible. Each cell hangs a WebGL Lab example — walk in for the chip, step close to play.</p>
+      <p>Outer walls stay visible. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
       <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look</span></p>
       <button type="button" id="btn-enter">Enter</button>
     </div>
@@ -213,20 +213,31 @@ const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
 if (reduceMotion) document.body.classList.add('reduce');
 
-/** Outer box interior (visible walls). Filled by 5×4×1 equal cells. */
+/** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 24;   // X
-const OUTER_D = 19.2; // Z
-const OUTER_H = 5.6;  // Y (cell height = full volume)
+const OUTER_D = 22;   // Z — deeper so foyer + grid both fit
+const OUTER_H = 5.6;  // Y
 const COLS = 5;
 const ROWS = 4;
+/** Empty entrance strip on +Z; cells do NOT cover this AABB. */
+const FOYER_DEPTH = 5.5;
+const GRID_Z_MIN = -OUTER_D / 2;                 // far wall
+const GRID_Z_MAX = OUTER_D / 2 - FOYER_DEPTH;    // foyer starts here
+const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
-const CELL_D = OUTER_D / ROWS;
+const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
 const MAX_ARMED = 8;
 const ARM_DIST = 12;
 const INTERACT_DIST = 5.8;
-/** Foyer spawn: just inside +Z wall, clear of hung frames, looking down −Z into the grid */
-const SPAWN = { x: 0, y: EYE, z: OUTER_D / 2 - 1.05, yaw: 0, pitch: -0.04 };
+/** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
+const SPAWN = {
+  x: 0,
+  y: EYE,
+  z: (GRID_Z_MAX + OUTER_D / 2) * 0.5, // center of foyer strip
+  yaw: 0,
+  pitch: -0.04,
+};
 
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1' },
@@ -343,11 +354,12 @@ const PANEL_Y = PANEL_H / 2 + 0.55;
 for (let i = 0; i < CELLS.length; i++) {
   const meta = CELLS[i];
   const col = i % COLS;
-  const row = Math.floor(i / COLS);
+  const row = Math.floor(i / COLS); // 0 = near (foyer side), 3 = far (−Z)
   const minX = -OUTER_W / 2 + col * CELL_W;
   const maxX = minX + CELL_W;
-  const minZ = -OUTER_D / 2 + row * CELL_D;
-  const maxZ = minZ + CELL_D;
+  // Near row sits just −Z of foyer; far row against far wall
+  const maxZ = GRID_Z_MAX - row * CELL_D;
+  const minZ = maxZ - CELL_D;
   const cx = (minX + maxX) / 2;
   const cz = (minZ + maxZ) / 2;
 
@@ -420,6 +432,12 @@ for (let i = 0; i < CELLS.length; i++) {
     canInteract: false,
     embedUrl: meta.src,
   });
+}
+
+function resetToFoyer() {
+  pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
+  yaw.value = SPAWN.yaw;
+  pitch.value = SPAWN.pitch;
 }
 
 function findCellAt(x, z) {
@@ -507,12 +525,16 @@ if (entered) gate.classList.add('hide');
 btnEnter.addEventListener('click', () => {
   entered = true;
   gate.classList.add('hide');
-  pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
-  yaw.value = SPAWN.yaw;
-  pitch.value = SPAWN.pitch;
+  resetToFoyer();
   velocity.set(0, 0, 0);
-  updateActiveCell();
-  updateLazyEmbeds();
+  move.f = move.b = move.l = move.r = false;
+  if (mobileLike && !params.has('walk')) setOverview(true);
+  else {
+    chip.classList.remove('show');
+    activeCell = null;
+    updateActiveCell();
+    updateLazyEmbeds();
+  }
 });
 
 let debugOn = params.has('debug');
@@ -612,10 +634,20 @@ function setOverview(on) {
   document.body.classList.toggle('overview', overview.on);
 }
 document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
-if (params.has('overview')) {
+// Mobile / narrow: first paint in overview so Enter isn’t face-into-panel.
+// Desktop: foyer walk. ?overview=1 forces overview; ?walk=1 forces walk on mobile.
+if (params.has('overview') || (mobileLike && !params.has('walk') && !params.has('still'))) {
   entered = true;
   gate.classList.add('hide');
+  resetToFoyer();
   setOverview(true);
+}
+
+// Dev assert: foyer spawn must not sit in any cell
+{
+  const hit = findCellAt(SPAWN.x, SPAWN.z);
+  if (hit) console.error('[cubicles] SPAWN inside cell', hit.meta.num, hit.meta.name, SPAWN);
+  else console.info('[cubicles] foyer spawn OK', SPAWN.x, SPAWN.y, SPAWN.z, 'gridZ', GRID_Z_MIN, GRID_Z_MAX);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -628,8 +660,12 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
   if (e.code === 'KeyR') {
-    pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
-    yaw.value = SPAWN.yaw; pitch.value = SPAWN.pitch; velocity.set(0, 0, 0);
+    if (overview.on) setOverview(false);
+    resetToFoyer();
+    velocity.set(0, 0, 0);
+    move.f = move.b = move.l = move.r = false;
+    chip.classList.remove('show');
+    activeCell = null;
     updateActiveCell();
     updateLazyEmbeds();
   }
