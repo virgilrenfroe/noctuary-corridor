@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Noctuary — spatial drill · technique cubicles</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #1a1d26;
+    --paper: #ebe4d6;
+    --mute: rgba(26,29,38,0.55);
+    --line: rgba(26,29,38,0.14);
+    --accent: #f0c24b;
+    --violet: #8a7bb8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #cfc8ba; color: var(--ink);
+    font-family: var(--font-sans);
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #stage {
+    position: fixed; inset: 0; z-index: 0;
+    cursor: grab; touch-action: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #stage > canvas {
+    position: absolute; inset: 0;
+    display: block; width: 100% !important; height: 100% !important;
+  }
+  .veil {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.32) 100%),
+      linear-gradient(180deg, rgba(201,214,234,0.1) 0%, transparent 22%, transparent 80%, rgba(90,84,72,0.1) 100%);
+  }
+  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(235,228,214,0.82);
+    color: var(--ink); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
+  .chip {
+    position: absolute; left: 18px; bottom: 18px;
+    max-width: min(42ch, calc(100vw - 36px));
+    padding: 12px 16px; border-radius: 14px;
+    border: 1px solid var(--line); background: rgba(235,228,214,0.88);
+    backdrop-filter: blur(14px);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    pointer-events: none;
+  }
+  .chip.show { opacity: 1; transform: translateY(0); }
+  .chip .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #b8860b; margin: 0 0 4px;
+  }
+  .chip h2 {
+    margin: 0; font-family: var(--font-display); font-weight: 650;
+    font-size: 1.15rem; letter-spacing: -0.03em; line-height: 1.15;
+  }
+  .chip p { margin: 6px 0 0; font-size: 12px; color: var(--mute); line-height: 1.4; }
+  .keys {
+    position: absolute; right: 18px; bottom: 18px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--mute); text-align: right;
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.75); backdrop-filter: blur(10px);
+  }
+  .keys strong { color: var(--ink); font-weight: 400; }
+  .gate {
+    position: fixed; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(207,200,186,0.55); backdrop-filter: blur(18px);
+    pointer-events: auto; transition: opacity 0.35s ease, visibility 0.35s;
+  }
+  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .gate-card {
+    text-align: center; max-width: 38ch; padding: 28px 32px;
+    border-radius: 24px; border: 1px solid var(--line);
+    background: rgba(255,252,246,0.9);
+  }
+  .gate-card .k {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
+  }
+  .gate-card h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3.1rem);
+    letter-spacing: -0.04em; line-height: 0.95;
+  }
+  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
+  .gate-card .ctrl {
+    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(26,29,38,0.7);
+  }
+  .gate-card button {
+    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.5);
+    background: rgba(240,194,75,0.18); color: var(--ink);
+    border-radius: 999px; padding: 14px 28px; font: inherit;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
+  }
+  .gate-card button:hover { background: rgba(240,194,75,0.3); }
+  body.reduce .gate { display: none; }
+  #mobile-pad {
+    display: none; position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 4; width: 148px; height: 148px;
+    pointer-events: auto; touch-action: none; user-select: none;
+  }
+  #mobile-pad .pad-base {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1px solid rgba(26,29,38,0.2);
+    background: rgba(235,228,214,0.55); backdrop-filter: blur(10px);
+  }
+  #mobile-pad .pad-knob {
+    position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
+    margin: -28px 0 0 -28px; border-radius: 50%;
+    border: 1px solid rgba(240,194,75,0.5); background: rgba(240,194,75,0.22);
+    pointer-events: none;
+  }
+  #mobile-pad.active .pad-knob { background: rgba(240,194,75,0.38); }
+  #mobile-pad .pad-cross {
+    position: absolute; inset: 18%; pointer-events: none; opacity: 0.3;
+    background:
+      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
+      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
+  }
+  .keys .keys-mobile { display: none; }
+  .gate-card .ctrl .ctrl-mobile { display: none; }
+  @media (pointer: coarse), (max-width: 900px) {
+    #mobile-pad { display: block; }
+    .keys .keys-desktop { display: none; }
+    .keys .keys-mobile { display: inline; }
+    .gate-card .ctrl .ctrl-desktop { display: none; }
+    .gate-card .ctrl .ctrl-mobile { display: inline; }
+    .chip { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
+    .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
+  }
+</style>
+</head>
+<body>
+  <div id="stage" aria-label="Technique cubicles stage"></div>
+  <div class="veil" aria-hidden="true"></div>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Noctuary · invisible cubicles</div>
+      <div class="pills">
+        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
+        <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
+        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Back to hall</a>
+        <button class="pill" id="btn-debug" type="button" title="Toggle AABB wireframes (B)">Debug boxes</button>
+      </div>
+    </div>
+    <div class="chip" id="chip" aria-live="polite">
+      <p class="tag" id="chip-tag">Zone</p>
+      <h2 id="chip-title">—</h2>
+      <p id="chip-hint"></p>
+    </div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · <strong>B</strong> boxes</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>B</strong> boxes</span></div>
+  </div>
+
+  <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
+    <div class="gate-card">
+      <p class="k">Technique cubicles</p>
+      <h1>Invisible<br/>volumes</h1>
+      <p>One open floor. Walk into a quiet box and a technique wakes. Leave and it sleeps. Labels stay off until you’re inside.</p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · B debug boxes</span><span class="ctrl-mobile">pad walk · drag look</span></p>
+      <button type="button" id="btn-enter">Enter floor</button>
+    </div>
+  </div>
+
+  <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
+    <div class="pad-base"></div>
+    <div class="pad-cross" aria-hidden="true"></div>
+    <div class="pad-knob" id="pad-knob"></div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const params = new URLSearchParams(location.search);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
+if (reduceMotion) document.body.classList.add('reduce');
+
+const EYE = 1.65;
+const ROOM_W = 26;
+const ROOM_L = 22;
+const WALL_H = 6.2;
+const COLS = 5;
+const ROWS = 4;
+const CELL_W = 4.6;
+const CELL_D = 4.6;
+const FADE_MS = 320;
+
+/** 20 reserved techniques — glass + ssao are live; rest are placeholders */
+const TECHNIQUES = [
+  { id: 'glass', name: 'Transmission glass', hint: 'Drag the orb to spin', live: 'glass' },
+  { id: 'ssao', name: 'SSAO', hint: 'Occlusion on stacked props', live: 'ssao' },
+  { id: 'caustics', name: 'Caustics', hint: 'Reserved · webgl-lab/02' },
+  { id: 'god-rays', name: 'God rays', hint: 'Reserved · webgl-lab/03' },
+  { id: 'ssr', name: 'SSR', hint: 'Reserved · webgl-lab/04' },
+  { id: 'pcss', name: 'PCSS shadows', hint: 'Reserved · webgl-lab/06' },
+  { id: 'outline', name: 'Outline / selection', hint: 'Reserved · webgl-lab/07' },
+  { id: 'stencil', name: 'Stencil portals', hint: 'Reserved · webgl-lab/08' },
+  { id: 'decals', name: 'Decals', hint: 'Reserved · webgl-lab/09' },
+  { id: 'hdr-ibl', name: 'HDR IBL / PMREM', hint: 'Reserved · webgl-lab/10' },
+  { id: 'matcap', name: 'MatCap', hint: 'Reserved · webgl-lab/11' },
+  { id: 'anisotropic', name: 'Anisotropic PBR', hint: 'Reserved · webgl-lab/12' },
+  { id: 'ocean', name: 'Ocean / water', hint: 'Reserved · webgl-lab/13' },
+  { id: 'instancing', name: 'InstancedMesh', hint: 'Reserved · webgl-lab/14' },
+  { id: 'lut', name: 'LUT color grade', hint: 'Reserved · webgl-lab/15' },
+  { id: 'morph', name: 'Morph targets', hint: 'Reserved · webgl-lab/16' },
+  { id: 'ribbons', name: 'Fat ribbons', hint: 'Reserved · webgl-lab/17' },
+  { id: 'dolly', name: 'Camera dolly', hint: 'Reserved · webgl-lab/18' },
+  { id: 'cloth', name: 'Cloth', hint: 'Reserved · physics leftover' },
+  { id: 'particles', name: 'Flow particles', hint: 'Reserved · physics leftover' },
+];
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.5 : 2));
+renderer.setClearColor(0xcfc8ba, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xcfc8ba, 18, 52);
+scene.background = new THREE.Color(0xcfc8ba);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
+const yaw = { value: 0 };
+const pitch = { value: -0.04 };
+const pos = new THREE.Vector3(0, EYE, ROOM_L / 2 - 2.4);
+
+const hemi = new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.15);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xfff6e8, 1.15);
+key.position.set(4, 14, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 48;
+key.shadow.camera.left = -16;
+key.shadow.camera.right = 16;
+key.shadow.camera.top = 16;
+key.shadow.camera.bottom = -12;
+key.shadow.radius = 3.2;
+key.shadow.bias = -0.0004;
+scene.add(key);
+const fill = new THREE.PointLight(0xa898d0, 14, 40);
+fill.position.set(-6, 3.5, 2);
+scene.add(fill);
+
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xb7b0a2, roughness: 0.78, metalness: 0.05 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_L), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.92, metalness: 0.03 });
+function addWall(w, h, x, y, z, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
+  m.position.set(x, y, z);
+  m.rotation.y = rotY;
+  m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+addWall(ROOM_L, WALL_H, -ROOM_W / 2, WALL_H / 2, 0, Math.PI / 2);
+addWall(ROOM_L, WALL_H, ROOM_W / 2, WALL_H / 2, 0, -Math.PI / 2);
+addWall(ROOM_W, WALL_H, 0, WALL_H / 2, -ROOM_L / 2, 0);
+addWall(ROOM_W, WALL_H, 0, WALL_H / 2, ROOM_L / 2, Math.PI);
+
+const ceil = new THREE.Mesh(
+  new THREE.PlaneGeometry(ROOM_W * 0.82, ROOM_L * 0.82),
+  new THREE.MeshBasicMaterial({ color: 0xd8d2c4, transparent: true, opacity: 0.42 })
+);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.y = WALL_H - 0.05;
+scene.add(ceil);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+if ('environmentIntensity' in scene) scene.environmentIntensity = 0.48;
+new RGBELoader().load(
+  'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
+  (tex) => {
+    const env = pmrem.fromEquirectangular(tex).texture;
+    scene.environment = env;
+    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.55;
+    tex.dispose();
+  },
+  undefined,
+  () => {}
+);
+
+// —— Cubicle grid (invisible AABBs) ——
+const gridOriginX = -((COLS - 1) * CELL_W) / 2;
+const gridOriginZ = -((ROWS - 1) * CELL_D) / 2;
+const cubicles = [];
+const debugGroup = new THREE.Group();
+debugGroup.visible = false;
+scene.add(debugGroup);
+
+const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.55 });
+const discMat = new THREE.MeshBasicMaterial({
+  color: 0x1a1d26, transparent: true, opacity: 0.045, depthWrite: false,
+});
+
+for (let i = 0; i < TECHNIQUES.length; i++) {
+  const tech = TECHNIQUES[i];
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  const cx = gridOriginX + col * CELL_W;
+  const cz = gridOriginZ + row * CELL_D;
+  const halfW = CELL_W * 0.46;
+  const halfD = CELL_D * 0.46;
+  const aabb = {
+    minX: cx - halfW, maxX: cx + halfW,
+    minZ: cz - halfD, maxZ: cz + halfD,
+  };
+
+  const root = new THREE.Group();
+  root.position.set(cx, 0, cz);
+  scene.add(root);
+
+  // Subtle floor disc for placeholders (and live zones) — almost invisible
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 32), discMat.clone());
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.01;
+  root.add(disc);
+
+  // Debug wireframe box
+  const boxGeo = new THREE.BoxGeometry(halfW * 2, 3.2, halfD * 2);
+  const edges = new THREE.EdgesGeometry(boxGeo);
+  const wire = new THREE.LineSegments(edges, wireMat);
+  wire.position.set(cx, 1.6, cz);
+  debugGroup.add(wire);
+
+  const zone = {
+    id: tech.id,
+    name: tech.name,
+    hint: tech.hint,
+    live: tech.live || null,
+    aabb,
+    cx, cz,
+    root,
+    disc,
+    wake: 0,
+    targetWake: 0,
+    content: null,
+    light: null,
+  };
+  cubicles.push(zone);
+}
+
+function findZoneAt(x, z) {
+  const hits = [];
+  for (const zc of cubicles) {
+    const a = zc.aabb;
+    if (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ) {
+      const dx = x - zc.cx;
+      const dz = z - zc.cz;
+      hits.push({ zone: zc, dist2: dx * dx + dz * dz });
+    }
+  }
+  if (!hits.length) return null;
+  hits.sort((a, b) => a.dist2 - b.dist2);
+  return hits[0].zone;
+}
+
+// —— Live: transmission glass cubicle ——
+const glassZone = cubicles.find((c) => c.live === 'glass');
+{
+  const g = new THREE.Group();
+  g.visible = false;
+  const ped = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.4, 0.85, 28),
+    new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.5, metalness: 0.16 })
+  );
+  ped.position.y = 0.425;
+  ped.castShadow = true;
+  ped.receiveShadow = true;
+  g.add(ped);
+
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf5f0e6, metalness: 0, roughness: 0.06,
+    transmission: 1.0, thickness: 1.35, ior: 1.5,
+    specularIntensity: 1, envMapIntensity: 1.15,
+    clearcoat: 1, clearcoatRoughness: 0.05,
+  });
+  const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.38, 0.13, 140, 28), glassMat);
+  knot.position.y = 1.35;
+  knot.castShadow = true;
+  knot.userData.spinTarget = true;
+  g.add(knot);
+
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 48, 48),
+    glassMat.clone()
+  );
+  ball.material.color.set(0xa8d8ff);
+  ball.material.thickness = 2.0;
+  ball.material.ior = 1.7;
+  ball.position.set(0.55, 0.95, 0.2);
+  ball.castShadow = true;
+  ball.userData.spinTarget = true;
+  g.add(ball);
+
+  const checker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.35, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0xf0c24b, roughness: 0.38, metalness: 0.1 })
+  );
+  checker.position.set(-0.55, 0.18, 0.15);
+  checker.castShadow = true;
+  g.add(checker);
+
+  const contact = new THREE.Mesh(
+    new THREE.CircleGeometry(0.7, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false })
+  );
+  contact.rotation.x = -Math.PI / 2;
+  contact.position.y = 0.012;
+  g.add(contact);
+
+  const localLight = new THREE.PointLight(0xfff6e8, 0, 7);
+  localLight.position.set(0.4, 2.2, 0.3);
+  g.add(localLight);
+
+  glassZone.root.add(g);
+  glassZone.content = g;
+  glassZone.light = localLight;
+  glassZone.spinMeshes = [knot, ball];
+  glassZone.autoSpin = true;
+}
+
+// —— Live: SSAO cubicle (stacked props; pass toggled on enter) ——
+const ssaoZone = cubicles.find((c) => c.live === 'ssao');
+{
+  const g = new THREE.Group();
+  g.visible = false;
+  const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.72, metalness: 0.05 });
+  const colors = [0xe8e2d6, 0xd4cfc0, 0xc8c0b0, 0x8a7bb8, 0xb8a890];
+  const rng = (s) => { let x = s | 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1000) / 1000; }; };
+  const rnd = rng(42);
+  for (let i = 0; i < 14; i++) {
+    const h = 0.35 + rnd() * 1.5;
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45 + rnd() * 0.4, h, 0.45 + rnd() * 0.4),
+      new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: 0.7, metalness: 0.05 })
+    );
+    box.position.set((rnd() - 0.5) * 2.4, h / 2, (rnd() - 0.5) * 2.4);
+    box.rotation.y = rnd() * Math.PI;
+    box.castShadow = true;
+    box.receiveShadow = true;
+    g.add(box);
+  }
+  const torus = new THREE.Mesh(
+    new THREE.TorusKnotGeometry(0.42, 0.14, 100, 14),
+    new THREE.MeshStandardMaterial({ color: 0x8a7bb8, roughness: 0.48 })
+  );
+  torus.position.set(0, 1.05, 0);
+  torus.castShadow = true;
+  g.add(torus);
+
+  const localLight = new THREE.PointLight(0xfff0dd, 0, 8);
+  localLight.position.set(0, 2.4, 0);
+  g.add(localLight);
+
+  ssaoZone.root.add(g);
+  ssaoZone.content = g;
+  ssaoZone.light = localLight;
+  ssaoZone.knot = torus;
+}
+
+// Composer — SSAO pass enabled only while inside ssao zone
+let composer = null;
+let ssaoPass = null;
+let ssaoEnabled = false;
+{
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  if (!mobileLike) {
+    ssaoPass = new SSAOPass(scene, camera, innerWidth, innerHeight);
+    ssaoPass.kernelRadius = 14;
+    ssaoPass.minDistance = 0.005;
+    ssaoPass.maxDistance = 0.1;
+    ssaoPass.enabled = false;
+    composer.addPass(ssaoPass);
+  }
+  composer.addPass(new OutputPass());
+}
+
+function setSsaoActive(on) {
+  ssaoEnabled = !!on;
+  if (ssaoPass) ssaoPass.enabled = ssaoEnabled;
+}
+
+// —— Zone enter / exit ——
+let activeZone = null;
+const chip = document.getElementById('chip');
+const chipTag = document.getElementById('chip-tag');
+const chipTitle = document.getElementById('chip-title');
+const chipHint = document.getElementById('chip-hint');
+
+function onEnter(zone) {
+  zone.targetWake = 1;
+  if (zone.live === 'ssao') setSsaoActive(true);
+  chipTag.textContent = zone.live ? 'Live' : 'Reserved';
+  chipTitle.textContent = zone.name;
+  chipHint.textContent = zone.hint;
+  chip.classList.add('show');
+}
+
+function onExit(zone) {
+  zone.targetWake = 0;
+  if (zone.live === 'ssao') setSsaoActive(false);
+}
+
+function updateActiveZone() {
+  const next = findZoneAt(pos.x, pos.z);
+  if (next === activeZone) return;
+  if (activeZone) onExit(activeZone);
+  activeZone = next;
+  if (activeZone) onEnter(activeZone);
+  else chip.classList.remove('show');
+}
+
+function updateWake(dt) {
+  const rate = 1000 / FADE_MS;
+  for (const z of cubicles) {
+    const prev = z.wake;
+    if (z.wake < z.targetWake) z.wake = Math.min(z.targetWake, z.wake + rate * dt);
+    else if (z.wake > z.targetWake) z.wake = Math.max(z.targetWake, z.wake - rate * dt);
+    if (z.content) {
+      const show = z.wake > 0.01;
+      z.content.visible = show;
+      if (show) {
+        const s = 0.85 + 0.15 * z.wake;
+        z.content.scale.setScalar(s);
+        z.content.traverse((o) => {
+          if (o.material && o.material.transparent && o.material.opacity !== undefined && o.userData?.fadeOpacity != null) {
+            o.material.opacity = o.userData.fadeOpacity * z.wake;
+          }
+        });
+      }
+    }
+    if (z.light) z.light.intensity = (z.live === 'glass' ? 10 : 8) * z.wake;
+    if (z.disc && z.disc.material) {
+      z.disc.material.opacity = 0.03 + 0.08 * z.wake;
+    }
+    // sleep content fully when woke out
+    if (prev > 0.01 && z.wake <= 0.01 && z.content) z.content.visible = false;
+  }
+}
+
+// —— Controls (physics-room pattern) ——
+const move = { f: false, b: false, l: false, r: false };
+const velocity = new THREE.Vector3();
+let dragging = false;
+let lookDrag = false;
+let spinDrag = false;
+let lastX = 0, lastY = 0;
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+
+const gate = document.getElementById('gate');
+const btnEnter = document.getElementById('btn-enter');
+let entered = reduceMotion || params.has('still');
+if (entered) gate.classList.add('hide');
+
+btnEnter.addEventListener('click', () => {
+  entered = true;
+  gate.classList.add('hide');
+});
+
+let debugOn = params.has('debug');
+function setDebug(on) {
+  debugOn = on;
+  debugGroup.visible = debugOn;
+  document.getElementById('btn-debug').classList.toggle('on', debugOn);
+}
+setDebug(debugOn);
+document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
+
+function applyCamera() {
+  camera.position.copy(pos);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw.value;
+  camera.rotation.x = pitch.value;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!entered && !reduceMotion) return;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = true;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = true;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
+  if (e.code === 'KeyB') setDebug(!debugOn);
+  if (e.code === 'KeyR') {
+    pos.set(0, EYE, ROOM_L / 2 - 2.4);
+    yaw.value = 0; pitch.value = -0.04; velocity.set(0, 0, 0);
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = false;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = false;
+});
+
+const mobilePad = document.getElementById('mobile-pad');
+const padKnob = document.getElementById('pad-knob');
+const PAD_MAX = 42;
+let padPointerId = null;
+function clearPadMove() {
+  move.f = move.b = move.l = move.r = false;
+  if (padKnob) padKnob.style.transform = '';
+  mobilePad.classList.remove('active');
+}
+function applyPadVector(dx, dy) {
+  const dist = Math.hypot(dx, dy);
+  let ux = dx, uy = dy;
+  if (dist > PAD_MAX) { ux = (dx / dist) * PAD_MAX; uy = (dy / dist) * PAD_MAX; }
+  if (padKnob) padKnob.style.transform = `translate(${ux}px, ${uy}px)`;
+  const dead = 14;
+  move.f = uy < -dead; move.b = uy > dead; move.l = ux < -dead; move.r = ux > dead;
+  mobilePad.classList.toggle('active', move.f || move.b || move.l || move.r);
+}
+mobilePad.addEventListener('pointerdown', (e) => {
+  if (!entered) return;
+  padPointerId = e.pointerId;
+  mobilePad.setPointerCapture(e.pointerId);
+  const r = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+});
+mobilePad.addEventListener('pointermove', (e) => {
+  if (padPointerId !== e.pointerId) return;
+  const r = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+});
+mobilePad.addEventListener('pointerup', (e) => {
+  if (padPointerId !== e.pointerId) return;
+  padPointerId = null; clearPadMove();
+});
+mobilePad.addEventListener('pointercancel', clearPadMove);
+
+function hitGlassSpin(e) {
+  if (!activeZone || activeZone.live !== 'glass' || !glassZone.content || !glassZone.content.visible) return false;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(glassZone.spinMeshes, false);
+  return hits.length > 0;
+}
+
+stage.addEventListener('pointerdown', (e) => {
+  if (!entered) return;
+  dragging = true;
+  lastX = e.clientX; lastY = e.clientY;
+  spinDrag = hitGlassSpin(e);
+  lookDrag = !spinDrag;
+  if (lookDrag) stage.classList.add('dragging');
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+});
+stage.addEventListener('pointermove', (e) => {
+  if (!dragging || reduceMotion) return;
+  const dx = e.clientX - lastX; const dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  if (spinDrag && glassZone.spinMeshes) {
+    for (const m of glassZone.spinMeshes) {
+      m.rotation.y += dx * 0.01;
+      m.rotation.x += dy * 0.006;
+    }
+    glassZone.autoSpin = false;
+  } else if (lookDrag) {
+    yaw.value -= dx * 0.0025;
+    pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
+  }
+});
+stage.addEventListener('pointerup', (e) => {
+  dragging = false; lookDrag = false; spinDrag = false;
+  stage.classList.remove('dragging');
+  try { stage.releasePointerCapture(e.pointerId); } catch {}
+});
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  if (composer) {
+    composer.setSize(w, h);
+    if (ssaoPass) ssaoPass.setSize(w, h);
+  }
+}
+addEventListener('resize', resize);
+resize();
+
+const clock = new THREE.Clock();
+const forward = new THREE.Vector3();
+const right = new THREE.Vector3();
+
+function frame() {
+  const dt = Math.min(0.05, clock.getDelta());
+  const t = clock.elapsedTime;
+  if (!reduceMotion && entered) {
+    forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
+    right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
+    const wish = new THREE.Vector3();
+    if (move.f) wish.add(forward);
+    if (move.b) wish.sub(forward);
+    if (move.l) wish.sub(right);
+    if (move.r) wish.add(right);
+    if (wish.lengthSq() > 0) {
+      wish.normalize().multiplyScalar(7.5);
+      velocity.x += (wish.x - velocity.x) * Math.min(1, 8 * dt);
+      velocity.z += (wish.z - velocity.z) * Math.min(1, 8 * dt);
+    } else {
+      velocity.x *= Math.pow(0.88, dt * 60);
+      velocity.z *= Math.pow(0.88, dt * 60);
+    }
+    pos.x += velocity.x * dt;
+    pos.z += velocity.z * dt;
+    const limX = ROOM_W / 2 - 1.1;
+    const limZ = ROOM_L / 2 - 1.1;
+    pos.x = Math.max(-limX, Math.min(limX, pos.x));
+    pos.z = Math.max(-limZ, Math.min(limZ, pos.z));
+    pos.y = EYE;
+    updateActiveZone();
+  } else if (reduceMotion || params.has('still')) {
+    pos.set(0, EYE + 0.2, ROOM_L / 2 - 3);
+    yaw.value = 0; pitch.value = -0.05;
+  }
+
+  updateWake(dt);
+
+  if (glassZone.content && glassZone.content.visible && glassZone.autoSpin && !reduceMotion) {
+    for (const m of glassZone.spinMeshes) {
+      m.rotation.y += dt * 0.35;
+    }
+  }
+  if (ssaoZone.knot && ssaoZone.content && ssaoZone.content.visible && !reduceMotion) {
+    ssaoZone.knot.rotation.y += dt * 0.4;
+  }
+
+  applyCamera();
+  if (composer && (ssaoEnabled || !ssaoPass)) composer.render();
+  else renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if (params.has('still')) {
+  entered = true;
+  gate.classList.add('hide');
+}
+</script>
+</body>
+</html>
