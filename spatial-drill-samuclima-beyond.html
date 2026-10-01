@@ -437,14 +437,14 @@ portalGlow.position.set(0, 3.2, -HALL_L / 2 + 2);
 scene.add(portalGlow);
 
 
-// —— Day wing threshold (luminous aperture on right wall, far half) ——
+// —— Physics room threshold (readable warm aperture on right wall, far half) ——
 const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
 const DAY_DOOR_W = 2.2;
 const DAY_DOOR_H = 4.6;
 const dayDoorGroup = new THREE.Group();
 const dayFrameMat = new THREE.MeshStandardMaterial({
-  color: 0xe8dfd0, roughness: 0.55, metalness: 0.08,
-  emissive: 0xf2ebe0, emissiveIntensity: 0.35,
+  color: 0xcfc6b4, roughness: 0.5, metalness: 0.1,
+  emissive: 0xf0c24b, emissiveIntensity: 0.22,
 });
 const dayFrame = new THREE.Mesh(
   new THREE.BoxGeometry(0.22, DAY_DOOR_H + 0.35, DAY_DOOR_W + 0.35),
@@ -453,28 +453,48 @@ const dayFrame = new THREE.Mesh(
 dayDoorGroup.add(dayFrame);
 const dayAperture = new THREE.Mesh(
   new THREE.PlaneGeometry(DAY_DOOR_W, DAY_DOOR_H),
-  new THREE.MeshBasicMaterial({ color: 0xf5efe4, fog: false, side: THREE.DoubleSide })
+  new THREE.MeshBasicMaterial({ color: 0xd8d2c6, fog: false, side: THREE.DoubleSide })
 );
 dayAperture.rotation.y = -Math.PI / 2;
 dayAperture.position.set(-0.12, 0, 0);
-dayAperture.userData.portal = 'day';
+dayAperture.userData.portal = 'physics';
 dayAperture.userData.clickable = true;
 dayDoorGroup.add(dayAperture);
 const dayRim = new THREE.Mesh(
   new THREE.PlaneGeometry(DAY_DOOR_W + 0.12, DAY_DOOR_H + 0.12),
-  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.22, fog: false, side: THREE.DoubleSide })
+  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.28, fog: false, side: THREE.DoubleSide })
 );
 dayRim.rotation.y = -Math.PI / 2;
 dayRim.position.set(-0.1, 0, 0);
 dayDoorGroup.add(dayRim);
+// Small plate on the door
+(() => {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(5,6,10,0.55)';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = '#f2ebe0';
+  ctx.font = '600 42px "Bricolage Grotesque", system-ui, sans-serif';
+  ctx.fillText('Physics room', 36, 78);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 0.4),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false, side: THREE.DoubleSide })
+  );
+  plate.rotation.y = -Math.PI / 2;
+  plate.position.set(-0.14, -DAY_DOOR_H * 0.28, 0);
+  dayDoorGroup.add(plate);
+})();
 dayDoorGroup.position.set(HALL_W / 2 - 0.08, DAY_DOOR_H / 2 + 0.2, DAY_DOOR_Z);
-/* day wing portal removed */ // scene.add(dayDoorGroup);
-const daySpill = new THREE.PointLight(0xfff4e4, 42, 22);
+scene.add(dayDoorGroup);
+const daySpill = new THREE.PointLight(0xfff0d8, 36, 20);
 daySpill.position.set(HALL_W / 2 - 1.6, 3.4, DAY_DOOR_Z);
-/* daySpill parked */
-const daySkyFill = new THREE.PointLight(0xc9d6ea, 16, 18);
+scene.add(daySpill);
+const daySkyFill = new THREE.PointLight(0xc9d6ea, 12, 16);
 daySkyFill.position.set(HALL_W / 2 - 2.2, 5.2, DAY_DOOR_Z);
-/* daySkyFill parked */
+scene.add(daySkyFill);
 
 // Architecture
 const floorMat = new THREE.MeshStandardMaterial({
@@ -908,6 +928,7 @@ const gate = document.getElementById('gate');
 const btnEnter = document.getElementById('btn-enter'); // may be null — gate removed
 const embedMode = params.has('embed');
 const fromDay = params.get('from') === 'day';
+const fromPhysics = params.get('from') === 'physics';
 
 function siblingQuery(extra = {}) {
   const q = new URLSearchParams();
@@ -917,14 +938,15 @@ function siblingQuery(extra = {}) {
   const s = q.toString();
   return s ? '?' + s : '';
 }
-const DAY_HREF = './spatial-drill-corridor-day.html' + siblingQuery({ from: 'dark' });
+const PHYSICS_HREF = './spatial-drill-physics-room.html' + siblingQuery({ from: 'hall' });
 let dayPortalLock = false;
 function goDayWing() {
+  // Legacy name — now enters the dedicated physics room
   if (dayPortalLock) return;
   dayPortalLock = true;
   const mode = document.getElementById('h-mode');
-  if (mode) mode.textContent = 'day wing';
-  location.assign(DAY_HREF);
+  if (mode) mode.textContent = 'physics room';
+  location.assign(PHYSICS_HREF);
 }
 if (embedMode) document.body.classList.add('embed-quiet');
 let entered = true; // gate removed — hall is live on load
@@ -934,8 +956,8 @@ if (embedMode) {
   // Behind unlock veil: skip gate, start in walk-ready still/live view
   document.getElementById('h-mode').textContent = reduceMotion ? 'still' : 'walk';
 }
-if (fromDay && !params.has('still')) {
-  // Arrive near day doorway, facing into night hall
+if ((fromDay || fromPhysics) && !params.has('still')) {
+  // Arrive near physics doorway, facing into night hall
   pos.set(HALL_W / 2 - 2.4, EYE, DAY_DOOR_Z);
   yaw.value = -Math.PI / 2; // look toward center / left
   pitch.value = -0.04;
@@ -953,6 +975,7 @@ function updateCaption(m) {
   let tag = 'App';
   if (m && m.id === 'harbor') tag = 'Harbor';
   else if (m && m.id === 'noctuary') tag = 'Noctuary';
+  else if (m && m.id === 'physics-room') tag = 'Craft wing';
   else if (m && m.live) tag = 'Live demo';
   document.getElementById('cap-tag').textContent = tag;
   document.getElementById('cap-title').textContent = m.name;
@@ -1088,12 +1111,11 @@ stage.addEventListener('pointerup', (e) => {
   pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNDC, camera);
   const targets = hung.map((h) => h.canvas).filter(Boolean);
-  // day wing portal removed — do not raycast
-  // if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
+  if (typeof dayAperture !== 'undefined') targets.push(dayAperture);
   const hits = raycaster.intersectObjects(targets, false);
   if (!hits.length) return;
   const ud = hits[0].object.userData;
-  if (ud.portal === 'day') {
+  if (ud.portal === 'physics' || ud.portal === 'day') {
     goDayWing();
     return;
   }
@@ -1177,6 +1199,16 @@ function pickNearest() {
     const score = Math.hypot(h.z - pos.z, lateral * 0.35);
     if (score < bestD) { bestD = score; best = h.motif; }
   }
+  // Prefer physics-room doorway when standing by the warm right-wall aperture
+  const doorScore = Math.hypot(pos.x - (HALL_W / 2 - 0.8), pos.z - DAY_DOOR_Z);
+  if (doorScore < 3.4 && doorScore < bestD) {
+    best = {
+      id: 'physics-room',
+      name: 'Physics room',
+      blurb: 'Dedicated craft wing — gravity, springs, collisions, joints, cloth, flow, stacking.',
+      live: false,
+    };
+  }
   if (best !== nearest) updateCaption(best);
 }
 
@@ -1212,14 +1244,14 @@ function frame() {
     pos.x = Math.max(-limX, Math.min(limX, pos.x));
     pos.z = Math.max(limZFar, Math.min(limZNear, pos.z));
     pos.y = EYE;
-    // Day wing: walk into luminous right-wall aperture
+    // Physics room: walk into warm right-wall aperture
     if (pos.x > HALL_W / 2 - 1.35 && Math.abs(pos.z - DAY_DOOR_Z) < DAY_DOOR_W * 0.55) {
       goDayWing();
     }
     pickNearest();
     updateLazyEmbeds();
     if (typeof daySpill !== 'undefined') {
-      daySpill.intensity = 38 + Math.sin(t * 0.9) * 6;
+      daySpill.intensity = 32 + Math.sin(t * 0.9) * 5;
     }
     key.intensity = (1.35 * panelBright) + Math.sin(t * 0.7) * 0.1;
     if (typeof portalGlow !== 'undefined') portalGlow.intensity = (28 * panelBright) + Math.sin(t * 1.1) * 4;

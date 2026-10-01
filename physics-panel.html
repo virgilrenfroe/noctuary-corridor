@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Noctuary — physics panel</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #12151c;
+    --paper: #f2ebe0;
+    --mute: rgba(18,21,28,0.55);
+    --accent: #f0c24b;
+    --violet: #8a7bb8;
+    --sky: #c9d6ea;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #d8d2c6; color: var(--ink);
+    font-family: var(--font-sans);
+    touch-action: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .chrome {
+    position: fixed; inset: 0; pointer-events: none; z-index: 2;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 14px 16px 16px;
+  }
+  .label {
+    align-self: flex-start;
+    max-width: 92%;
+    padding: 10px 12px; border-radius: 14px;
+    border: 1px solid rgba(18,21,28,0.12);
+    background: rgba(247,241,230,0.88);
+    backdrop-filter: blur(10px);
+  }
+  .label .tag {
+    margin: 0 0 4px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(18,21,28,0.5);
+  }
+  .label h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.15rem, 4.5vw, 1.55rem); letter-spacing: -0.03em; line-height: 1.05;
+  }
+  .label p {
+    margin: 6px 0 0; font-size: 11px; line-height: 1.4; color: var(--mute);
+  }
+  .hint {
+    align-self: flex-end;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(18,21,28,0.55);
+    padding: 8px 10px; border-radius: 999px;
+    border: 1px solid rgba(18,21,28,0.1);
+    background: rgba(247,241,230,0.78);
+  }
+  body.embed .label { background: rgba(247,241,230,0.92); }
+  body.still .hint { opacity: 0.35; }
+</style>
+</head>
+<body>
+  <div class="chrome">
+    <div class="label">
+      <p class="tag" id="tag">Physics</p>
+      <h1 id="title">Principle</h1>
+      <p id="blurb">Demo</p>
+    </div>
+    <div class="hint" id="hint">click · drag</div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
+    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+
+const params = new URLSearchParams(location.search);
+const demo = (params.get('demo') || 'gravity').toLowerCase();
+const embed = params.has('embed');
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
+if (embed) document.body.classList.add('embed');
+if (still) document.body.classList.add('still');
+
+const META = {
+  gravity: {
+    tag: 'Rigid body',
+    title: 'Gravity & bounce',
+    blurb: 'g = −9.82 · restitution on contact. Drop / toss with click.',
+    hint: 'click to toss',
+  },
+  spring: {
+    tag: 'Feel language',
+    title: 'Spring & damping',
+    blurb: 'Hooke spring + ζ damping — light overshoots, heavy settles.',
+    hint: 'drag the mass',
+  },
+  collision: {
+    tag: 'Contact',
+    title: 'Collision',
+    blurb: 'Impulse exchange on hit — mass ratios change the outcome.',
+    hint: 'click to fire',
+  },
+  constraints: {
+    tag: 'Joints',
+    title: 'Constraints',
+    blurb: 'PointToPoint hinge — lantern swings, does not free-fall.',
+    hint: 'drag to swing',
+  },
+  cloth: {
+    tag: 'Soft body',
+    title: 'Cloth',
+    blurb: 'Verlet cloth with distance constraints — pin & tug.',
+    hint: 'drag fabric',
+  },
+  particles: {
+    tag: 'Forces',
+    title: 'Flow field',
+    blurb: 'Curl-advected particles — pointer spins a local vortex.',
+    hint: 'move pointer',
+  },
+  stacking: {
+    tag: 'Rigid body',
+    title: 'Stacking',
+    blurb: 'Sleeping crates on a quay — shake the stack, watch sleep wake.',
+    hint: 'click to shake',
+  },
+};
+
+const meta = META[demo] || META.gravity;
+document.getElementById('tag').textContent = meta.tag;
+document.getElementById('title').textContent = meta.title;
+document.getElementById('blurb').textContent = meta.blurb;
+document.getElementById('hint').textContent = meta.hint;
+document.title = `Noctuary — ${meta.title}`;
+
+const BG = 0xd8d2c6;
+const INK = 0x12151c;
+const PAPER = 0xf2ebe0;
+const ACCENT = 0xf0c24b;
+const VIOLET = 0x8a7bb8;
+const TEAL = 0x4db6a4;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setClearColor(BG, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(BG, 8, 22);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
+camera.position.set(0, 1.55, 5.2);
+camera.lookAt(0, 0.9, 0);
+
+const hemi = new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.15);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xfff8ee, 1.05);
+key.position.set(3.5, 7, 4);
+scene.add(key);
+const fill = new THREE.PointLight(VIOLET, 12, 18);
+fill.position.set(-2.5, 2.2, 2);
+scene.add(fill);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 10),
+  new THREE.MeshStandardMaterial({ color: 0xcfc7b8, roughness: 0.82, metalness: 0.04 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = 0;
+scene.add(floor);
+
+const back = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 8),
+  new THREE.MeshStandardMaterial({ color: 0xbdb5a8, roughness: 0.92, metalness: 0.02 })
+);
+back.position.set(0, 3.2, -3.2);
+scene.add(back);
+
+function resize() {
+  const w = innerWidth;
+  const h = innerHeight;
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+addEventListener('resize', resize);
+resize();
+
+const clock = new THREE.Clock();
+const pointer = new THREE.Vector2(0, 0);
+const raycaster = new THREE.Raycaster();
+let pointerDown = false;
+const ndc = new THREE.Vector2();
+
+function setNDC(e) {
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  pointer.x = (e.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+}
+
+addEventListener('pointermove', (e) => { setNDC(e); });
+addEventListener('pointerdown', (e) => { setNDC(e); pointerDown = true; onDown(e); });
+addEventListener('pointerup', () => { pointerDown = false; onUp(); });
+addEventListener('pointerleave', () => { pointerDown = false; onUp(); });
+
+let onDown = () => {};
+let onUp = () => {};
+let tick = (_dt, _t) => {};
+
+function makeMat(color, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    color, roughness: opts.roughness ?? 0.45, metalness: opts.metalness ?? 0.08,
+    emissive: opts.emissive ?? 0x000000, emissiveIntensity: opts.emissiveIntensity ?? 0,
+  });
+}
+
+function syncMesh(mesh, body) {
+  mesh.position.copy(body.position);
+  mesh.quaternion.copy(body.quaternion);
+}
+
+// —— Demo builders ——
+function buildGravity() {
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, still ? 0 : -9.82, 0) });
+  world.allowSleep = true;
+  world.defaultContactMaterial.friction = 0.35;
+  world.defaultContactMaterial.restitution = 0.72;
+
+  const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+  groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(groundBody);
+
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.28, 28, 20), makeMat(ACCENT, { roughness: 0.28 }));
+  scene.add(ball);
+  const body = new CANNON.Body({
+    mass: 1.2,
+    shape: new CANNON.Sphere(0.28),
+    position: new CANNON.Vec3(0, 2.6, 0),
+    linearDamping: 0.05,
+    angularDamping: 0.08,
+  });
+  world.addBody(body);
+
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.32, 24),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.01;
+  scene.add(shadow);
+
+  function toss() {
+    if (still) return;
+    body.wakeUp();
+    body.velocity.set((Math.random() - 0.5) * 3.5, 4.2 + Math.random() * 1.5, (Math.random() - 0.5) * 1.2);
+    body.angularVelocity.set(Math.random() * 4, Math.random() * 2, Math.random() * 4);
+    body.position.y = Math.max(body.position.y, 1.4);
+  }
+  onDown = toss;
+
+  tick = (dt) => {
+    if (!still) world.fixedStep();
+    syncMesh(ball, body);
+    shadow.position.x = body.position.x;
+    shadow.position.z = body.position.z;
+    shadow.scale.setScalar(1.1 - Math.min(0.55, body.position.y * 0.18));
+  };
+}
+
+function buildSpring() {
+  const anchor = new THREE.Vector3(0, 2.85, 0);
+  const mass = { pos: new THREE.Vector3(0, 1.35, 0), vel: new THREE.Vector3(), m: 1.4 };
+  const k = 28;
+  const zeta = 0.22;
+  const c = zeta * 2 * Math.sqrt(k * mass.m);
+  const rest = 1.35;
+
+  const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.14, 16), makeMat(INK));
+  peg.position.copy(anchor);
+  scene.add(peg);
+
+  const bob = new THREE.Mesh(new THREE.SphereGeometry(0.32, 28, 20), makeMat(VIOLET, { roughness: 0.35 }));
+  scene.add(bob);
+
+  const springGeo = new THREE.BufferGeometry().setFromPoints([anchor, mass.pos]);
+  const springLine = new THREE.Line(springGeo, new THREE.LineBasicMaterial({ color: 0x5a5348 }));
+  scene.add(springLine);
+
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const hit = new THREE.Vector3();
+  let dragging = false;
+
+  onDown = () => {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(plane, hit)) {
+      if (hit.distanceTo(mass.pos) < 0.85) dragging = true;
+    }
+  };
+  onUp = () => { dragging = false; };
+
+  tick = (dt) => {
+    if (dragging) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(plane, hit)) {
+        mass.pos.x += (hit.x - mass.pos.x) * 0.55;
+        mass.pos.y += (Math.max(0.45, hit.y) - mass.pos.y) * 0.55;
+        mass.vel.set(0, 0, 0);
+      }
+    } else if (!still) {
+      const dx = mass.pos.x - anchor.x;
+      const dy = mass.pos.y - (anchor.y - rest);
+      const fx = -k * dx - c * mass.vel.x;
+      const fy = -k * dy - c * mass.vel.y - 9.82 * mass.m * 0.08;
+      mass.vel.x += (fx / mass.m) * dt;
+      mass.vel.y += (fy / mass.m) * dt;
+      mass.pos.x += mass.vel.x * dt;
+      mass.pos.y += mass.vel.y * dt;
+      if (mass.pos.y < 0.35) { mass.pos.y = 0.35; mass.vel.y *= -0.2; }
+    }
+    bob.position.copy(mass.pos);
+    springGeo.setFromPoints([anchor, mass.pos]);
+    springGeo.attributes.position.needsUpdate = true;
+  };
+}
+
+function buildCollision() {
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, still ? 0 : -9.82, 0) });
+  world.defaultContactMaterial.friction = 0.2;
+  world.defaultContactMaterial.restitution = 0.85;
+  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+  ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(ground);
+
+  function makeBox(color, mass, x, y) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), makeMat(color));
+    scene.add(mesh);
+    const body = new CANNON.Body({
+      mass,
+      shape: new CANNON.Box(new CANNON.Vec3(0.275, 0.275, 0.275)),
+      position: new CANNON.Vec3(x, y, 0),
+      linearDamping: 0.04,
+    });
+    world.addBody(body);
+    return { mesh, body };
+  }
+
+  const a = makeBox(ACCENT, 1.0, -1.6, 0.28);
+  const b = makeBox(TEAL, 2.4, 1.4, 0.28);
+  a.body.velocity.set(0, 0, 0);
+  b.body.velocity.set(0, 0, 0);
+
+  onDown = () => {
+    if (still) return;
+    a.body.wakeUp();
+    b.body.wakeUp();
+    a.body.position.set(-1.7, 0.28, 0);
+    b.body.position.set(1.5, 0.28, 0);
+    a.body.velocity.set(6.2, 1.1, 0);
+    b.body.velocity.set(-1.2, 0.4, 0);
+    a.body.angularVelocity.set(0, 0, -2);
+  };
+
+  tick = () => {
+    if (!still) world.fixedStep();
+    syncMesh(a.mesh, a.body);
+    syncMesh(b.mesh, b.body);
+  };
+}
+
+function buildConstraints() {
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, still ? 0 : -9.82, 0) });
+  world.allowSleep = true;
+
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.4, 12), makeMat(0x3a342c));
+  post.position.set(0, 1.2, 0);
+  scene.add(post);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.08), makeMat(0x4a4338));
+  arm.position.set(0.55, 2.35, 0);
+  scene.add(arm);
+
+  const anchorBody = new CANNON.Body({ mass: 0, position: new CANNON.Vec3(1.2, 2.35, 0) });
+  world.addBody(anchorBody);
+
+  const lampMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 16), makeMat(ACCENT, {
+    roughness: 0.25, emissive: ACCENT, emissiveIntensity: 0.35,
+  }));
+  scene.add(lampMesh);
+  const lampLight = new THREE.PointLight(ACCENT, 10, 8);
+  lampMesh.add(lampLight);
+
+  const lampBody = new CANNON.Body({
+    mass: 0.8,
+    shape: new CANNON.Sphere(0.22),
+    position: new CANNON.Vec3(1.2, 1.35, 0),
+    linearDamping: 0.12,
+    angularDamping: 0.2,
+  });
+  world.addBody(lampBody);
+  const constraint = new CANNON.PointToPointConstraint(
+    anchorBody, new CANNON.Vec3(0, 0, 0),
+    lampBody, new CANNON.Vec3(0, 0.22, 0)
+  );
+  world.addConstraint(constraint);
+
+  const cordGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(1.2, 2.35, 0), new THREE.Vector3(1.2, 1.35, 0),
+  ]);
+  const cord = new THREE.Line(cordGeo, new THREE.LineBasicMaterial({ color: 0x2a2620 }));
+  scene.add(cord);
+
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const hit = new THREE.Vector3();
+  let dragging = false;
+  onDown = () => {
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(plane, hit) && hit.distanceTo(lampMesh.position) < 1.0) {
+      dragging = true;
+    }
+  };
+  onUp = () => { dragging = false; };
+
+  tick = () => {
+    if (dragging && !still) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(plane, hit)) {
+        lampBody.wakeUp();
+        const target = hit.clone();
+        target.y = Math.max(0.4, Math.min(2.1, target.y));
+        lampBody.velocity.set(
+          (target.x - lampBody.position.x) * 8,
+          (target.y - lampBody.position.y) * 8,
+          0
+        );
+      }
+    }
+    if (!still) world.fixedStep();
+    syncMesh(lampMesh, lampBody);
+    cordGeo.setFromPoints([
+      new THREE.Vector3(1.2, 2.35, 0),
+      lampMesh.position.clone(),
+    ]);
+    cordGeo.attributes.position.needsUpdate = true;
+  };
+}
+
+function buildCloth() {
+  const cols = 14;
+  const rows = 12;
+  const rest = 0.16;
+  const particles = [];
+  const originX = -((cols - 1) * rest) / 2;
+  const originY = 2.55;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      particles.push({
+        pos: new THREE.Vector3(originX + x * rest, originY - y * rest, 0),
+        prev: new THREE.Vector3(originX + x * rest, originY - y * rest, 0),
+        pinned: y === 0 && (x === 0 || x === cols - 1 || x === Math.floor(cols / 2)),
+      });
+    }
+  }
+
+  const constraints = [];
+  function link(a, b) {
+    constraints.push({ a, b, rest: particles[a].pos.distanceTo(particles[b].pos) });
+  }
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = y * cols + x;
+      if (x < cols - 1) link(i, i + 1);
+      if (y < rows - 1) link(i, i + cols);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(cols * rows * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const indices = [];
+  for (let y = 0; y < rows - 1; y++) {
+    for (let x = 0; x < cols - 1; x++) {
+      const i = y * cols + x;
+      indices.push(i, i + cols, i + 1, i + 1, i + cols, i + cols + 1);
+    }
+  }
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      color: VIOLET, roughness: 0.55, metalness: 0.05,
+      side: THREE.DoubleSide, flatShading: true,
+    })
+  );
+  scene.add(mesh);
+
+  const pins = [0, Math.floor(cols / 2), cols - 1].map((i) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), makeMat(INK));
+    m.position.copy(particles[i].pos);
+    scene.add(m);
+    return m;
+  });
+
+  let grab = -1;
+  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const hit = new THREE.Vector3();
+  onDown = () => {
+    raycaster.setFromCamera(ndc, camera);
+    if (!raycaster.ray.intersectPlane(plane, hit)) return;
+    let best = -1; let bestD = 0.35;
+    for (let i = 0; i < particles.length; i++) {
+      const d = particles[i].pos.distanceTo(hit);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    grab = best;
+  };
+  onUp = () => { grab = -1; };
+
+  tick = (dt) => {
+    if (!still) {
+      const g = 9.82 * 0.35;
+      for (const p of particles) {
+        if (p.pinned) continue;
+        const vx = p.pos.x - p.prev.x;
+        const vy = p.pos.y - p.prev.y;
+        p.prev.copy(p.pos);
+        p.pos.x += vx * 0.985;
+        p.pos.y += vy * 0.985 - g * dt * dt;
+        if (p.pos.y < 0.05) { p.pos.y = 0.05; p.prev.y = p.pos.y; }
+      }
+      if (grab >= 0) {
+        raycaster.setFromCamera(ndc, camera);
+        if (raycaster.ray.intersectPlane(plane, hit)) {
+          particles[grab].pos.copy(hit);
+          particles[grab].prev.copy(hit);
+        }
+      }
+      for (let iter = 0; iter < 3; iter++) {
+        for (const c of constraints) {
+          const pa = particles[c.a];
+          const pb = particles[c.b];
+          const dx = pb.pos.x - pa.pos.x;
+          const dy = pb.pos.y - pa.pos.y;
+          const dist = Math.hypot(dx, dy) || 0.0001;
+          const diff = (dist - c.rest) / dist;
+          const ox = dx * 0.5 * diff;
+          const oy = dy * 0.5 * diff;
+          if (!pa.pinned) { pa.pos.x += ox; pa.pos.y += oy; }
+          if (!pb.pinned) { pb.pos.x -= ox; pb.pos.y -= oy; }
+        }
+      }
+    }
+    let i3 = 0;
+    for (const p of particles) {
+      positions[i3++] = p.pos.x;
+      positions[i3++] = p.pos.y;
+      positions[i3++] = p.pos.z;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals();
+  };
+}
+
+function buildParticles() {
+  const N = 900;
+  const positions = new Float32Array(N * 3);
+  const velocities = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 4.5;
+    positions[i * 3 + 1] = 0.4 + Math.random() * 2.6;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+    velocities[i * 3] = 0;
+    velocities[i * 3 + 1] = 0;
+    velocities[i * 3 + 2] = 0;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const pts = new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({ color: ACCENT, size: 0.045, sizeAttenuation: true, transparent: true, opacity: 0.9 })
+  );
+  scene.add(pts);
+
+  const vortex = new THREE.Vector3(0, 1.4, 0);
+  tick = (dt, t) => {
+    if (still) return;
+    vortex.x = pointer.x * 2.2;
+    vortex.y = 1.2 + pointer.y * 1.1;
+    for (let i = 0; i < N; i++) {
+      const ix = i * 3;
+      let x = positions[ix];
+      let y = positions[ix + 1];
+      const dx = x - vortex.x;
+      const dy = y - vortex.y;
+      const r2 = dx * dx + dy * dy + 0.08;
+      const curl = 1.15 / r2;
+      velocities[ix] += (-dy * curl - velocities[ix] * 0.55) * dt;
+      velocities[ix + 1] += (dx * curl + Math.sin(t * 0.7 + i * 0.01) * 0.15 - velocities[ix + 1] * 0.55) * dt;
+      x += velocities[ix] * dt * 2.4;
+      y += velocities[ix + 1] * dt * 2.4;
+      if (x < -2.6 || x > 2.6) { x *= -0.92; velocities[ix] *= -0.4; }
+      if (y < 0.2 || y > 3.1) { y = Math.max(0.2, Math.min(3.1, y)); velocities[ix + 1] *= -0.4; }
+      positions[ix] = x;
+      positions[ix + 1] = y;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
+}
+
+function buildStacking() {
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, still ? 0 : -9.82, 0) });
+  world.allowSleep = true;
+  world.defaultContactMaterial.friction = 0.55;
+  world.defaultContactMaterial.restitution = 0.05;
+  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+  ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(ground);
+
+  const colors = [PAPER, ACCENT, VIOLET, TEAL, 0xe8a87c];
+  const crates = [];
+  let n = 0;
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 3 - Math.floor(row / 2); col++) {
+      const s = 0.42 - row * 0.02;
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(s, s, s),
+        makeMat(colors[n % colors.length], { roughness: 0.5 })
+      );
+      scene.add(mesh);
+      const body = new CANNON.Body({
+        mass: 0.6 + row * 0.25,
+        shape: new CANNON.Box(new CANNON.Vec3(s / 2, s / 2, s / 2)),
+        position: new CANNON.Vec3((col - 1) * 0.5 + (row % 2) * 0.12, 0.22 + row * 0.46, 0),
+        sleepSpeedLimit: 0.12,
+        sleepTimeLimit: 0.4,
+      });
+      world.addBody(body);
+      crates.push({ mesh, body });
+      n++;
+    }
+  }
+
+  onDown = () => {
+    if (still) return;
+    for (const c of crates) {
+      c.body.wakeUp();
+      c.body.applyImpulse(
+        new CANNON.Vec3((Math.random() - 0.5) * 1.8, 0.6 + Math.random() * 1.2, (Math.random() - 0.5) * 0.6),
+        new CANNON.Vec3((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.15)
+      );
+    }
+  };
+
+  tick = () => {
+    if (!still) world.fixedStep();
+    for (const c of crates) syncMesh(c.mesh, c.body);
+  };
+}
+
+const builders = {
+  gravity: buildGravity,
+  spring: buildSpring,
+  collision: buildCollision,
+  constraints: buildConstraints,
+  cloth: buildCloth,
+  particles: buildParticles,
+  stacking: buildStacking,
+};
+(builders[demo] || buildGravity)();
+
+function frame() {
+  const dt = Math.min(0.033, clock.getDelta());
+  const t = clock.elapsedTime;
+  tick(dt, t);
+  key.intensity = 1.0 + Math.sin(t * 0.6) * 0.05;
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
