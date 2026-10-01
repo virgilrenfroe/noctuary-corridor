@@ -92,27 +92,34 @@ const ground = new THREE.GridHelper(40, 40, 0x333850, 0x1a1e2a); scene.add(groun
 scene.add(new THREE.AmbientLight(0xffffff,0.45));
 const d = new THREE.DirectionalLight(0xffffff,1.6); d.position.set(4,8,2); scene.add(d);
 
-// Scrollable spacer
-const spacer = document.createElement('div');
-spacer.style.cssText = 'position:fixed;inset:0;overflow:auto;pointer-events:auto;z-index:1;';
-spacer.innerHTML = '<div style="height:400vh"></div>';
-document.body.appendChild(spacer);
-// keep canvas above for visuals but let spacer receive scroll — actually put canvas pointer-events none
-renderer.domElement.style.pointerEvents = 'none';
-renderer.domElement.style.position = 'fixed';
-renderer.domElement.style.inset = '0';
-renderer.domElement.style.zIndex = '0';
-
+const embedMode = document.body.classList.contains('embed');
 let progress = 0;
-spacer.addEventListener('scroll', () => {
-  const max = spacer.scrollHeight - spacer.clientHeight;
-  progress = max > 0 ? spacer.scrollTop / max : 0;
-}, { passive:true });
+if (!embedMode) {
+  const spacer = document.createElement('div');
+  spacer.style.cssText = 'position:fixed;inset:0;overflow:auto;pointer-events:auto;z-index:1;';
+  spacer.innerHTML = '<div style="height:400vh"></div>';
+  document.body.appendChild(spacer);
+  renderer.domElement.style.pointerEvents = 'none';
+  renderer.domElement.style.position = 'fixed';
+  renderer.domElement.style.inset = '0';
+  renderer.domElement.style.zIndex = '0';
+  spacer.addEventListener('scroll', () => {
+    const max = spacer.scrollHeight - spacer.clientHeight;
+    progress = max > 0 ? spacer.scrollTop / max : 0;
+  }, { passive:true });
+} else {
+  renderer.domElement.style.position = 'fixed';
+  renderer.domElement.style.inset = '0';
+}
 
 onResize(camera, renderer);
 const look = new THREE.Vector3();
 (function tick(){
   requestAnimationFrame(tick);
+  if (embedMode) {
+    // Gentle auto-dolly so the panel still moves without a scrollbar
+    progress = (Math.sin(performance.now() * 0.00022) * 0.5 + 0.5);
+  }
   const t = THREE.MathUtils.clamp(progress, 0, 1);
   const pos = curve.getPointAt(t);
   const lookT = Math.min(t + 0.02, 1);
