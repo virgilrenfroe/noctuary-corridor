@@ -261,13 +261,13 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || p
 if (reduceMotion) document.body.classList.add('reduce');
 
 /** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
-const OUTER_W = 24;   // X
-const OUTER_D = 22;   // Z — deeper so foyer + grid both fit
-const OUTER_H = 5.6;  // Y
+const OUTER_W = 32;   // X — roomier cells for pointer
+const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
+const OUTER_H = 6.4;  // Y
 const COLS = 5;
 const ROWS = 4;
 /** Empty entrance strip on +Z; cells do NOT cover this AABB. */
-const FOYER_DEPTH = 5.5;
+const FOYER_DEPTH = 6.5;
 const GRID_Z_MIN = -OUTER_D / 2;                 // far wall
 const GRID_Z_MAX = OUTER_D / 2 - FOYER_DEPTH;    // foyer starts here
 const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
@@ -539,13 +539,14 @@ function updateWallpaper(t) {
 }
 
 
-// —— Floor + ceiling InstancedMesh sparklines (wallpaper on −Z wall stays unchanged) ——
-const SPARK_FLOOR_N = mobileLike ? 90 : 520;
-const SPARK_CEIL_N = mobileLike ? 40 : 180;
-const SPARK_STRIDE = mobileLike ? 6 : 3;
+// —— Floor data-tiles + ceiling pendant fixtures (far-wall wallpaper unchanged) ——
+const SPARK_FLOOR_N = mobileLike ? 48 : 160;
+const SPARK_CEIL_N = mobileLike ? 14 : 28; // ~1 per cell + foyer accents
+const SPARK_STRIDE = 1;
 const SPARK_FRAME_N = mobileLike ? 2 : 1;
 let sparkFloor = null;
-let sparkCeil = null;
+let sparkStem = null;
+let sparkGlow = null;
 let sparkDummy = null;
 let sparkFloorBase = null;
 let sparkFloorPhase = null;
@@ -553,11 +554,12 @@ let sparkFloorScale = null;
 let sparkCeilBase = null;
 let sparkCeilPhase = null;
 let sparkCeilScale = null;
+let sparkLights = [];
 let sparkFrame = 0;
 let sparkOk = false;
 
 function disposeSparklines() {
-  for (const mesh of [sparkFloor, sparkCeil]) {
+  for (const mesh of [sparkFloor, sparkStem, sparkGlow]) {
     if (!mesh) continue;
     try {
       scene.remove(mesh);
@@ -565,7 +567,11 @@ function disposeSparklines() {
       mesh.material?.dispose?.();
     } catch {}
   }
-  sparkFloor = sparkCeil = null;
+  for (const L of sparkLights) {
+    try { scene.remove(L); } catch {}
+  }
+  sparkLights = [];
+  sparkFloor = sparkStem = sparkGlow = null;
   sparkOk = false;
 }
 
@@ -583,84 +589,129 @@ function makeSparkMesh(count, geo, mat) {
 function createSparklines() {
   sparkDummy = new THREE.Object3D();
   const color = new THREE.Color();
-  const floorGeo = new THREE.BoxGeometry(0.07, 1, 0.07);
-  const ceilGeo = new THREE.BoxGeometry(0.06, 1, 0.06);
-  const floorMat = mobileLike
-    ? new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.72 })
-    : new THREE.MeshStandardMaterial({
-        roughness: 0.55,
-        metalness: 0.18,
-        transparent: true,
-        opacity: 0.78,
-      });
-  const ceilMatSpark = mobileLike
+
+  // Floor: low glowing data tiles (path language, not sticks)
+  const floorGeo = new THREE.BoxGeometry(1, 0.04, 1);
+  const floorMatSpark = mobileLike
     ? new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55 })
     : new THREE.MeshStandardMaterial({
-        roughness: 0.6,
-        metalness: 0.12,
+        roughness: 0.7,
+        metalness: 0.08,
         transparent: true,
         opacity: 0.62,
+        emissive: 0x22180e,
+        emissiveIntensity: 0.35,
       });
-
-  const floor = makeSparkMesh(SPARK_FLOOR_N, floorGeo, floorMat);
+  const floor = makeSparkMesh(SPARK_FLOOR_N, floorGeo, floorMatSpark);
   const fBase = new Float32Array(SPARK_FLOOR_N * 3);
   const fPhase = new Float32Array(SPARK_FLOOR_N);
-  const fScale = new Float32Array(SPARK_FLOOR_N);
+  const fScale = new Float32Array(SPARK_FLOOR_N * 2); // sx, sz
   for (let i = 0; i < SPARK_FLOOR_N; i++) {
-    // Bias density toward foyer (+Z); thinner near far wall so wallpaper owns −Z
     const u = Math.random();
-    const zBias = Math.pow(u, 0.55); // more mass near 1
-    const x = (Math.random() - 0.5) * (OUTER_W - 1.2);
-    const z = -OUTER_D / 2 + 1.1 + zBias * (OUTER_D - 2.2);
-    const h = 0.12 + Math.random() * 0.38;
+    const zBias = Math.pow(u, 0.5);
+    const x = (Math.random() - 0.5) * (OUTER_W - 1.6);
+    const z = -OUTER_D / 2 + 1.4 + zBias * (OUTER_D - 2.8);
+    const sx = 0.35 + Math.random() * 0.85;
+    const sz = 0.28 + Math.random() * 0.7;
     fBase[i * 3] = x;
-    fBase[i * 3 + 1] = h * 0.5 + 0.02;
+    fBase[i * 3 + 1] = 0.03;
     fBase[i * 3 + 2] = z;
     fPhase[i] = Math.random() * Math.PI * 2;
-    fScale[i] = h;
-    sparkDummy.position.set(x, h * 0.5 + 0.02, z);
-    sparkDummy.rotation.set(0, Math.random() * Math.PI, 0);
-    sparkDummy.scale.set(1, h, 1);
+    fScale[i * 2] = sx;
+    fScale[i * 2 + 1] = sz;
+    sparkDummy.position.set(x, 0.03, z);
+    sparkDummy.rotation.set(0, (Math.random() - 0.5) * 0.35, 0);
+    sparkDummy.scale.set(sx, 1, sz);
     sparkDummy.updateMatrix();
     floor.setMatrixAt(i, sparkDummy.matrix);
-    if (Math.random() < 0.22) color.setHSL(0.48 + Math.random() * 0.08, 0.45, 0.42);
-    else color.setHSL(0.07 + Math.random() * 0.08, 0.5, 0.38 + Math.random() * 0.15);
+    if (Math.random() < 0.28) color.setHSL(0.48 + Math.random() * 0.07, 0.42, 0.38);
+    else color.setHSL(0.08 + Math.random() * 0.07, 0.48, 0.36 + Math.random() * 0.12);
     floor.setColorAt(i, color);
   }
   floor.instanceMatrix.needsUpdate = true;
   if (floor.instanceColor) floor.instanceColor.needsUpdate = true;
   scene.add(floor);
 
-  const ceilM = makeSparkMesh(SPARK_CEIL_N, ceilGeo, ceilMatSpark);
+  // Ceiling: pendant stems + glowing heads (lighting fixtures)
+  const stemGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 8);
+  const glowGeo = new THREE.SphereGeometry(0.14, 12, 10);
+  const stemMat = mobileLike
+    ? new THREE.MeshBasicMaterial({ color: 0x4a453c })
+    : new THREE.MeshStandardMaterial({ color: 0x3a352e, roughness: 0.55, metalness: 0.35 });
+  const glowMat = mobileLike
+    ? new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: 0.9 })
+    : new THREE.MeshStandardMaterial({
+        color: 0xfff0d0,
+        emissive: 0xffc878,
+        emissiveIntensity: 1.35,
+        roughness: 0.35,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.95,
+      });
+  const stems = makeSparkMesh(SPARK_CEIL_N, stemGeo, stemMat);
+  const glows = makeSparkMesh(SPARK_CEIL_N, glowGeo, glowMat);
   const cBase = new Float32Array(SPARK_CEIL_N * 3);
   const cPhase = new Float32Array(SPARK_CEIL_N);
-  const cScale = new Float32Array(SPARK_CEIL_N);
+  const cScale = new Float32Array(SPARK_CEIL_N); // stem length
+
+  // Prefer cell centers so each hang gets a fixture, then fill foyer
+  const fixtureSlots = [];
+  for (let i = 0; i < CELLS.length; i++) {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const cx = -OUTER_W / 2 + (col + 0.5) * CELL_W;
+    const cz = GRID_Z_MAX - (row + 0.5) * CELL_D;
+    fixtureSlots.push([cx + (Math.random() - 0.5) * CELL_W * 0.2, cz - CELL_D * 0.08]);
+  }
+  while (fixtureSlots.length < SPARK_CEIL_N) {
+    fixtureSlots.push([
+      (Math.random() - 0.5) * (OUTER_W - 3),
+      GRID_Z_MAX + 1.2 + Math.random() * (FOYER_DEPTH - 2.2),
+    ]);
+  }
+
+  const lightBudget = mobileLike ? 4 : 10;
   for (let i = 0; i < SPARK_CEIL_N; i++) {
-    const u = Math.random();
-    const zBias = Math.pow(u, 0.65);
-    const x = (Math.random() - 0.5) * (OUTER_W - 1.4);
-    const z = -OUTER_D / 2 + 1.4 + zBias * (OUTER_D - 2.8);
-    const h = 0.35 + Math.random() * 0.85;
+    const [x, z] = fixtureSlots[i];
+    const stemLen = 0.55 + Math.random() * 0.85;
+    const headY = OUTER_H - stemLen;
     cBase[i * 3] = x;
-    cBase[i * 3 + 1] = OUTER_H - h * 0.5 - 0.04;
+    cBase[i * 3 + 1] = headY;
     cBase[i * 3 + 2] = z;
     cPhase[i] = Math.random() * Math.PI * 2;
-    cScale[i] = h;
-    sparkDummy.position.set(x, OUTER_H - h * 0.5 - 0.04, z);
-    sparkDummy.rotation.set(0, Math.random() * Math.PI, 0);
-    sparkDummy.scale.set(1, h, 1);
+    cScale[i] = stemLen;
+
+    sparkDummy.position.set(x, OUTER_H - stemLen * 0.5, z);
+    sparkDummy.rotation.set(0, 0, 0);
+    sparkDummy.scale.set(1, stemLen, 1);
     sparkDummy.updateMatrix();
-    ceilM.setMatrixAt(i, sparkDummy.matrix);
-    if (Math.random() < 0.35) color.setHSL(0.5 + Math.random() * 0.06, 0.4, 0.48);
-    else color.setHSL(0.08 + Math.random() * 0.06, 0.35, 0.45);
-    ceilM.setColorAt(i, color);
+    stems.setMatrixAt(i, sparkDummy.matrix);
+
+    const glowR = 0.85 + Math.random() * 0.45;
+    sparkDummy.position.set(x, headY, z);
+    sparkDummy.scale.setScalar(glowR);
+    sparkDummy.updateMatrix();
+    glows.setMatrixAt(i, sparkDummy.matrix);
+    color.setHSL(0.09 + Math.random() * 0.04, 0.55, 0.72);
+    glows.setColorAt(i, color);
+
+    if (i < lightBudget && !mobileLike) {
+      const pl = new THREE.PointLight(0xffe0b8, 4.5 + Math.random() * 2.5, 9.5, 1.6);
+      pl.position.set(x, headY - 0.05, z);
+      scene.add(pl);
+      sparkLights.push(pl);
+    }
   }
-  ceilM.instanceMatrix.needsUpdate = true;
-  if (ceilM.instanceColor) ceilM.instanceColor.needsUpdate = true;
-  scene.add(ceilM);
+  stems.instanceMatrix.needsUpdate = true;
+  glows.instanceMatrix.needsUpdate = true;
+  if (glows.instanceColor) glows.instanceColor.needsUpdate = true;
+  scene.add(stems);
+  scene.add(glows);
 
   sparkFloor = floor;
-  sparkCeil = ceilM;
+  sparkStem = stems;
+  sparkGlow = glows;
   sparkFloorBase = fBase;
   sparkFloorPhase = fPhase;
   sparkFloorScale = fScale;
@@ -682,35 +733,53 @@ function updateSparklines(t) {
   sparkFrame++;
   if (SPARK_FRAME_N > 1 && (sparkFrame % SPARK_FRAME_N) !== 0) return;
   try {
-    // Floor: bob height + slight sway; slower than wallpaper so wall still leads
+    // Floor tiles: gentle opacity-scale pulse (path, not sticks)
     for (let i = 0; i < SPARK_FLOOR_N; i += SPARK_STRIDE) {
       const bx = sparkFloorBase[i * 3];
       const by = sparkFloorBase[i * 3 + 1];
       const bz = sparkFloorBase[i * 3 + 2];
       const ph = sparkFloorPhase[i];
-      const h = sparkFloorScale[i];
-      const bob = 1 + Math.sin(t * 1.15 + ph) * 0.18;
-      sparkDummy.position.set(bx + Math.sin(t * 0.35 + ph) * 0.03, by * bob, bz);
-      sparkDummy.rotation.set(0, ph + t * 0.12, Math.sin(t * 0.7 + ph) * 0.08);
-      sparkDummy.scale.set(1, h * bob, 1);
+      const sx = sparkFloorScale[i * 2];
+      const sz = sparkFloorScale[i * 2 + 1];
+      const pulse = 1 + Math.sin(t * 0.9 + ph) * 0.06;
+      sparkDummy.position.set(bx, by, bz);
+      sparkDummy.rotation.set(0, ph * 0.15, 0);
+      sparkDummy.scale.set(sx * pulse, 1, sz * pulse);
       sparkDummy.updateMatrix();
       sparkFloor.setMatrixAt(i, sparkDummy.matrix);
     }
     sparkFloor.instanceMatrix.needsUpdate = true;
+
+    // Pendants: subtle sway + glow bob
     for (let i = 0; i < SPARK_CEIL_N; i += SPARK_STRIDE) {
       const bx = sparkCeilBase[i * 3];
-      const by = sparkCeilBase[i * 3 + 1];
+      const headY = sparkCeilBase[i * 3 + 1];
       const bz = sparkCeilBase[i * 3 + 2];
       const ph = sparkCeilPhase[i];
-      const h = sparkCeilScale[i];
-      const bob = 1 + Math.sin(t * 0.85 + ph) * 0.12;
-      sparkDummy.position.set(bx, by - (bob - 1) * h * 0.25, bz);
-      sparkDummy.rotation.set(0, ph - t * 0.08, 0);
-      sparkDummy.scale.set(1, h * bob, 1);
+      const stemLen = sparkCeilScale[i];
+      const sway = Math.sin(t * 0.55 + ph) * 0.035;
+      const bob = Math.sin(t * 0.7 + ph) * 0.04;
+
+      sparkDummy.position.set(bx + sway, OUTER_H - stemLen * 0.5, bz);
+      sparkDummy.rotation.set(sway * 0.4, 0, -sway * 0.3);
+      sparkDummy.scale.set(1, stemLen, 1);
       sparkDummy.updateMatrix();
-      sparkCeil.setMatrixAt(i, sparkDummy.matrix);
+      sparkStem.setMatrixAt(i, sparkDummy.matrix);
+
+      const glowR = 0.9 + Math.sin(t * 1.1 + ph) * 0.08;
+      sparkDummy.position.set(bx + sway, headY + bob, bz);
+      sparkDummy.rotation.set(0, 0, 0);
+      sparkDummy.scale.setScalar(glowR);
+      sparkDummy.updateMatrix();
+      sparkGlow.setMatrixAt(i, sparkDummy.matrix);
     }
-    sparkCeil.instanceMatrix.needsUpdate = true;
+    sparkStem.instanceMatrix.needsUpdate = true;
+    sparkGlow.instanceMatrix.needsUpdate = true;
+
+    for (let i = 0; i < sparkLights.length; i++) {
+      const ph = sparkCeilPhase[i] || 0;
+      sparkLights[i].intensity = 4.2 + Math.sin(t * 1.05 + ph) * 0.85;
+    }
   } catch (err) {
     console.warn('[cubicles] sparklines update failed; removing', err);
     disposeSparklines();
@@ -738,8 +807,8 @@ debugGroup.visible = false;
 scene.add(debugGroup);
 const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
 
-const PANEL_W = Math.min(2.35, CELL_W * 0.72);
-const PANEL_H = Math.min(2.9, OUTER_H * 0.58);
+const PANEL_W = Math.min(3.4, CELL_W * 0.62);
+const PANEL_H = Math.min(3.5, OUTER_H * 0.55);
 const PANEL_Y = PANEL_H / 2 + 0.55;
 
 for (let i = 0; i < CELLS.length; i++) {
