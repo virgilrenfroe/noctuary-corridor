@@ -509,7 +509,7 @@ if (!mobileLike) {
 function updateWallpaper(t) {
   if (!wallpaperOk || !wallpaper || reduceMotion) return;
   wallpaperFrame++;
-  if (WALLPAP_FRAME_N > 1 && (wallpaperFrame % WALLPAP_FRAME_N) !== 0) return;
+  if (WALLPAPER_FRAME_N > 1 && (wallpaperFrame % WALLPAPER_FRAME_N) !== 0) return;
   try {
     // Rewrite matrix from stored base pos / euler / phase — no getMatrixAt→decompose→Euler mix
     for (let i = 0; i < WALLPAPER_COUNT; i += WALLPAPER_STRIDE) {
