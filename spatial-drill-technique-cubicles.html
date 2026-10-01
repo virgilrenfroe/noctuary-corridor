@@ -385,7 +385,7 @@ scene.add(key);
 scene.add(new THREE.PointLight(0xa898d0, 16, 36).translateX(-5).translateY(3.2).translateZ(2));
 
 // —— Visible outer box ——
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x6e5a45, roughness: 0.95, metalness: 0.02 });
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x3f4630, roughness: 0.96, metalness: 0.02 }); // olive underlay
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9, metalness: 0.04 });
 const ceilMat = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.95, metalness: 0.02 });
 
@@ -605,7 +605,7 @@ function createSparklines() {
   for (let i = 0; i < SPARK_FLOOR_N; i++) {
     const x = (Math.random() - 0.5) * (OUTER_W - 0.5);
     const z = (Math.random() - 0.5) * (OUTER_D - 0.5);
-    const h = 0.22 + Math.random() * 0.38; // tall 70s pile
+    const h = 0.28 + Math.random() * 0.42; // ~1–3in 70s pile feel
     const thick = 0.85 + Math.random() * 1.1;
     fBase[i * 3] = x;
     fBase[i * 3 + 1] = h * 0.5;
@@ -620,11 +620,12 @@ function createSparklines() {
     sparkDummy.scale.set(thick, h, thick);
     sparkDummy.updateMatrix();
     floor.setMatrixAt(i, sparkDummy.matrix);
-    // Warm shag: ochre / rust / gold flecks — higher contrast vs underlay
+    // 70s avocado/olive shag: #757C50 wall-carpet green + deeper avocado + harvest-gold flecks
     const r = Math.random();
-    if (r < 0.1) color.setHSL(0.12 + Math.random() * 0.04, 0.55, 0.42);
-    else if (r < 0.4) color.setHSL(0.04 + Math.random() * 0.05, 0.5, 0.34 + Math.random() * 0.12);
-    else color.setHSL(0.08 + Math.random() * 0.05, 0.38 + Math.random() * 0.2, 0.3 + Math.random() * 0.16);
+    if (r < 0.08) color.setHSL(0.11 + Math.random() * 0.03, 0.52, 0.40 + Math.random() * 0.08); // harvest gold
+    else if (r < 0.16) color.setHSL(0.06 + Math.random() * 0.03, 0.35, 0.20 + Math.random() * 0.06); // chocolate
+    else if (r < 0.45) color.setHSL(0.20 + Math.random() * 0.04, 0.42 + Math.random() * 0.15, 0.24 + Math.random() * 0.08); // deep avocado
+    else color.setHSL(0.18 + Math.random() * 0.05, 0.22 + Math.random() * 0.12, 0.34 + Math.random() * 0.12); // muted olive (#757C50-ish)
     floor.setColorAt(i, color);
   }
   floor.instanceMatrix.needsUpdate = true;
