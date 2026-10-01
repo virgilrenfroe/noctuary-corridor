@@ -15,11 +15,16 @@ canvas{display:block;width:100%;height:100%}
 .note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+body.embed .hud{display:none!important} body.embed .error{display:none!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
 </head>
 <body>
+<script>
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still'))document.body.classList.add('embed');})();
+</script>
+
 <div class="hud">
   <div class="top">
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 14 GPU InstancedMesh</div>

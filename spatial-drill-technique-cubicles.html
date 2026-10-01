@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<title>Noctuary — spatial drill · technique cubicles</title>
+<title>Technique cubicles · corridor-share</title>
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -17,30 +17,27 @@
     --mute: rgba(26,29,38,0.55);
     --line: rgba(26,29,38,0.14);
     --accent: #f0c24b;
-    --violet: #8a7bb8;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; height: 100%; overflow: hidden;
     background: #cfc8ba; color: var(--ink);
     font-family: var(--font-sans);
-    touch-action: none;
-    overscroll-behavior: none;
+    touch-action: none; overscroll-behavior: none;
   }
   #stage {
     position: fixed; inset: 0; z-index: 0;
     cursor: grab; touch-action: none;
   }
   #stage.dragging { cursor: grabbing; }
-  #stage > canvas {
+  #stage > canvas, #stage > div {
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
   }
   .veil {
     position: fixed; inset: 0; z-index: 1; pointer-events: none;
     background:
-      radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.32) 100%),
-      linear-gradient(180deg, rgba(201,214,234,0.1) 0%, transparent 22%, transparent 80%, rgba(90,84,72,0.1) 100%);
+      radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.3) 100%);
   }
   .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
   .topbar {
@@ -48,7 +45,7 @@
     display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
   }
   .brand {
-    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
     padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
     background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
   }
@@ -96,7 +93,7 @@
   }
   .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
   .gate-card {
-    text-align: center; max-width: 38ch; padding: 28px 32px;
+    text-align: center; max-width: 40ch; padding: 28px 32px;
     border-radius: 24px; border: 1px solid var(--line);
     background: rgba(255,252,246,0.9);
   }
@@ -106,7 +103,7 @@
   }
   .gate-card h1 {
     margin: 0; font-family: var(--font-display); font-weight: 700;
-    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3.1rem);
+    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3rem);
     letter-spacing: -0.04em; line-height: 0.95;
   }
   .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
@@ -155,8 +152,7 @@
     .keys .keys-mobile { display: inline; }
     .gate-card .ctrl .ctrl-desktop { display: none; }
     .gate-card .ctrl .ctrl-mobile { display: inline; }
-    .chip { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
-    .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
+    .chip, .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
   }
 </style>
 </head>
@@ -165,29 +161,30 @@
   <div class="veil" aria-hidden="true"></div>
   <div class="layer">
     <div class="topbar">
-      <div class="brand">Noctuary · technique cubicles</div>
+      <div class="brand">Technique cubicles · 5×4</div>
       <div class="pills">
-        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
         <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
-        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Back to hall</a>
-        <button class="pill" id="btn-debug" type="button" title="Toggle AABB wireframes (B)">Debug boxes</button>
+        <a class="pill" href="./webgpu-lab/INDEX.html">WebGPU Lab</a>
+        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
+        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
+        <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
       </div>
     </div>
     <div class="chip" id="chip" aria-live="polite">
-      <p class="tag" id="chip-tag">Zone</p>
+      <p class="tag" id="chip-tag">Cell</p>
       <h2 id="chip-title">—</h2>
       <p id="chip-hint"></p>
     </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · <strong>B</strong> boxes</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>B</strong> boxes</span></div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · near panel to play · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>B</strong> grid</span></div>
   </div>
 
   <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
     <div class="gate-card">
       <p class="k">Technique cubicles</p>
-      <h1>Open floor ·<br/>hung craft</h1>
-      <p>Demos sit in the open volume — clearly visible. Only the cubicle walls are invisible. Step into a zone for the chip and to wake interaction / post-FX.</p>
-      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · B debug boxes</span><span class="ctrl-mobile">pad walk · drag look</span></p>
-      <button type="button" id="btn-enter">Enter floor</button>
+      <h1>One box ·<br/>twenty cells</h1>
+      <p>Outer walls stay visible. Inner 5×4 partitions are invisible. Each cell hangs a WebGL Lab example — walk in for the chip, step close to play.</p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · B debug grid</span><span class="ctrl-mobile">pad walk · drag look</span></p>
+      <button type="button" id="btn-enter">Enter</button>
     </div>
   </div>
 
@@ -207,55 +204,51 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
 const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
 if (reduceMotion) document.body.classList.add('reduce');
 
-const EYE = 1.65;
-const ROOM_W = 26;
-const ROOM_L = 22;
-const WALL_H = 6.2;
+/** Outer box interior (visible walls). Filled by 5×4×1 equal cells. */
+const OUTER_W = 24;   // X
+const OUTER_D = 19.2; // Z
+const OUTER_H = 5.6;  // Y (cell height = full volume)
 const COLS = 5;
 const ROWS = 4;
-const CELL_W = 4.6;
-const CELL_D = 4.6;
-const FADE_MS = 320;
+const CELL_W = OUTER_W / COLS;
+const CELL_D = OUTER_D / ROWS;
+const EYE = 1.65;
+const MAX_ARMED = 3;
+const INTERACT_DIST = 4.2;
 
-/** 20 reserved techniques — glass + ssao are live; rest are placeholders */
-const TECHNIQUES = [
-  { id: 'glass', name: 'Transmission glass', hint: 'Drag the orb to spin', live: 'glass' },
-  { id: 'ssao', name: 'SSAO', hint: 'Occlusion on stacked props', live: 'ssao' },
-  { id: 'caustics', name: 'Caustics', hint: 'Reserved · webgl-lab/02' },
-  { id: 'god-rays', name: 'God rays', hint: 'Reserved · webgl-lab/03' },
-  { id: 'ssr', name: 'SSR', hint: 'Reserved · webgl-lab/04' },
-  { id: 'pcss', name: 'PCSS shadows', hint: 'Reserved · webgl-lab/06' },
-  { id: 'outline', name: 'Outline / selection', hint: 'Reserved · webgl-lab/07' },
-  { id: 'stencil', name: 'Stencil portals', hint: 'Reserved · webgl-lab/08' },
-  { id: 'decals', name: 'Decals', hint: 'Reserved · webgl-lab/09' },
-  { id: 'hdr-ibl', name: 'HDR IBL / PMREM', hint: 'Reserved · webgl-lab/10' },
-  { id: 'matcap', name: 'MatCap', hint: 'Reserved · webgl-lab/11' },
-  { id: 'anisotropic', name: 'Anisotropic PBR', hint: 'Reserved · webgl-lab/12' },
-  { id: 'ocean', name: 'Ocean / water', hint: 'Reserved · webgl-lab/13' },
-  { id: 'instancing', name: 'InstancedMesh', hint: 'Reserved · webgl-lab/14' },
-  { id: 'lut', name: 'LUT color grade', hint: 'Reserved · webgl-lab/15' },
-  { id: 'morph', name: 'Morph targets', hint: 'Reserved · webgl-lab/16' },
-  { id: 'ribbons', name: 'Fat ribbons', hint: 'Reserved · webgl-lab/17' },
-  { id: 'dolly', name: 'Camera dolly', hint: 'Reserved · webgl-lab/18' },
-  { id: 'cloth', name: 'Cloth', hint: 'Reserved · physics leftover' },
-  { id: 'particles', name: 'Flow particles', hint: 'Reserved · physics leftover' },
+const CELLS = [
+  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1' },
+  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1' },
+  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1' },
+  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1' },
+  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1' },
+  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Click to stamp', src: './webgl-lab/09-decals.html?embed=1' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1' },
+  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1' },
+  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1' },
+  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1' },
+  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1' },
+  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1' },
+  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1' },
 ];
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
 renderer.setClearColor(0xcfc8ba, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -264,324 +257,225 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xcfc8ba, 18, 52);
-scene.background = new THREE.Color(0xcfc8ba);
+const cssRenderer = new CSS3DRenderer();
+cssRenderer.domElement.style.pointerEvents = 'none';
+stage.appendChild(cssRenderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xcfc8ba, 16, 46);
+scene.background = new THREE.Color(0xcfc8ba);
+const cssScene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
 const yaw = { value: 0 };
 const pitch = { value: -0.04 };
-const pos = new THREE.Vector3(0, EYE, ROOM_L / 2 - 2.4);
+const pos = new THREE.Vector3(0, EYE, OUTER_D / 2 - 1.8);
 
-const hemi = new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.15);
-scene.add(hemi);
-const key = new THREE.DirectionalLight(0xfff6e8, 1.15);
-key.position.set(4, 14, 6);
+scene.add(new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.2));
+const key = new THREE.DirectionalLight(0xfff6e8, 1.2);
+key.position.set(5, 12, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
 key.shadow.camera.near = 0.5;
-key.shadow.camera.far = 48;
-key.shadow.camera.left = -16;
-key.shadow.camera.right = 16;
-key.shadow.camera.top = 16;
-key.shadow.camera.bottom = -12;
-key.shadow.radius = 3.2;
+key.shadow.camera.far = 40;
+key.shadow.camera.left = -14;
+key.shadow.camera.right = 14;
+key.shadow.camera.top = 14;
+key.shadow.camera.bottom = -10;
+key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
 scene.add(key);
-const fill = new THREE.PointLight(0xa898d0, 14, 40);
-fill.position.set(-6, 3.5, 2);
-scene.add(fill);
+scene.add(new THREE.PointLight(0xa898d0, 16, 36).translateX(-5).translateY(3.2).translateZ(2));
 
+// —— Visible outer box ——
 const floorMat = new THREE.MeshStandardMaterial({ color: 0xb7b0a2, roughness: 0.78, metalness: 0.05 });
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_L), floorMat);
+const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9, metalness: 0.04 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.95, metalness: 0.02 });
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.92, metalness: 0.03 });
-function addWall(w, h, x, y, z, rotY) {
+function addOuterWall(w, h, x, y, z, rotY) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
   m.position.set(x, y, z);
   m.rotation.y = rotY;
   m.receiveShadow = true;
   scene.add(m);
-  return m;
 }
-addWall(ROOM_L, WALL_H, -ROOM_W / 2, WALL_H / 2, 0, Math.PI / 2);
-addWall(ROOM_L, WALL_H, ROOM_W / 2, WALL_H / 2, 0, -Math.PI / 2);
-addWall(ROOM_W, WALL_H, 0, WALL_H / 2, -ROOM_L / 2, 0);
-addWall(ROOM_W, WALL_H, 0, WALL_H / 2, ROOM_L / 2, Math.PI);
+addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
+addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
-const ceil = new THREE.Mesh(
-  new THREE.PlaneGeometry(ROOM_W * 0.82, ROOM_L * 0.82),
-  new THREE.MeshBasicMaterial({ color: 0xd8d2c4, transparent: true, opacity: 0.42 })
-);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), ceilMat);
 ceil.rotation.x = Math.PI / 2;
-ceil.position.y = WALL_H - 0.05;
+ceil.position.y = OUTER_H;
 scene.add(ceil);
 
-const pmrem = new THREE.PMREMGenerator(renderer);
-pmrem.compileEquirectangularShader();
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-if ('environmentIntensity' in scene) scene.environmentIntensity = 0.48;
-new RGBELoader().load(
-  'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
-  (tex) => {
-    const env = pmrem.fromEquirectangular(tex).texture;
-    scene.environment = env;
-    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.55;
-    tex.dispose();
-  },
-  undefined,
-  () => {}
+// Outer edge lines (readable “box” silhouette)
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x5a564c, transparent: true, opacity: 0.55 });
+const outerEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(OUTER_W, OUTER_H, OUTER_D)),
+  edgeMat
 );
+outerEdges.position.y = OUTER_H / 2;
+scene.add(outerEdges);
 
-// —— Cubicle grid (invisible AABBs) ——
-const gridOriginX = -((COLS - 1) * CELL_W) / 2;
-const gridOriginZ = -((ROWS - 1) * CELL_D) / 2;
-const cubicles = [];
+// —— 5×4×1 equal cells (invisible partitions + hung demos) ——
+const hung = [];
 const debugGroup = new THREE.Group();
 debugGroup.visible = false;
 scene.add(debugGroup);
+const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
 
-const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.55 });
+const PANEL_W = Math.min(2.35, CELL_W * 0.72);
+const PANEL_H = Math.min(2.9, OUTER_H * 0.58);
+const PANEL_Y = PANEL_H / 2 + 0.55;
 
-for (let i = 0; i < TECHNIQUES.length; i++) {
-  const tech = TECHNIQUES[i];
+for (let i = 0; i < CELLS.length; i++) {
+  const meta = CELLS[i];
   const col = i % COLS;
   const row = Math.floor(i / COLS);
-  const cx = gridOriginX + col * CELL_W;
-  const cz = gridOriginZ + row * CELL_D;
-  const halfW = CELL_W * 0.46;
-  const halfD = CELL_D * 0.46;
-  const aabb = {
-    minX: cx - halfW, maxX: cx + halfW,
-    minZ: cz - halfD, maxZ: cz + halfD,
-  };
+  const minX = -OUTER_W / 2 + col * CELL_W;
+  const maxX = minX + CELL_W;
+  const minZ = -OUTER_D / 2 + row * CELL_D;
+  const maxZ = minZ + CELL_D;
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
 
-  const root = new THREE.Group();
-  root.position.set(cx, 0, cz);
-  scene.add(root);
-
-  // Empty placeholders: no floor disc (avoids “invisible inject” clutter). Live demos hang below.
-
-  // Debug wireframe box
-  const boxGeo = new THREE.BoxGeometry(halfW * 2, 3.2, halfD * 2);
-  const edges = new THREE.EdgesGeometry(boxGeo);
-  const wire = new THREE.LineSegments(edges, wireMat);
-  wire.position.set(cx, 1.6, cz);
+  // Debug wireframe for this cell volume (full height)
+  const boxGeo = new THREE.BoxGeometry(CELL_W * 0.998, OUTER_H * 0.998, CELL_D * 0.998);
+  const wire = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), wireMat);
+  wire.position.set(cx, OUTER_H / 2, cz);
   debugGroup.add(wire);
 
-  const zone = {
-    id: tech.id,
-    name: tech.name,
-    hint: tech.hint,
-    live: tech.live || null,
-    aabb,
-    cx, cz,
-    root,
-    wake: 0,
-    targetWake: 0,
-    content: null,
-    light: null,
-  };
-  cubicles.push(zone);
-}
+  // Hung frame + CSS3D iframe (faces entrance / +Z)
+  const group = new THREE.Group();
+  group.position.set(cx, PANEL_Y, cz);
+  // Face +Z so visitors entering from +Z see the front
+  group.rotation.y = 0;
 
-function findZoneAt(x, z) {
-  const hits = [];
-  for (const zc of cubicles) {
-    const a = zc.aabb;
-    if (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ) {
-      const dx = x - zc.cx;
-      const dz = z - zc.cz;
-      hits.push({ zone: zc, dist2: dx * dx + dz * dz });
-    }
-  }
-  if (!hits.length) return null;
-  hits.sort((a, b) => a.dist2 - b.dist2);
-  return hits[0].zone;
-}
-
-// —— Live: transmission glass cubicle ——
-const glassZone = cubicles.find((c) => c.live === 'glass');
-{
-  const g = new THREE.Group();
-  // Always visible in the open volume — only cubicle walls are invisible
-  const ped = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.32, 0.4, 0.85, 28),
-    new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.5, metalness: 0.16 })
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(PANEL_W + 0.12, PANEL_H + 0.12, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x3a342c, roughness: 0.55, metalness: 0.14 })
   );
-  ped.position.y = 0.425;
-  ped.castShadow = true;
-  ped.receiveShadow = true;
-  g.add(ped);
+  frame.castShadow = true;
+  frame.receiveShadow = true;
+  group.add(frame);
 
-  const glassMat = new THREE.MeshPhysicalMaterial({
-    color: 0xf5f0e6, metalness: 0, roughness: 0.06,
-    transmission: 1.0, thickness: 1.35, ior: 1.5,
-    specularIntensity: 1, envMapIntensity: 1.15,
-    clearcoat: 1, clearcoatRoughness: 0.05,
+  const hit = new THREE.Mesh(
+    new THREE.PlaneGeometry(PANEL_W, PANEL_H),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })
+  );
+  hit.position.z = 0.05;
+  hit.userData.cellIndex = i;
+  hit.userData.clickable = true;
+  group.add(hit);
+  scene.add(group);
+
+  const cssW = Math.round(PANEL_W * 100);
+  const cssH = Math.round(PANEL_H * 100);
+  const scale = PANEL_W / cssW;
+  const iframe = document.createElement('iframe');
+  iframe.src = 'about:blank';
+  iframe.setAttribute('loading', 'lazy');
+  iframe.title = meta.name;
+  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.allow = 'autoplay';
+  iframe.style.width = cssW + 'px';
+  iframe.style.height = cssH + 'px';
+  iframe.style.border = '0';
+  iframe.style.background = '#1a1c24';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.borderRadius = '2px';
+  iframe.style.opacity = '0';
+  iframe.style.transition = 'opacity 0.35s ease';
+
+  const cssObj = new CSS3DObject(iframe);
+  cssObj.scale.set(scale, scale, scale);
+  cssObj.position.set(cx, PANEL_Y, cz + 0.045);
+  cssObj.rotation.y = 0;
+  cssScene.add(cssObj);
+
+  const spot = new THREE.PointLight(0xfff6e8, 4.5, CELL_W * 1.4);
+  spot.position.set(cx, OUTER_H - 0.6, cz + 0.8);
+  scene.add(spot);
+
+  hung.push({
+    meta, col, row, cx, cz,
+    aabb: { minX, maxX, minZ, maxZ },
+    group, hit, cssObj, iframe, spot,
+    embedArmed: false,
+    canInteract: false,
+    embedUrl: meta.src,
   });
-  const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.38, 0.13, 140, 28), glassMat);
-  knot.position.y = 1.35;
-  knot.castShadow = true;
-  knot.userData.spinTarget = true;
-  g.add(knot);
-
-  const ball = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 48, 48),
-    glassMat.clone()
-  );
-  ball.material.color.set(0xa8d8ff);
-  ball.material.thickness = 2.0;
-  ball.material.ior = 1.7;
-  ball.position.set(0.55, 0.95, 0.2);
-  ball.castShadow = true;
-  ball.userData.spinTarget = true;
-  g.add(ball);
-
-  const checker = new THREE.Mesh(
-    new THREE.BoxGeometry(0.35, 0.35, 0.35),
-    new THREE.MeshStandardMaterial({ color: 0xf0c24b, roughness: 0.38, metalness: 0.1 })
-  );
-  checker.position.set(-0.55, 0.18, 0.15);
-  checker.castShadow = true;
-  g.add(checker);
-
-  const contact = new THREE.Mesh(
-    new THREE.CircleGeometry(0.7, 24),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false })
-  );
-  contact.rotation.x = -Math.PI / 2;
-  contact.position.y = 0.012;
-  g.add(contact);
-
-  const localLight = new THREE.PointLight(0xfff6e8, 3.5, 7);
-  localLight.position.set(0.4, 2.2, 0.3);
-  g.add(localLight);
-
-  glassZone.root.add(g);
-  glassZone.content = g;
-  glassZone.light = localLight;
-  glassZone.spinMeshes = [knot, ball];
-  glassZone.autoSpin = true;
 }
 
-// —— Live: SSAO cubicle (stacked props; pass toggled on enter) ——
-const ssaoZone = cubicles.find((c) => c.live === 'ssao');
-{
-  const g = new THREE.Group();
-  // Always visible — SSAO post-FX still wakes only on enter
-  const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.72, metalness: 0.05 });
-  const colors = [0xe8e2d6, 0xd4cfc0, 0xc8c0b0, 0x8a7bb8, 0xb8a890];
-  const rng = (s) => { let x = s | 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1000) / 1000; }; };
-  const rnd = rng(42);
-  for (let i = 0; i < 14; i++) {
-    const h = 0.35 + rnd() * 1.5;
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.45 + rnd() * 0.4, h, 0.45 + rnd() * 0.4),
-      new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: 0.7, metalness: 0.05 })
-    );
-    box.position.set((rnd() - 0.5) * 2.4, h / 2, (rnd() - 0.5) * 2.4);
-    box.rotation.y = rnd() * Math.PI;
-    box.castShadow = true;
-    box.receiveShadow = true;
-    g.add(box);
+function findCellAt(x, z) {
+  for (const h of hung) {
+    const a = h.aabb;
+    if (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ) return h;
   }
-  const torus = new THREE.Mesh(
-    new THREE.TorusKnotGeometry(0.42, 0.14, 100, 14),
-    new THREE.MeshStandardMaterial({ color: 0x8a7bb8, roughness: 0.48 })
-  );
-  torus.position.set(0, 1.05, 0);
-  torus.castShadow = true;
-  g.add(torus);
-
-  const localLight = new THREE.PointLight(0xfff0dd, 2.8, 8);
-  localLight.position.set(0, 2.4, 0);
-  g.add(localLight);
-
-  ssaoZone.root.add(g);
-  ssaoZone.content = g;
-  ssaoZone.light = localLight;
-  ssaoZone.knot = torus;
+  return null;
 }
 
-// Composer — SSAO pass enabled only while inside ssao zone
-let composer = null;
-let ssaoPass = null;
-let ssaoEnabled = false;
-{
-  composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  if (!mobileLike) {
-    ssaoPass = new SSAOPass(scene, camera, innerWidth, innerHeight);
-    ssaoPass.kernelRadius = 14;
-    ssaoPass.minDistance = 0.005;
-    ssaoPass.maxDistance = 0.1;
-    ssaoPass.enabled = false;
-    composer.addPass(ssaoPass);
-  }
-  composer.addPass(new OutputPass());
-}
-
-function setSsaoActive(on) {
-  ssaoEnabled = !!on;
-  if (ssaoPass) ssaoPass.enabled = ssaoEnabled;
-}
-
-// —— Zone enter / exit ——
-let activeZone = null;
+// —— Zone chip + lazy embeds ——
+let activeCell = null;
 const chip = document.getElementById('chip');
 const chipTag = document.getElementById('chip-tag');
 const chipTitle = document.getElementById('chip-title');
 const chipHint = document.getElementById('chip-hint');
 
-function onEnter(zone) {
-  zone.targetWake = 1;
-  if (zone.live === 'ssao') setSsaoActive(true);
-  chipTag.textContent = zone.live ? 'Live' : 'Reserved';
-  chipTitle.textContent = zone.name;
-  chipHint.textContent = zone.hint;
+function showChip(h) {
+  chipTag.textContent = 'Cell ' + h.meta.num;
+  chipTitle.textContent = h.meta.name;
+  chipHint.textContent = h.meta.hint;
   chip.classList.add('show');
 }
 
-function onExit(zone) {
-  zone.targetWake = 0;
-  if (zone.live === 'ssao') setSsaoActive(false);
-}
-
-function updateActiveZone() {
-  const next = findZoneAt(pos.x, pos.z);
-  if (next === activeZone) return;
-  if (activeZone) onExit(activeZone);
-  activeZone = next;
-  if (activeZone) onEnter(activeZone);
+function updateActiveCell() {
+  const next = findCellAt(pos.x, pos.z);
+  if (next === activeCell) return;
+  activeCell = next;
+  if (activeCell) showChip(activeCell);
   else chip.classList.remove('show');
 }
 
-function updateWake(dt) {
-  const rate = 1000 / FADE_MS;
-  for (const z of cubicles) {
-    if (z.wake < z.targetWake) z.wake = Math.min(z.targetWake, z.wake + rate * dt);
-    else if (z.wake > z.targetWake) z.wake = Math.max(z.targetWake, z.wake - rate * dt);
-    // Hung demos stay visible always. Wake only boosts local light / interaction intensity.
-    if (z.light) {
-      const idle = z.live === 'glass' ? 3.5 : 2.8;
-      const hot = z.live === 'glass' ? 11 : 9;
-      z.light.intensity = idle + (hot - idle) * z.wake;
+function updateLazyEmbeds() {
+  const scored = hung.map((h) => ({
+    h,
+    dist: Math.hypot(pos.x - h.cx, pos.z - h.cz),
+  })).sort((a, b) => a.dist - b.dist);
+
+  scored.forEach(({ h, dist }, i) => {
+    const want = dist < 8.5 && i < MAX_ARMED;
+    const interact = want && dist < INTERACT_DIST;
+    h.canInteract = interact;
+    h.iframe.style.pointerEvents = interact ? 'auto' : 'none';
+    if (want && !h.embedArmed) {
+      h.iframe.src = h.embedUrl;
+      h.iframe.style.opacity = '1';
+      h.embedArmed = true;
+    } else if (!want && h.embedArmed) {
+      h.iframe.src = 'about:blank';
+      h.iframe.style.opacity = '0';
+      h.embedArmed = false;
+      h.canInteract = false;
+      h.iframe.style.pointerEvents = 'none';
     }
-    if (z.content) z.content.visible = true;
-  }
+    // Dim unarmed frames — still visible as dark panes so the hang reads
+    h.group.visible = true;
+  });
 }
 
-// —— Controls (physics-room pattern) ——
+// —— Controls ——
 const move = { f: false, b: false, l: false, r: false };
 const velocity = new THREE.Vector3();
 let dragging = false;
-let lookDrag = false;
-let spinDrag = false;
-let lastX = 0, lastY = 0;
+let panelPointerLock = false;
+let lastX = 0, lastY = 0, downX = 0, downY = 0;
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 
@@ -589,11 +483,7 @@ const gate = document.getElementById('gate');
 const btnEnter = document.getElementById('btn-enter');
 let entered = reduceMotion || params.has('still');
 if (entered) gate.classList.add('hide');
-
-btnEnter.addEventListener('click', () => {
-  entered = true;
-  gate.classList.add('hide');
-});
+btnEnter.addEventListener('click', () => { entered = true; gate.classList.add('hide'); });
 
 let debugOn = params.has('debug');
 function setDebug(on) {
@@ -619,7 +509,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
   if (e.code === 'KeyB') setDebug(!debugOn);
   if (e.code === 'KeyR') {
-    pos.set(0, EYE, ROOM_L / 2 - 2.4);
+    pos.set(0, EYE, OUTER_D / 2 - 1.8);
     yaw.value = 0; pitch.value = -0.04; velocity.set(0, 0, 0);
   }
 });
@@ -666,44 +556,48 @@ mobilePad.addEventListener('pointerup', (e) => {
 });
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
-function hitGlassSpin(e) {
-  if (!activeZone || activeZone.live !== 'glass' || !glassZone.content) return false;
+function eventToNDC(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function raycastPanels(e) {
+  eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
-  const hits = raycaster.intersectObjects(glassZone.spinMeshes, false);
-  return hits.length > 0;
+  return raycaster.intersectObjects(hung.map((h) => h.hit), false);
 }
 
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
+  const hits = raycastPanels(e);
+  if (hits.length) {
+    const idx = hits[0].object.userData.cellIndex;
+    const panel = hung[idx];
+    if (panel && panel.canInteract) {
+      panelPointerLock = true;
+      panel.iframe.style.pointerEvents = 'auto';
+      return;
+    }
+  }
+  panelPointerLock = false;
   dragging = true;
-  lastX = e.clientX; lastY = e.clientY;
-  spinDrag = hitGlassSpin(e);
-  lookDrag = !spinDrag;
-  if (lookDrag) stage.classList.add('dragging');
+  stage.classList.add('dragging');
+  lastX = downX = e.clientX; lastY = downY = e.clientY;
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
 stage.addEventListener('pointermove', (e) => {
+  if (panelPointerLock) return;
   if (!dragging || reduceMotion) return;
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
-  if (spinDrag && glassZone.spinMeshes) {
-    for (const m of glassZone.spinMeshes) {
-      m.rotation.y += dx * 0.01;
-      m.rotation.x += dy * 0.006;
-    }
-    glassZone.autoSpin = false;
-  } else if (lookDrag) {
-    yaw.value -= dx * 0.0025;
-    pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
-  }
+  yaw.value -= dx * 0.0025;
+  pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
 });
-stage.addEventListener('pointerup', (e) => {
-  dragging = false; lookDrag = false; spinDrag = false;
+stage.addEventListener('pointerup', () => {
+  panelPointerLock = false;
+  dragging = false;
   stage.classList.remove('dragging');
-  try { stage.releasePointerCapture(e.pointerId); } catch {}
 });
 
 function resize() {
@@ -711,10 +605,7 @@ function resize() {
   camera.aspect = w / Math.max(1, h);
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
-  if (composer) {
-    composer.setSize(w, h);
-    if (ssaoPass) ssaoPass.setSize(w, h);
-  }
+  cssRenderer.setSize(w, h);
 }
 addEventListener('resize', resize);
 resize();
@@ -722,10 +613,10 @@ resize();
 const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
+const margin = 0.95;
 
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
-  const t = clock.elapsedTime;
   if (!reduceMotion && entered) {
     forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
     right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
@@ -735,7 +626,7 @@ function frame() {
     if (move.l) wish.sub(right);
     if (move.r) wish.add(right);
     if (wish.lengthSq() > 0) {
-      wish.normalize().multiplyScalar(7.5);
+      wish.normalize().multiplyScalar(7.2);
       velocity.x += (wish.x - velocity.x) * Math.min(1, 8 * dt);
       velocity.z += (wish.z - velocity.z) * Math.min(1, 8 * dt);
     } else {
@@ -744,31 +635,18 @@ function frame() {
     }
     pos.x += velocity.x * dt;
     pos.z += velocity.z * dt;
-    const limX = ROOM_W / 2 - 1.1;
-    const limZ = ROOM_L / 2 - 1.1;
-    pos.x = Math.max(-limX, Math.min(limX, pos.x));
-    pos.z = Math.max(-limZ, Math.min(limZ, pos.z));
+    pos.x = Math.max(-OUTER_W / 2 + margin, Math.min(OUTER_W / 2 - margin, pos.x));
+    pos.z = Math.max(-OUTER_D / 2 + margin, Math.min(OUTER_D / 2 - margin, pos.z));
     pos.y = EYE;
-    updateActiveZone();
+    updateActiveCell();
+    updateLazyEmbeds();
   } else if (reduceMotion || params.has('still')) {
-    pos.set(0, EYE + 0.2, ROOM_L / 2 - 3);
+    pos.set(0, EYE + 0.15, OUTER_D / 2 - 2.5);
     yaw.value = 0; pitch.value = -0.05;
   }
-
-  updateWake(dt);
-
-  if (glassZone.content && glassZone.autoSpin && !reduceMotion) {
-    for (const m of glassZone.spinMeshes) {
-      m.rotation.y += dt * 0.35;
-    }
-  }
-  if (ssaoZone.knot && ssaoZone.content && !reduceMotion) {
-    ssaoZone.knot.rotation.y += dt * 0.4;
-  }
-
   applyCamera();
-  if (composer && (ssaoEnabled || !ssaoPass)) composer.render();
-  else renderer.render(scene, camera);
+  renderer.render(scene, camera);
+  cssRenderer.render(cssScene, camera);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
