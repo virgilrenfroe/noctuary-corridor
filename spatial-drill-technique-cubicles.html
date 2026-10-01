@@ -165,7 +165,7 @@
   <div class="veil" aria-hidden="true"></div>
   <div class="layer">
     <div class="topbar">
-      <div class="brand">Noctuary · invisible cubicles</div>
+      <div class="brand">Noctuary · technique cubicles</div>
       <div class="pills">
         <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
         <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
@@ -184,8 +184,8 @@
   <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
     <div class="gate-card">
       <p class="k">Technique cubicles</p>
-      <h1>Invisible<br/>volumes</h1>
-      <p>One open floor. Walk into a quiet box and a technique wakes. Leave and it sleeps. Labels stay off until you’re inside.</p>
+      <h1>Open floor ·<br/>hung craft</h1>
+      <p>Demos sit in the open volume — clearly visible. Only the cubicle walls are invisible. Step into a zone for the chip and to wake interaction / post-FX.</p>
       <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · B debug boxes</span><span class="ctrl-mobile">pad walk · drag look</span></p>
       <button type="button" id="btn-enter">Enter floor</button>
     </div>
@@ -345,9 +345,6 @@ debugGroup.visible = false;
 scene.add(debugGroup);
 
 const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.55 });
-const discMat = new THREE.MeshBasicMaterial({
-  color: 0x1a1d26, transparent: true, opacity: 0.045, depthWrite: false,
-});
 
 for (let i = 0; i < TECHNIQUES.length; i++) {
   const tech = TECHNIQUES[i];
@@ -366,11 +363,7 @@ for (let i = 0; i < TECHNIQUES.length; i++) {
   root.position.set(cx, 0, cz);
   scene.add(root);
 
-  // Subtle floor disc for placeholders (and live zones) — almost invisible
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 32), discMat.clone());
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.01;
-  root.add(disc);
+  // Empty placeholders: no floor disc (avoids “invisible inject” clutter). Live demos hang below.
 
   // Debug wireframe box
   const boxGeo = new THREE.BoxGeometry(halfW * 2, 3.2, halfD * 2);
@@ -387,7 +380,6 @@ for (let i = 0; i < TECHNIQUES.length; i++) {
     aabb,
     cx, cz,
     root,
-    disc,
     wake: 0,
     targetWake: 0,
     content: null,
@@ -415,7 +407,7 @@ function findZoneAt(x, z) {
 const glassZone = cubicles.find((c) => c.live === 'glass');
 {
   const g = new THREE.Group();
-  g.visible = false;
+  // Always visible in the open volume — only cubicle walls are invisible
   const ped = new THREE.Mesh(
     new THREE.CylinderGeometry(0.32, 0.4, 0.85, 28),
     new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.5, metalness: 0.16 })
@@ -465,7 +457,7 @@ const glassZone = cubicles.find((c) => c.live === 'glass');
   contact.position.y = 0.012;
   g.add(contact);
 
-  const localLight = new THREE.PointLight(0xfff6e8, 0, 7);
+  const localLight = new THREE.PointLight(0xfff6e8, 3.5, 7);
   localLight.position.set(0.4, 2.2, 0.3);
   g.add(localLight);
 
@@ -480,7 +472,7 @@ const glassZone = cubicles.find((c) => c.live === 'glass');
 const ssaoZone = cubicles.find((c) => c.live === 'ssao');
 {
   const g = new THREE.Group();
-  g.visible = false;
+  // Always visible — SSAO post-FX still wakes only on enter
   const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.72, metalness: 0.05 });
   const colors = [0xe8e2d6, 0xd4cfc0, 0xc8c0b0, 0x8a7bb8, 0xb8a890];
   const rng = (s) => { let x = s | 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return ((x >>> 0) % 1000) / 1000; }; };
@@ -505,7 +497,7 @@ const ssaoZone = cubicles.find((c) => c.live === 'ssao');
   torus.castShadow = true;
   g.add(torus);
 
-  const localLight = new THREE.PointLight(0xfff0dd, 0, 8);
+  const localLight = new THREE.PointLight(0xfff0dd, 2.8, 8);
   localLight.position.set(0, 2.4, 0);
   g.add(localLight);
 
@@ -571,28 +563,15 @@ function updateActiveZone() {
 function updateWake(dt) {
   const rate = 1000 / FADE_MS;
   for (const z of cubicles) {
-    const prev = z.wake;
     if (z.wake < z.targetWake) z.wake = Math.min(z.targetWake, z.wake + rate * dt);
     else if (z.wake > z.targetWake) z.wake = Math.max(z.targetWake, z.wake - rate * dt);
-    if (z.content) {
-      const show = z.wake > 0.01;
-      z.content.visible = show;
-      if (show) {
-        const s = 0.85 + 0.15 * z.wake;
-        z.content.scale.setScalar(s);
-        z.content.traverse((o) => {
-          if (o.material && o.material.transparent && o.material.opacity !== undefined && o.userData?.fadeOpacity != null) {
-            o.material.opacity = o.userData.fadeOpacity * z.wake;
-          }
-        });
-      }
+    // Hung demos stay visible always. Wake only boosts local light / interaction intensity.
+    if (z.light) {
+      const idle = z.live === 'glass' ? 3.5 : 2.8;
+      const hot = z.live === 'glass' ? 11 : 9;
+      z.light.intensity = idle + (hot - idle) * z.wake;
     }
-    if (z.light) z.light.intensity = (z.live === 'glass' ? 10 : 8) * z.wake;
-    if (z.disc && z.disc.material) {
-      z.disc.material.opacity = 0.03 + 0.08 * z.wake;
-    }
-    // sleep content fully when woke out
-    if (prev > 0.01 && z.wake <= 0.01 && z.content) z.content.visible = false;
+    if (z.content) z.content.visible = true;
   }
 }
 
@@ -688,7 +667,7 @@ mobilePad.addEventListener('pointerup', (e) => {
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
 function hitGlassSpin(e) {
-  if (!activeZone || activeZone.live !== 'glass' || !glassZone.content || !glassZone.content.visible) return false;
+  if (!activeZone || activeZone.live !== 'glass' || !glassZone.content) return false;
   const rect = renderer.domElement.getBoundingClientRect();
   pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -778,12 +757,12 @@ function frame() {
 
   updateWake(dt);
 
-  if (glassZone.content && glassZone.content.visible && glassZone.autoSpin && !reduceMotion) {
+  if (glassZone.content && glassZone.autoSpin && !reduceMotion) {
     for (const m of glassZone.spinMeshes) {
       m.rotation.y += dt * 0.35;
     }
   }
-  if (ssaoZone.knot && ssaoZone.content && ssaoZone.content.visible && !reduceMotion) {
+  if (ssaoZone.knot && ssaoZone.content && !reduceMotion) {
     ssaoZone.knot.rotation.y += dt * 0.4;
   }
 
