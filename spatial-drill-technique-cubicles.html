@@ -256,6 +256,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { Water } from 'three/addons/objects/Water.js';
 
 const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
@@ -276,8 +277,10 @@ const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
 const MAX_ARMED = 8;
-const ARM_DIST = 12;
-const INTERACT_DIST = Math.max(6.5, CELL_D * 1.35);
+/** Arm embeds across ~full grid depth so back rows stay live while walking. */
+const ARM_DIST = Math.max(22, GRID_D * 0.95);
+/** Reach ~2 cell-depths / side aisle so rows 3–4 accept hover+iframe. */
+const INTERACT_DIST = Math.max(14, CELL_D * 2.5);
 let hoverPanel = null; // panel under cursor (screen ray)
 /** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
 const SPAWN = {
@@ -387,14 +390,29 @@ scene.add(key);
 scene.add(new THREE.PointLight(0xa898d0, 16, 36).translateX(-5).translateY(3.2).translateZ(2));
 
 // —— Visible outer box ——
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x3f4630, roughness: 0.96, metalness: 0.02 }); // olive underlay
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9, metalness: 0.04 });
 const ceilMat = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.95, metalness: 0.02 });
 
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
-scene.add(floor);
+// Ocean / water floor — same three.js Water addon + palette as webgl-lab/13-ocean-water.html
+const waterNormals = new THREE.TextureLoader().load(
+  'https://threejs.org/examples/textures/waternormals.jpg',
+  (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+);
+const waterSun = new THREE.Vector3(0.35, 0.85, 0.25).normalize();
+const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
+  textureWidth: mobileLike ? 256 : 512,
+  textureHeight: mobileLike ? 256 : 512,
+  waterNormals,
+  sunDirection: waterSun.clone(),
+  sunColor: 0xffffff,
+  waterColor: 0x001e0f,
+  distortionScale: 2.4,
+  fog: true,
+});
+water.rotation.x = -Math.PI / 2;
+water.position.y = 0.02;
+water.raycast = () => {};
+scene.add(water);
 
 function addOuterWall(w, h, x, y, z, rotY) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
@@ -541,18 +559,13 @@ function updateWallpaper(t) {
 }
 
 
-// —— Floor shag carpet + ceiling pendant fixtures (far-wall wallpaper unchanged) ——
-const SPARK_FLOOR_N = mobileLike ? 1600 : 7200;
+// —— Ceiling pendant fixtures (far-wall wallpaper unchanged; floor is Water ocean) ——
 const SPARK_CEIL_N = mobileLike ? 14 : 28; // ~1 per cell + foyer accents
 const SPARK_STRIDE = mobileLike ? 4 : 2;
 const SPARK_FRAME_N = mobileLike ? 2 : 1;
-let sparkFloor = null;
 let sparkStem = null;
 let sparkGlow = null;
 let sparkDummy = null;
-let sparkFloorBase = null;
-let sparkFloorPhase = null;
-let sparkFloorScale = null;
 let sparkCeilBase = null;
 let sparkCeilPhase = null;
 let sparkCeilScale = null;
@@ -561,7 +574,7 @@ let sparkFrame = 0;
 let sparkOk = false;
 
 function disposeSparklines() {
-  for (const mesh of [sparkFloor, sparkStem, sparkGlow]) {
+  for (const mesh of [sparkStem, sparkGlow]) {
     if (!mesh) continue;
     try {
       scene.remove(mesh);
@@ -573,7 +586,7 @@ function disposeSparklines() {
     try { scene.remove(L); } catch {}
   }
   sparkLights = [];
-  sparkFloor = sparkStem = sparkGlow = null;
+  sparkStem = sparkGlow = null;
   sparkOk = false;
 }
 
@@ -591,48 +604,6 @@ function makeSparkMesh(count, geo, mat) {
 function createSparklines() {
   sparkDummy = new THREE.Object3D();
   const color = new THREE.Color();
-
-  // Floor: chunky InstancedMesh shag (readable pile from eye height)
-  const floorGeo = new THREE.CylinderGeometry(0.045, 0.07, 1, 6);
-  const floorMatSpark = mobileLike
-    ? new THREE.MeshBasicMaterial()
-    : new THREE.MeshStandardMaterial({
-        roughness: 0.95,
-        metalness: 0.0,
-      });
-  const floor = makeSparkMesh(SPARK_FLOOR_N, floorGeo, floorMatSpark);
-  const fBase = new Float32Array(SPARK_FLOOR_N * 3);
-  const fPhase = new Float32Array(SPARK_FLOOR_N);
-  const fScale = new Float32Array(SPARK_FLOOR_N * 2); // height, thickness
-  for (let i = 0; i < SPARK_FLOOR_N; i++) {
-    const x = (Math.random() - 0.5) * (OUTER_W - 0.5);
-    const z = (Math.random() - 0.5) * (OUTER_D - 0.5);
-    const h = 0.28 + Math.random() * 0.42; // ~1–3in 70s pile feel
-    const thick = 0.85 + Math.random() * 1.1;
-    fBase[i * 3] = x;
-    fBase[i * 3 + 1] = h * 0.5;
-    fBase[i * 3 + 2] = z;
-    fPhase[i] = Math.random() * Math.PI * 2;
-    fScale[i * 2] = h;
-    fScale[i * 2 + 1] = thick;
-    const leanX = (Math.random() - 0.5) * 0.55;
-    const leanZ = (Math.random() - 0.5) * 0.55;
-    sparkDummy.position.set(x, h * 0.5, z);
-    sparkDummy.rotation.set(leanX, Math.random() * Math.PI, leanZ);
-    sparkDummy.scale.set(thick, h, thick);
-    sparkDummy.updateMatrix();
-    floor.setMatrixAt(i, sparkDummy.matrix);
-    // 70s avocado/olive shag: #757C50 wall-carpet green + deeper avocado + harvest-gold flecks
-    const r = Math.random();
-    if (r < 0.08) color.setHSL(0.11 + Math.random() * 0.03, 0.52, 0.40 + Math.random() * 0.08); // harvest gold
-    else if (r < 0.16) color.setHSL(0.06 + Math.random() * 0.03, 0.35, 0.20 + Math.random() * 0.06); // chocolate
-    else if (r < 0.45) color.setHSL(0.20 + Math.random() * 0.04, 0.42 + Math.random() * 0.15, 0.24 + Math.random() * 0.08); // deep avocado
-    else color.setHSL(0.18 + Math.random() * 0.05, 0.22 + Math.random() * 0.12, 0.34 + Math.random() * 0.12); // muted olive (#757C50-ish)
-    floor.setColorAt(i, color);
-  }
-  floor.instanceMatrix.needsUpdate = true;
-  if (floor.instanceColor) floor.instanceColor.needsUpdate = true;
-  scene.add(floor);
 
   // Ceiling: pendant stems + glowing heads (lighting fixtures)
   const stemGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 8);
@@ -711,12 +682,8 @@ function createSparklines() {
   scene.add(stems);
   scene.add(glows);
 
-  sparkFloor = floor;
   sparkStem = stems;
   sparkGlow = glows;
-  sparkFloorBase = fBase;
-  sparkFloorPhase = fPhase;
-  sparkFloorScale = fScale;
   sparkCeilBase = cBase;
   sparkCeilPhase = cPhase;
   sparkCeilScale = cScale;
@@ -735,23 +702,6 @@ function updateSparklines(t) {
   sparkFrame++;
   if (SPARK_FRAME_N > 1 && (sparkFrame % SPARK_FRAME_N) !== 0) return;
   try {
-    // Shag: soft lean / sway like carpet pile
-    for (let i = 0; i < SPARK_FLOOR_N; i += SPARK_STRIDE) {
-      const bx = sparkFloorBase[i * 3];
-      const bz = sparkFloorBase[i * 3 + 2];
-      const ph = sparkFloorPhase[i];
-      const h = sparkFloorScale[i * 2];
-      const thick = sparkFloorScale[i * 2 + 1];
-      const sway = Math.sin(t * 1.1 + ph) * 0.14;
-      const lean = Math.cos(t * 0.85 + ph * 1.3) * 0.12;
-      sparkDummy.position.set(bx + sway * 0.03, h * 0.5, bz + lean * 0.03);
-      sparkDummy.rotation.set(0.25 + lean, ph, sway);
-      sparkDummy.scale.set(thick, h, thick);
-      sparkDummy.updateMatrix();
-      sparkFloor.setMatrixAt(i, sparkDummy.matrix);
-    }
-    sparkFloor.instanceMatrix.needsUpdate = true;
-
     // Pendants: subtle sway + glow bob
     for (let i = 0; i < SPARK_CEIL_N; i += SPARK_STRIDE) {
       const bx = sparkCeilBase[i * 3];
@@ -941,13 +891,23 @@ const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 const centerNDC = new THREE.Vector2(0, 0);
 
+/** First ray hit whose panel is within maxDist (skip nearer out-of-range occluders). */
+function panelFromHits(hits, maxDist) {
+  for (const hit of hits) {
+    const panel = hung[hit.object.userData.cellIndex];
+    if (panel && panelDist(panel) <= maxDist) return panel;
+  }
+  return null;
+}
+
 function facingPanelWithin(maxDist) {
   raycaster.setFromCamera(centerNDC, camera);
   const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
-  if (!hits.length) return null;
-  const panel = hung[hits[0].object.userData.cellIndex];
-  if (!panel || panelDist(panel) > maxDist) return null;
-  return panel;
+  const fromHits = panelFromHits(hits, maxDist);
+  if (fromHits) return fromHits;
+  // In-cell fallback: standing in a zone counts as facing that hang
+  if (activeCell && panelDist(activeCell) <= maxDist) return activeCell;
+  return null;
 }
 
 function eventToNDC(e) {
@@ -966,10 +926,7 @@ function panelUnderPointer(e) {
   eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
   const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
-  if (!hits.length) return null;
-  const panel = hung[hits[0].object.userData.cellIndex];
-  if (!panel || panelDist(panel) > INTERACT_DIST * 1.15) return null;
-  return panel;
+  return panelFromHits(hits, INTERACT_DIST * 1.15);
 }
 
 function setInteractTarget(panel) {
@@ -1361,6 +1318,12 @@ function frame() {
   }
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
+    if (water?.material?.uniforms?.time) {
+      water.material.uniforms.time.value += dt;
+      if (water.material.uniforms.sunDirection) {
+        water.material.uniforms.sunDirection.value.copy(waterSun);
+      }
+    }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
     try {
