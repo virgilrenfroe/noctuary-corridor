@@ -88,7 +88,8 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 const params = new URLSearchParams(location.search);
-const demo = (params.get('demo') || 'gravity').toLowerCase();
+const demoRaw = (params.get('demo') || 'gravity').toLowerCase();
+const demo = demoRaw === 'flow' ? 'particles' : demoRaw;
 const embed = params.has('embed');
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
 if (embed) document.body.classList.add('embed');
@@ -104,14 +105,14 @@ const META = {
   spring: {
     tag: 'Feel language',
     title: 'Spring & damping',
-    blurb: 'Hooke spring + ζ damping — light overshoots, heavy settles.',
+    blurb: "Hooke's spring + zeta damping — light overshoots, heavy settles.",
     hint: 'drag the mass',
   },
   collision: {
     tag: 'Contact',
     title: 'Collision',
     blurb: 'Impulse exchange on hit — mass ratios change the outcome.',
-    hint: 'click to fire',
+    hint: 'drag to throw · click empty to fire',
   },
   constraints: {
     tag: 'Joints',
@@ -129,7 +130,7 @@ const META = {
     tag: 'Forces',
     title: 'Flow field',
     blurb: 'Curl-advected particles — pointer spins a local vortex.',
-    hint: 'move pointer',
+    hint: 'move or drag pointer',
   },
   stacking: {
     tag: 'Rigid body',
@@ -203,19 +204,60 @@ const clock = new THREE.Clock();
 const pointer = new THREE.Vector2(0, 0);
 const raycaster = new THREE.Raycaster();
 let pointerDown = false;
+let pointerActive = false;
 const ndc = new THREE.Vector2();
+const pointerWorld = new THREE.Vector3(0, 1.4, 0);
+const interactPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const _planeHit = new THREE.Vector3();
 
 function setNDC(e) {
-  ndc.x = (e.clientX / innerWidth) * 2 - 1;
-  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
-  pointer.x = (e.clientX / innerWidth) * 2 - 1;
-  pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const w = Math.max(1, rect.width);
+  const h = Math.max(1, rect.height);
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  ndc.x = (cx / w) * 2 - 1;
+  ndc.y = -(cy / h) * 2 + 1;
+  pointer.x = ndc.x;
+  pointer.y = ndc.y;
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(interactPlane, _planeHit)) {
+    pointerWorld.copy(_planeHit);
+  }
+  pointerActive = true;
 }
 
-addEventListener('pointermove', (e) => { setNDC(e); });
-addEventListener('pointerdown', (e) => { setNDC(e); pointerDown = true; onDown(e); });
-addEventListener('pointerup', () => { pointerDown = false; onUp(); });
-addEventListener('pointerleave', () => { pointerDown = false; onUp(); });
+const canvasEl = renderer.domElement;
+canvasEl.style.touchAction = 'none';
+canvasEl.style.cursor = 'crosshair';
+
+function onPointerMove(e) { setNDC(e); }
+function onPointerDown(e) {
+  setNDC(e);
+  pointerDown = true;
+  try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+  onDown(e);
+}
+function onPointerUp(e) {
+  pointerDown = false;
+  try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
+  onUp(e);
+}
+function onPointerCancel() {
+  pointerDown = false;
+  onUp();
+}
+
+canvasEl.addEventListener('pointermove', onPointerMove, { passive: true });
+canvasEl.addEventListener('pointerdown', onPointerDown, { passive: true });
+canvasEl.addEventListener('pointerup', onPointerUp, { passive: true });
+canvasEl.addEventListener('pointercancel', onPointerCancel, { passive: true });
+canvasEl.addEventListener('pointerleave', () => { /* keep last pointer for hover demos */ });
+// Fallback for environments that only deliver window-level moves
+addEventListener('pointermove', (e) => {
+  if (e.target === canvasEl) return;
+  setNDC(e);
+});
 
 let onDown = () => {};
 let onUp = () => {};
@@ -353,31 +395,126 @@ function buildCollision() {
       shape: new CANNON.Box(new CANNON.Vec3(0.275, 0.275, 0.275)),
       position: new CANNON.Vec3(x, y, 0),
       linearDamping: 0.04,
+      angularDamping: 0.06,
     });
     world.addBody(body);
     return { mesh, body };
   }
 
-  const a = makeBox(ACCENT, 1.0, -1.6, 0.28);
-  const b = makeBox(TEAL, 2.4, 1.4, 0.28);
-  a.body.velocity.set(0, 0, 0);
-  b.body.velocity.set(0, 0, 0);
+  const boxes = [
+    makeBox(ACCENT, 1.0, -1.6, 0.28),
+    makeBox(TEAL, 2.4, 1.4, 0.28),
+    makeBox(VIOLET, 0.85, 0.0, 0.28),
+  ];
+  for (const b of boxes) b.body.velocity.set(0, 0, 0);
+
+  const hit = new THREE.Vector3();
+  const prevHit = new THREE.Vector3();
+  let grabbed = null;
+  let grabOffset = new THREE.Vector3();
+  let lastSampleT = 0;
+  const throwVel = new THREE.Vector3();
+
+  function pickBox() {
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(boxes.map((b) => b.mesh), false);
+    if (hits.length) {
+      return boxes.find((b) => b.mesh === hits[0].object) || null;
+    }
+    if (!raycaster.ray.intersectPlane(interactPlane, hit)) return null;
+    let best = null;
+    let bestD = 0.75;
+    for (const b of boxes) {
+      const d = Math.hypot(b.body.position.x - hit.x, b.body.position.y - hit.y);
+      if (d < bestD) { bestD = d; best = b; }
+    }
+    return best;
+  }
+
+  function firePair() {
+    // Alternate / fire whichever boxes are settled — both can be launched
+    const left = boxes[0];
+    const right = boxes[1];
+    const mid = boxes[2];
+    left.body.wakeUp();
+    right.body.wakeUp();
+    mid.body.wakeUp();
+    left.body.position.set(-1.7, 0.28, 0);
+    right.body.position.set(1.5, 0.28, 0);
+    mid.body.position.set(0.1, 1.1, 0);
+    left.body.velocity.set(6.2, 1.1, 0);
+    right.body.velocity.set(-1.2, 0.4, 0);
+    mid.body.velocity.set((Math.random() - 0.5) * 2.5, 2.2, 0);
+    left.body.angularVelocity.set(0, 0, -2);
+    right.body.angularVelocity.set(0, 0, 1.2);
+    mid.body.angularVelocity.set(0, 1.5, 0);
+  }
 
   onDown = () => {
     if (still) return;
-    a.body.wakeUp();
-    b.body.wakeUp();
-    a.body.position.set(-1.7, 0.28, 0);
-    b.body.position.set(1.5, 0.28, 0);
-    a.body.velocity.set(6.2, 1.1, 0);
-    b.body.velocity.set(-1.2, 0.4, 0);
-    a.body.angularVelocity.set(0, 0, -2);
+    const picked = pickBox();
+    if (picked) {
+      grabbed = picked;
+      grabbed.body.wakeUp();
+      grabbed.body.velocity.set(0, 0, 0);
+      grabbed.body.angularVelocity.set(0, 0, 0);
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(interactPlane, hit)) {
+        grabOffset.set(
+          grabbed.body.position.x - hit.x,
+          grabbed.body.position.y - hit.y,
+          0
+        );
+        prevHit.copy(hit);
+        throwVel.set(0, 0, 0);
+        lastSampleT = performance.now();
+      }
+      canvasEl.style.cursor = 'grabbing';
+    } else {
+      firePair();
+    }
   };
 
-  tick = () => {
+  onUp = () => {
+    if (grabbed && !still) {
+      grabbed.body.wakeUp();
+      const speed = throwVel.length();
+      const boost = Math.min(14, 4 + speed * 1.1);
+      if (speed > 0.05) {
+        const dir = throwVel.clone().normalize();
+        grabbed.body.velocity.set(dir.x * boost, Math.max(0.2, dir.y * boost * 0.85), 0);
+        grabbed.body.angularVelocity.set(0, 0, -dir.x * boost * 0.4);
+      }
+    }
+    grabbed = null;
+    canvasEl.style.cursor = 'crosshair';
+  };
+
+  tick = (dt) => {
+    if (grabbed && !still) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(interactPlane, hit)) {
+        const tx = hit.x + grabOffset.x;
+        const ty = Math.max(0.28, hit.y + grabOffset.y);
+        const now = performance.now();
+        const sampleDt = Math.max(0.008, (now - lastSampleT) / 1000);
+        throwVel.set(
+          (hit.x - prevHit.x) / sampleDt,
+          (hit.y - prevHit.y) / sampleDt,
+          0
+        );
+        prevHit.copy(hit);
+        lastSampleT = now;
+        grabbed.body.wakeUp();
+        grabbed.body.position.x = tx;
+        grabbed.body.position.y = ty;
+        grabbed.body.position.z = 0;
+        grabbed.body.velocity.set(0, 0, 0);
+        grabbed.body.angularVelocity.set(0, 0, 0);
+      }
+    }
     if (!still) world.fixedStep();
-    syncMesh(a.mesh, a.body);
-    syncMesh(b.mesh, b.body);
+    for (const b of boxes) syncMesh(b.mesh, b.body);
   };
 }
 
@@ -595,23 +732,45 @@ function buildParticles() {
   );
   scene.add(pts);
 
+  // Visible cue so pointer drive is obvious
+  const vortexMesh = new THREE.Mesh(
+    new THREE.RingGeometry(0.18, 0.28, 32),
+    new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+  );
+  vortexMesh.position.set(0, 1.4, 0.05);
+  scene.add(vortexMesh);
+
   const vortex = new THREE.Vector3(0, 1.4, 0);
   tick = (dt, t) => {
     if (still) return;
-    vortex.x = pointer.x * 2.2;
-    vortex.y = 1.2 + pointer.y * 1.1;
+    // Drive vortex from raycasted pointer on the interaction plane (mouse + touch)
+    if (pointerActive || pointerDown) {
+      vortex.x = THREE.MathUtils.clamp(pointerWorld.x, -2.4, 2.4);
+      vortex.y = THREE.MathUtils.clamp(pointerWorld.y, 0.35, 3.0);
+    } else {
+      // Gentle idle drift until the pointer engages
+      vortex.x = Math.sin(t * 0.35) * 0.9;
+      vortex.y = 1.35 + Math.cos(t * 0.28) * 0.35;
+    }
+    vortexMesh.position.x = vortex.x;
+    vortexMesh.position.y = vortex.y;
+    vortexMesh.rotation.z = t * 1.8;
+    vortexMesh.material.opacity = pointerDown ? 0.85 : (pointerActive ? 0.6 : 0.35);
+
+    const strength = pointerDown ? 2.4 : (pointerActive ? 1.75 : 0.85);
     for (let i = 0; i < N; i++) {
       const ix = i * 3;
       let x = positions[ix];
       let y = positions[ix + 1];
       const dx = x - vortex.x;
       const dy = y - vortex.y;
-      const r2 = dx * dx + dy * dy + 0.08;
-      const curl = 1.15 / r2;
-      velocities[ix] += (-dy * curl - velocities[ix] * 0.55) * dt;
-      velocities[ix + 1] += (dx * curl + Math.sin(t * 0.7 + i * 0.01) * 0.15 - velocities[ix + 1] * 0.55) * dt;
-      x += velocities[ix] * dt * 2.4;
-      y += velocities[ix + 1] * dt * 2.4;
+      const r2 = dx * dx + dy * dy + 0.06;
+      const curl = strength / r2;
+      const pull = pointerDown ? 0.55 / r2 : 0.2 / r2;
+      velocities[ix] += ((-dy * curl - dx * pull) - velocities[ix] * 0.5) * dt;
+      velocities[ix + 1] += ((dx * curl - dy * pull) + Math.sin(t * 0.7 + i * 0.01) * 0.12 - velocities[ix + 1] * 0.5) * dt;
+      x += velocities[ix] * dt * 2.6;
+      y += velocities[ix + 1] * dt * 2.6;
       if (x < -2.6 || x > 2.6) { x *= -0.92; velocities[ix] *= -0.4; }
       if (y < 0.2 || y > 3.1) { y = Math.max(0.2, Math.min(3.1, y)); velocities[ix + 1] *= -0.4; }
       positions[ix] = x;
