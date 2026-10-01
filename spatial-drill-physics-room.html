@@ -205,7 +205,7 @@
     <div class="topbar">
       <div class="brand">Noctuary · physics room</div>
       <div class="pills">
-        <div class="pill tech" title="Technique">cannon-es · spring · cloth · flow</div>
+        <div class="pill tech" title="Technique">IBL · SSAO · soft shadow · glass orb</div>
         <a class="pill" id="btn-open-full" href="#" target="_blank" rel="noopener" hidden>Open full</a>
         <button class="pill" id="btn-hall" type="button">Back to hall</button>
         <div class="pill" id="h-motion">live</div>
@@ -214,7 +214,7 @@
     <div class="title-block">
       <p class="kicker">WebGL craft</p>
       <h1>Physics<br/>room</h1>
-      <p>Seven wall panels — principles useful for three.js / WebGL building. Lighter than the night hall, still Noctuary.</p>
+      <p>Seven wall panels still play in place — room now carries HDR IBL, SSAO, soft shadows, and a mid-floor glass orb.</p>
     </div>
     <div class="hud">
       <div class="caption" id="caption">
@@ -253,6 +253,12 @@
 <script type="module">
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
@@ -297,6 +303,8 @@ renderer.setClearColor(0xcfc8ba, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
 const cssRenderer = new CSS3DRenderer();
@@ -317,6 +325,16 @@ const hemi = new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.25);
 scene.add(hemi);
 const key = new THREE.DirectionalLight(0xfff6e8, 1.35);
 key.position.set(2, 12, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 42;
+key.shadow.camera.left = -11;
+key.shadow.camera.right = 11;
+key.shadow.camera.top = 14;
+key.shadow.camera.bottom = -6;
+key.shadow.radius = 3.5;
+key.shadow.bias = -0.00045;
 scene.add(key);
 const fill = new THREE.PointLight(0xa898d0, 22, 36);
 fill.position.set(-3, 3.8, 4);
@@ -330,6 +348,7 @@ const floorMat = new THREE.MeshStandardMaterial({ color: 0xb7b0a2, roughness: 0.
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALL_W, HALL_L), floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.z = -HALL_L / 2 + CAM_DIST * 0.2;
+floor.receiveShadow = true;
 scene.add(floor);
 
 const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9, metalness: 0.04 });
@@ -337,10 +356,12 @@ const sideGeo = new THREE.PlaneGeometry(HALL_L, WALL_H);
 const wallL = new THREE.Mesh(sideGeo, wallMat);
 wallL.rotation.y = Math.PI / 2;
 wallL.position.set(-HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
+wallL.receiveShadow = true;
 scene.add(wallL);
 const wallR = new THREE.Mesh(sideGeo, wallMat);
 wallR.rotation.y = -Math.PI / 2;
 wallR.position.set(HALL_W / 2, WALL_H / 2, -HALL_L / 2 + 2);
+wallR.receiveShadow = true;
 scene.add(wallR);
 
 const endMat = new THREE.MeshStandardMaterial({ color: 0x9e978a, roughness: 0.88 });
@@ -390,6 +411,74 @@ const nightGlow = new THREE.PointLight(0x8a7bb8, 20, 14);
 nightGlow.position.set(0, 3.0, CAM_DIST - 1.6);
 scene.add(nightGlow);
 
+// —— Environment bake: HDR IBL / PMREM (keep paper-warm background) ——
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+if ('environmentIntensity' in scene) scene.environmentIntensity = 0.55;
+new RGBELoader().load(
+  'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
+  (tex) => {
+    const env = pmrem.fromEquirectangular(tex).texture;
+    scene.environment = env;
+    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.62;
+    tex.dispose();
+    // keep paper fog/bg — do not assign HDR as background
+  },
+  undefined,
+  () => {}
+);
+
+// —— Mid-room transmission glass orb on pedestal (env prop, not a hung panel) ——
+const glassPedestal = new THREE.Group();
+glassPedestal.position.set(0, 0, -9.2);
+const pedCol = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.38, 0.46, 0.95, 32),
+  new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.52, metalness: 0.18 })
+);
+pedCol.position.y = 0.475;
+pedCol.castShadow = true;
+pedCol.receiveShadow = true;
+glassPedestal.add(pedCol);
+const pedCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.42, 0.42, 0.06, 32),
+  new THREE.MeshStandardMaterial({ color: 0x9e978a, roughness: 0.45, metalness: 0.12 })
+);
+pedCap.position.y = 0.98;
+pedCap.castShadow = true;
+pedCap.receiveShadow = true;
+glassPedestal.add(pedCap);
+const glassOrb = new THREE.Mesh(
+  new THREE.SphereGeometry(0.42, 64, 64),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xf5f0e6,
+    metalness: 0,
+    roughness: 0.06,
+    transmission: 1.0,
+    thickness: 1.35,
+    ior: 1.5,
+    specularIntensity: 1,
+    envMapIntensity: 1.15,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+  })
+);
+glassOrb.position.y = 1.48;
+glassOrb.castShadow = true;
+glassPedestal.add(glassOrb);
+// Soft contact shadow under pedestal
+const contactShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.15, 0.95),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false })
+);
+contactShadow.rotation.x = -Math.PI / 2;
+contactShadow.position.y = 0.004;
+glassPedestal.add(contactShadow);
+scene.add(glassPedestal);
+const orbRimLight = new THREE.PointLight(0xfff6e8, 8, 6);
+orbRimLight.position.set(0.6, 2.1, -8.4);
+scene.add(orbRimLight);
+
 const hung = [];
 const panelSpots = [];
 const MAX_ARMED = 3;
@@ -406,6 +495,8 @@ function hangLive(app, x, y, z, rotY, w, h) {
     new THREE.BoxGeometry(w + 0.14, h + 0.14, 0.07),
     new THREE.MeshStandardMaterial({ color: 0x3a342c, roughness: 0.55, metalness: 0.15 })
   );
+  frame.castShadow = true;
+  frame.receiveShadow = true;
   group.add(frame);
 
   // Readable plate label under panel
@@ -512,6 +603,20 @@ const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
 plaqueTex.colorSpace = THREE.SRGBColorSpace;
 plaque.material.map = plaqueTex;
 plaque.material.needsUpdate = true;
+
+// —— SSAO (desktop); skip on coarse / narrow for budget ——
+let composer = null;
+let ssaoPass = null;
+if (!mobileLike) {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  ssaoPass = new SSAOPass(scene, camera, innerWidth, innerHeight);
+  ssaoPass.kernelRadius = 12;
+  ssaoPass.minDistance = 0.004;
+  ssaoPass.maxDistance = 0.11;
+  composer.addPass(ssaoPass);
+  composer.addPass(new OutputPass());
+}
 
 const move = { f: false, b: false, l: false, r: false };
 const velocity = new THREE.Vector3();
@@ -706,6 +811,10 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
   cssRenderer.setSize(w, h);
+  if (composer) {
+    composer.setSize(w, h);
+    if (ssaoPass) ssaoPass.setSize(w, h);
+  }
 }
 addEventListener('resize', resize);
 resize();
@@ -795,7 +904,12 @@ function frame() {
     yaw.value = 0; pitch.value = -0.05;
   }
   applyCamera();
-  renderer.render(scene, camera);
+  if (!reduceMotion) {
+    glassOrb.rotation.y = t * 0.18;
+    glassOrb.position.y = 1.48 + Math.sin(t * 0.7) * 0.02;
+  }
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
   cssRenderer.render(cssScene, camera);
   requestAnimationFrame(frame);
 }

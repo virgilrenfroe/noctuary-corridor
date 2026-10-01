@@ -407,6 +407,7 @@ const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-w
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.5 : 2));
 renderer.setClearColor(0x05060a, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.autoClear = false; // stencil glass portal needs manual clear
 stage.appendChild(renderer.domElement);
 
 const cssRenderer = new CSS3DRenderer();
@@ -437,7 +438,8 @@ portalGlow.position.set(0, 3.2, -HALL_L / 2 + 2);
 scene.add(portalGlow);
 
 
-// —— Physics room threshold (readable warm aperture on right wall, far half) ——
+// —— Physics room threshold: stencil / glass portal aperture (look-into, walk-toward) ——
+// Not a hung iframe panel set — alternate warm room clipped through the door plane.
 const DAY_DOOR_Z = -HALL_L / 2 + 7.5;
 const DAY_DOOR_W = 2.2;
 const DAY_DOOR_H = 4.6;
@@ -451,22 +453,38 @@ const dayFrame = new THREE.Mesh(
   dayFrameMat
 );
 dayDoorGroup.add(dayFrame);
+// Invisible hit / walk target (raycast + walk-into). Visible look is stencil world below.
 const dayAperture = new THREE.Mesh(
   new THREE.PlaneGeometry(DAY_DOOR_W, DAY_DOOR_H),
-  new THREE.MeshBasicMaterial({ color: 0xd8d2c6, fog: false, side: THREE.DoubleSide })
+  new THREE.MeshBasicMaterial({
+    transparent: true, opacity: 0, depthWrite: false, colorWrite: false,
+    side: THREE.DoubleSide, fog: false,
+  })
 );
 dayAperture.rotation.y = -Math.PI / 2;
 dayAperture.position.set(-0.12, 0, 0);
 dayAperture.userData.portal = 'physics';
 dayAperture.userData.clickable = true;
 dayDoorGroup.add(dayAperture);
+// Soft glass / warm rim around aperture (stencil world fills the opening)
 const dayRim = new THREE.Mesh(
-  new THREE.PlaneGeometry(DAY_DOOR_W + 0.12, DAY_DOOR_H + 0.12),
-  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.28, fog: false, side: THREE.DoubleSide })
+  new THREE.PlaneGeometry(DAY_DOOR_W + 0.14, DAY_DOOR_H + 0.14),
+  new THREE.MeshBasicMaterial({
+    color: 0xe8e0d0, transparent: true, opacity: 0.22,
+    fog: false, side: THREE.DoubleSide, depthWrite: false,
+  })
 );
 dayRim.rotation.y = -Math.PI / 2;
-dayRim.position.set(-0.1, 0, 0);
+dayRim.position.set(-0.09, 0, 0);
 dayDoorGroup.add(dayRim);
+// Gold edge glow
+const dayGlowRim = new THREE.Mesh(
+  new THREE.PlaneGeometry(DAY_DOOR_W + 0.22, DAY_DOOR_H + 0.22),
+  new THREE.MeshBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.18, fog: false, side: THREE.DoubleSide, depthWrite: false })
+);
+dayGlowRim.rotation.y = -Math.PI / 2;
+dayGlowRim.position.set(-0.08, 0, 0);
+dayDoorGroup.add(dayGlowRim);
 // Small plate on the door
 (() => {
   const c = document.createElement('canvas');
@@ -495,6 +513,123 @@ scene.add(daySpill);
 const daySkyFill = new THREE.PointLight(0xc9d6ea, 12, 16);
 daySkyFill.position.set(HALL_W / 2 - 2.2, 5.2, DAY_DOOR_Z);
 scene.add(daySkyFill);
+
+// Stencil mask plane (world-aligned with aperture) + warm peek world
+const portalMaskPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(DAY_DOOR_W, DAY_DOOR_H),
+  new THREE.MeshBasicMaterial({ colorWrite: false })
+);
+const portalMaskScene = new THREE.Scene();
+
+function makePhysicsPeekWorld() {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(0xcfc8ba);
+  s.add(new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.1));
+  const dl = new THREE.DirectionalLight(0xfff6e8, 1.45);
+  dl.position.set(1.5, 4, 2);
+  s.add(dl);
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(10, 12),
+    new THREE.MeshStandardMaterial({ color: 0xb7b0a2, roughness: 0.72, metalness: 0.06 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, -DAY_DOOR_H / 2, -4);
+  s.add(floor);
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(9, 7.2),
+    new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9 })
+  );
+  back.position.set(0, 0.1, -7);
+  s.add(back);
+  const side = new THREE.Mesh(
+    new THREE.PlaneGeometry(12, 7.2),
+    new THREE.MeshStandardMaterial({ color: 0x9e978a, roughness: 0.88 })
+  );
+  side.rotation.y = Math.PI / 2;
+  side.position.set(-3.2, 0.1, -4);
+  s.add(side);
+  // Mini glass orb (matches physics-room env prop)
+  const orb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.48, 48, 48),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf5f0e6, metalness: 0, roughness: 0.08,
+      transmission: 1.0, thickness: 1.2, ior: 1.5,
+      clearcoat: 1, clearcoatRoughness: 0.06,
+    })
+  );
+  orb.position.set(0.15, -0.15, -3.2);
+  s.add(orb);
+  const ped = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.38, 0.85, 24),
+    new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.5, metalness: 0.15 })
+  );
+  ped.position.set(0.15, -DAY_DOOR_H / 2 + 0.42, -3.2);
+  s.add(ped);
+  // Tiny warm plaque panels as depth cues (geometry only — not iframes)
+  const panelMat = new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.65, metalness: 0.05 });
+  for (const [x, z] of [[-2.2, -4.5], [-2.2, -6.2]]) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 1.15), panelMat);
+    p.position.set(x, 0.2, z);
+    s.add(p);
+  }
+  const warm = new THREE.PointLight(0xf0c24b, 28, 14);
+  warm.position.set(0.4, 1.2, -2.4);
+  s.add(warm);
+  return { scene: s, orb };
+}
+const physicsPeek = makePhysicsPeekWorld();
+
+function renderPhysicsPortal() {
+  // Sync mask to aperture world pose
+  dayAperture.updateWorldMatrix(true, false);
+  dayAperture.matrixWorld.decompose(
+    portalMaskPlane.position,
+    portalMaskPlane.quaternion,
+    portalMaskPlane.scale
+  );
+  portalMaskPlane.updateMatrixWorld(true);
+
+  const gl = renderer.getContext();
+  const st = renderer.state;
+
+  // 1) Write stencil
+  portalMaskScene.clear();
+  portalMaskScene.add(portalMaskPlane);
+  st.buffers.depth.setTest(true);
+  st.buffers.stencil.setTest(true);
+  st.buffers.stencil.setFunc(gl.ALWAYS, 1, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  st.buffers.stencil.setMask(0xff);
+  st.buffers.color.setMask(false);
+  st.buffers.depth.setMask(false);
+  renderer.render(portalMaskScene, camera);
+  portalMaskScene.remove(portalMaskPlane);
+  st.buffers.color.setMask(true);
+  st.buffers.depth.setMask(true);
+
+  // 2) Warm world clipped to aperture
+  physicsPeek.scene.position.copy(portalMaskPlane.position);
+  physicsPeek.scene.quaternion.copy(portalMaskPlane.quaternion);
+  st.buffers.stencil.setFunc(gl.EQUAL, 1, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  renderer.clearDepth();
+  renderer.render(physicsPeek.scene, camera);
+
+  // 3) Clear stencil
+  st.buffers.stencil.setFunc(gl.ALWAYS, 0, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  st.buffers.color.setMask(false);
+  st.buffers.depth.setMask(false);
+  portalMaskScene.add(portalMaskPlane);
+  renderer.render(portalMaskScene, camera);
+  portalMaskScene.remove(portalMaskPlane);
+  st.buffers.color.setMask(true);
+  st.buffers.depth.setMask(true);
+  st.buffers.stencil.setTest(false);
+
+  physicsPeek.scene.position.set(0, 0, 0);
+  physicsPeek.scene.quaternion.identity();
+}
 
 // Architecture
 const floorMat = new THREE.MeshStandardMaterial({
@@ -1205,7 +1340,7 @@ function pickNearest() {
     best = {
       id: 'physics-room',
       name: 'Physics room',
-      blurb: 'Dedicated craft wing — gravity, springs, collisions, joints, cloth, flow, stacking.',
+      blurb: 'Look into the glass aperture — warm physics wing beyond. Click or walk through.',
       live: false,
     };
   }
@@ -1270,7 +1405,13 @@ function frame() {
   }
 
   applyCamera();
+  if (!reduceMotion && physicsPeek) {
+    physicsPeek.orb.rotation.y = t * 0.35;
+    physicsPeek.orb.position.y = -0.15 + Math.sin(t * 0.9) * 0.04;
+  }
+  renderer.clear(true, true, true);
   renderer.render(scene, camera);
+  renderPhysicsPortal();
   cssRenderer.render(cssScene, camera);
   requestAnimationFrame(frame);
 }
