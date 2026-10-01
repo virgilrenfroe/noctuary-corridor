@@ -279,8 +279,13 @@ const EYE = 1.65;
 const MAX_ARMED = 8;
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
-/** Reach ~2 cell-depths / side aisle so rows 3–4 accept hover+iframe. */
-const INTERACT_DIST = Math.max(14, CELL_D * 2.5);
+/** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
+const INTERACT_DIST = Math.max(20, CELL_D * 3.6);
+function interactDistFor(panel) {
+  if (!panel) return INTERACT_DIST;
+  // Back half of the grid needs more slack — wallpaper + deeper standing line.
+  return panel.row >= 2 ? INTERACT_DIST * 1.35 : INTERACT_DIST;
+}
 let hoverPanel = null; // panel under cursor (screen ray)
 /** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
 const SPAWN = {
@@ -839,11 +844,13 @@ for (let i = 0; i < CELLS.length; i++) {
   hung.push({
     meta, col, row, cx, cz, panelZ,
     aabb: { minX, maxX, minZ, maxZ },
-    group, hit, cssObj, iframe, spot,
+    group, frame, hit, cssObj, iframe, spot,
     embedArmed: false,
     canInteract: false,
     embedUrl: meta.src,
   });
+  frame.userData.cellIndex = i;
+  frame.userData.clickable = true;
 }
 
 function resetToFoyer() {
@@ -891,22 +898,33 @@ const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 const centerNDC = new THREE.Vector2(0, 0);
 
-/** First ray hit whose panel is within maxDist (skip nearer out-of-range occluders). */
-function panelFromHits(hits, maxDist) {
+/** First ray hit whose panel is within range (skip nearer out-of-range occluders). */
+function panelFromHits(hits, maxDistScale) {
+  const scale = maxDistScale == null ? 1 : maxDistScale;
   for (const hit of hits) {
     const panel = hung[hit.object.userData.cellIndex];
-    if (panel && panelDist(panel) <= maxDist) return panel;
+    if (!panel) continue;
+    if (panelDist(panel) <= interactDistFor(panel) * scale) return panel;
   }
   return null;
 }
 
-function facingPanelWithin(maxDist) {
+function hungPickMeshes() {
+  const meshes = [];
+  for (const h of hung) {
+    if (h.hit) meshes.push(h.hit);
+    if (h.frame) meshes.push(h.frame);
+  }
+  return meshes;
+}
+
+function facingPanelWithin(maxDistScale) {
   raycaster.setFromCamera(centerNDC, camera);
-  const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
-  const fromHits = panelFromHits(hits, maxDist);
+  const hits = raycaster.intersectObjects(hungPickMeshes(), false);
+  const fromHits = panelFromHits(hits, maxDistScale == null ? 1 : maxDistScale / INTERACT_DIST);
   if (fromHits) return fromHits;
   // In-cell fallback: standing in a zone counts as facing that hang
-  if (activeCell && panelDist(activeCell) <= maxDist) return activeCell;
+  if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) return activeCell;
   return null;
 }
 
@@ -919,14 +937,14 @@ function eventToNDC(e) {
 function raycastPanels(e) {
   eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
-  return raycaster.intersectObjects(hung.map((h) => h.hit), false);
+  return raycaster.intersectObjects(hungPickMeshes(), false);
 }
 
 function panelUnderPointer(e) {
   eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
-  const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
-  return panelFromHits(hits, INTERACT_DIST * 1.15);
+  const hits = raycaster.intersectObjects(hungPickMeshes(), false);
+  return panelFromHits(hits, 1.25);
 }
 
 function setInteractTarget(panel) {
@@ -962,7 +980,7 @@ function updateLazyEmbeds() {
   // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
   const armSet = new Set();
   if (hoverPanel) armSet.add(hoverPanel);
-  const facing = facingPanelWithin(INTERACT_DIST);
+  const facing = facingPanelWithin(1);
   if (facing) armSet.add(facing);
   if (activeCell) armSet.add(activeCell);
   for (const { h, dist } of scored) {
@@ -985,16 +1003,17 @@ function updateLazyEmbeds() {
   }
 
   // Cursor-over-frame wins → center facing → activeCell → nearest.
+  // Arm hover immediately so pointer cursor is not lost on the far wall.
   let best = null;
-  if (hoverPanel && hoverPanel.embedArmed && panelDist(hoverPanel) < INTERACT_DIST * 1.15) {
+  if (hoverPanel && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
     best = hoverPanel;
-  } else if (facing && facing.embedArmed) {
+  } else if (facing) {
     best = facing;
-  } else if (activeCell && activeCell.embedArmed && panelDist(activeCell) < INTERACT_DIST) {
+  } else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
     best = activeCell;
   } else {
     for (const { h, dist } of scored) {
-      if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
+      if (dist <= interactDistFor(h)) { best = h; break; }
     }
   }
   if (!panelPointerLock) setInteractTarget(best);
@@ -1208,15 +1227,38 @@ stage.addEventListener('pointermove', (e) => {
   const next = panelUnderPointer(e);
   if (next !== hoverPanel) {
     hoverPanel = next;
+    if (next) stage.classList.add('panel-hover');
     updateLazyEmbeds();
+  } else if (next) {
+    stage.classList.add('panel-hover');
   }
 }, { passive: true });
-stage.addEventListener('pointerleave', () => {
+stage.addEventListener('pointerleave', (e) => {
+  // Moving onto the armed CSS3D iframe is not "leaving" the panel — keep pointer.
+  const to = e.relatedTarget;
+  if (to && hung.some((h) => h.canInteract && (to === h.iframe || (h.iframe && h.iframe.contains(to))))) {
+    return;
+  }
   if (hoverPanel) {
     hoverPanel = null;
     if (!panelPointerLock) updateLazyEmbeds();
   }
 });
+
+// Keep pointer cursor while the mouse is over an interacting iframe (CSS layer is outside #stage).
+document.addEventListener('pointermove', (e) => {
+  if (overview.on || !entered || panelPointerLock || dragging) return;
+  const t = e.target;
+  const over = hung.find((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
+  if (over) {
+    if (hoverPanel !== over) {
+      hoverPanel = over;
+      updateLazyEmbeds();
+    } else {
+      stage.classList.add('panel-hover');
+    }
+  }
+}, { passive: true, capture: true });
 
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
