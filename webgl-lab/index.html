@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>WebGL Lab · Effects 01–18</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.14); --violet:#8a7bb8; }
+* { box-sizing:border-box }
+body { margin:0; background:var(--ink); color:var(--paper); font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif; }
+header { padding:36px 28px 12px; max-width:1100px; margin:0 auto; }
+header h1 { margin:0 0 8px; font:600 28px/1.2 "IBM Plex Sans",system-ui; letter-spacing:-0.02em; }
+header p { margin:0; color:var(--mute); max-width:62ch; }
+.meta { margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; }
+.pill { border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--mute); }
+.pill strong { color:var(--accent); font-weight:600; }
+grid, .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; padding:20px 28px 48px; max-width:1100px; margin:0 auto; }
+.card { display:flex; flex-direction:column; gap:6px; padding:16px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,0.02); color:inherit; text-decoration:none; transition:border-color .15s, background .15s; min-height:140px; }
+.card:hover { border-color:rgba(240,194,75,.45); background:rgba(240,194,75,.04); }
+.num { font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--violet); }
+.t { font-weight:600; font-size:16px; }
+.d { font-size:12px; color:var(--mute); }
+footer { max-width:1100px; margin:0 auto; padding:0 28px 40px; color:var(--mute); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WebGL Lab · Effects 01–18</h1>
+  <p>Standalone three.js r0.170.0 drills. Not wired into corridor / physics-room panels. Prefer Chrome/Firefox with hardware WebGL2. Caustics &amp; god rays use WebGL fallbacks (not WebGPU compute).</p>
+  <div class="meta">
+    <span class="pill"><strong>three@0.170.0</strong> CDN</span>
+    <span class="pill">Self-contained HTML</span>
+    <span class="pill">Orbit · click · scroll where noted</span>
+  </div>
+</header>
+<div class="grid">
+<a class="card" href="./01-transmission-glass.html"><span class="num">01</span><span class="t">Transmission / refraction glass</span><span class="d">Drag to orbit. Thick glass torus + sphere with MeshPhysicalMaterial transmission, IOR, thickness, and roughness.</span></a>
+<a class="card" href="./02-caustics.html"><span class="num">02</span><span class="t">Realtime caustics (WebGL)</span><span class="d">Animated projected caustic pattern under a refractive blob — WebGL fallback (not WebGPU compute caustics).</span></a>
+<a class="card" href="./03-god-rays.html"><span class="num">03</span><span class="t">Volumetric lighting / god rays</span><span class="d">Occlusion-map radial blur god rays through a window cutout. Pure WebGL post-process (no WebGPU).</span></a>
+<a class="card" href="./04-ssr.html"><span class="num">04</span><span class="t">SSR (screen-space reflections)</span><span class="d">SSRPass over a glossy floor and colored props. Quality depends on screen coverage — edges fade.</span></a>
+<a class="card" href="./05-ssao.html"><span class="num">05</span><span class="t">SSAO</span><span class="d">SSAOPass darkens creases and contact areas. Toggle orbit to see occlusion on stacked boxes.</span></a>
+<a class="card" href="./06-pcss-contact-shadows.html"><span class="num">06</span><span class="t">PCSS soft shadows + contact</span><span class="d">PCF-soft directional shadows plus a screen-space-ish contact shadow plane under each prop.</span></a>
+<a class="card" href="./07-outline-selection.html"><span class="num">07</span><span class="t">Outline / selection pass</span><span class="d">Click any mesh to select it — OutlinePass draws a glowing edge. Empty click clears.</span></a>
+<a class="card" href="./08-stencil-portals.html"><span class="num">08</span><span class="t">Stencil / glass portals</span><span class="d">Two stencil portals: look through the gold frame into a mirrored/shifted room. Classic stencil buffer trick.</span></a>
+<a class="card" href="./09-decals.html"><span class="num">09</span><span class="t">Decals</span><span class="d">Click the mesh to stamp DecalGeometry stickers. Right-click clears. Classic projected decals.</span></a>
+<a class="card" href="./10-hdr-ibl-pmrem.html"><span class="num">10</span><span class="t">HDR IBL / PMREM</span><span class="d">RGBELoader + PMREMGenerator. Orbit a chrome knot under Venice Sunset HDR.</span></a>
+<a class="card" href="./11-matcap.html"><span class="num">11</span><span class="t">MatCap</span><span class="d">MeshMatcapMaterial with porcelain MatCap. Lighting is baked into the sphere lookup — orbit freely.</span></a>
+<a class="card" href="./12-anisotropic-pbr.html"><span class="num">12</span><span class="t">Anisotropic PBR</span><span class="d">MeshPhysicalMaterial anisotropy on brushed-metal discs and a brushed knot. Rotate to see specular stretch.</span></a>
+<a class="card" href="./13-ocean-water.html"><span class="num">13</span><span class="t">Ocean / water shader</span><span class="d">three.js Water addon with normals + sun reflection. Drag to orbit; waves animate continuously.</span></a>
+<a class="card" href="./14-instanced-mesh.html"><span class="num">14</span><span class="t">GPU InstancedMesh</span><span class="d">4000 instanced boxes with per-instance color + matrix. One draw call — orbit to appreciate density.</span></a>
+<a class="card" href="./15-lut-color-grade.html"><span class="num">15</span><span class="t">3D LUT color grade</span><span class="d">LUTPass with Bourbon 64.CUBE. Press 1–4 to switch looks (identity / bourbon / cinematic / bleach).</span></a>
+<a class="card" href="./16-morph-targets.html"><span class="num">16</span><span class="t">Morph targets / blend shapes</span><span class="d">Procedural sphere with two morph targets (spike + squash). Sliders drive blend weights.</span></a>
+<a class="card" href="./17-fat-ribbons.html"><span class="num">17</span><span class="t">Fat / MeshLine ribbons</span><span class="d">Line2 fat screen-space ribbons (three/addons/lines). Multiple colored trails weave in space.</span></a>
+<a class="card" href="./18-scroll-camera-dolly.html"><span class="num">18</span><span class="t">Scroll / path-driven camera dolly</span><span class="d">Scroll the page to dolly the camera along a CatmullRom path through floating props. Wheel / trackpad.</span></a>
+</div>
+<footer>
+  Path: <code>webgl-lab/</code> · Noctuary corridor Pages · WebGPU-only caveats: none required — effect 02 is a WebGL projected-caustic fallback (true particle/spectral caustics would need WebGPU/compute).
+</footer>
+</body>
+</html>

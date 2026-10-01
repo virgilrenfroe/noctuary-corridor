@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>08 · Stencil / glass portals · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 08 Stencil / glass portals</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Stencil / glass portals.</b> Gold &amp; coral frames — stencil-clipped alternate rooms. Orbit to verify edges clip cleanly.</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.autoClear = false;
+document.body.prepend(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 1.5, 5.2);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0,1.2,0);
+
+const mainScene = new THREE.Scene();
+mainScene.background = new THREE.Color(0x0c0e14);
+mainScene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(3,5,2); mainScene.add(sun);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(8,64), new THREE.MeshStandardMaterial({color:0x1a1e28, roughness:0.9}));
+floor.rotation.x = -Math.PI/2; mainScene.add(floor);
+mainScene.add(new THREE.GridHelper(12, 24, 0x4a6080, 0x2a3040));
+
+function frameGroup(w,h,thick,depth,hex) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: hex });
+  const bits = [
+    [w+thick*2, thick, depth, 0, (h+thick)/2, 0],
+    [w+thick*2, thick, depth, 0, -(h+thick)/2, 0],
+    [thick, h, depth, -(w+thick)/2, 0, 0],
+    [thick, h, depth, (w+thick)/2, 0, 0],
+  ];
+  for (const [bw,bh,bd,x,y,z] of bits) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), mat);
+    m.position.set(x,y,z); g.add(m);
+  }
+  return g;
+}
+
+function makeWorld(bg, panelColor, orbColor) {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color(bg);
+  s.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const l = new THREE.DirectionalLight(0xffffff, 1.4); l.position.set(1,2,2); s.add(l);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(5,5), new THREE.MeshStandardMaterial({color:panelColor, roughness:0.8}));
+  panel.position.set(0,0,-2); s.add(panel);
+  const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5,1), new THREE.MeshStandardMaterial({color:orbColor, metalness:0.35, roughness:0.3}));
+  orb.position.set(0,0,-1); s.add(orb);
+  const torus = new THREE.Mesh(new THREE.TorusKnotGeometry(0.35,0.1,80,16), new THREE.MeshStandardMaterial({color:0xf0c24b, metalness:0.6, roughness:0.25}));
+  torus.position.set(0.7,-0.2,-1.1); s.add(torus);
+  return { scene:s, orb, torus };
+}
+
+const W=1.5, H=2.1;
+const portals = [
+  {
+    id:1,
+    plane: new THREE.Mesh(new THREE.PlaneGeometry(W,H), new THREE.MeshBasicMaterial({colorWrite:false})),
+    frame: frameGroup(W,H,0.12,0.14,0xf0c24b),
+    world: makeWorld(0x0a2838, 0x154050, 0x5ec8c0),
+  },
+  {
+    id:2,
+    plane: new THREE.Mesh(new THREE.PlaneGeometry(W,H), new THREE.MeshBasicMaterial({colorWrite:false})),
+    frame: frameGroup(W,H,0.12,0.14,0xe07060),
+    world: makeWorld(0x281030, 0x502040, 0x8a7bb8),
+  },
+];
+portals[0].plane.position.set(-1.75, 1.25, 0); portals[0].plane.rotation.y = 0.4;
+portals[1].plane.position.set(1.75, 1.25, 0); portals[1].plane.rotation.y = -0.4;
+for (const p of portals) {
+  p.frame.position.copy(p.plane.position);
+  p.frame.rotation.copy(p.plane.rotation);
+  mainScene.add(p.frame);
+}
+
+const maskScene = new THREE.Scene();
+
+function renderPortal(p) {
+  const gl = renderer.getContext();
+  const st = renderer.state;
+
+  // stencil mask
+  maskScene.clear();
+  maskScene.add(p.plane);
+  st.buffers.depth.setTest(true);
+  st.buffers.stencil.setTest(true);
+  st.buffers.stencil.setFunc(gl.ALWAYS, 1, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  st.buffers.stencil.setMask(0xff);
+  st.buffers.color.setMask(false);
+  st.buffers.depth.setMask(false);
+  renderer.render(maskScene, camera);
+  maskScene.remove(p.plane);
+  st.buffers.color.setMask(true);
+  st.buffers.depth.setMask(true);
+
+  // world clipped to stencil
+  p.world.scene.position.copy(p.plane.position);
+  p.world.scene.rotation.copy(p.plane.rotation);
+  st.buffers.stencil.setFunc(gl.EQUAL, 1, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.KEEP);
+  renderer.clearDepth();
+  renderer.render(p.world.scene, camera);
+
+  // cleanup stencil
+  st.buffers.stencil.setFunc(gl.ALWAYS, 0, 0xff);
+  st.buffers.stencil.setOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+  st.buffers.color.setMask(false);
+  st.buffers.depth.setMask(false);
+  maskScene.add(p.plane);
+  renderer.render(maskScene, camera);
+  maskScene.remove(p.plane);
+  st.buffers.color.setMask(true);
+  st.buffers.depth.setMask(true);
+  st.buffers.stencil.setTest(false);
+
+  p.world.scene.position.set(0,0,0);
+  p.world.scene.rotation.set(0,0,0);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+(function tick(){
+  requestAnimationFrame(tick);
+  const t = performance.now()*0.001;
+  for (const p of portals) {
+    p.world.orb.rotation.y = t;
+    p.world.torus.rotation.x = t*0.8;
+    p.world.orb.position.y = Math.sin(t + p.id)*0.25;
+  }
+  controls.update();
+  renderer.clear(true, true, true);
+  renderer.render(mainScene, camera);
+  for (const p of portals) renderPortal(p);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>09 · Decals · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 09 Decals</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Decals.</b> Click the mesh to stamp DecalGeometry stickers. Right-click clears. Classic projected decals.</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+
+const renderer = makeRenderer();
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101218);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 0.5, 4);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const target = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 64, 64),
+  new THREE.MeshStandardMaterial({ color:0x3a4258, roughness:0.55, metalness:0.2 })
+);
+scene.add(target);
+
+const decals = [];
+const decalMat = new THREE.MeshStandardMaterial({
+  color: 0xf0c24b, transparent: true, depthTest: true, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -4, opacity: 0.95, roughness: 0.6, metalness: 0.1
+});
+const colors = [0xf0c24b, 0xe07060, 0x5ec8c0, 0x8a7bb8, 0xffffff];
+
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const mouseHelper = new THREE.Object3D();
+
+function stamp(intersect) {
+  const n = intersect.face.normal.clone();
+  n.transformDirection(target.matrixWorld);
+  n.multiplyScalar(10); n.add(intersect.point);
+  mouseHelper.position.copy(intersect.point);
+  mouseHelper.lookAt(n);
+  const size = 0.25 + Math.random()*0.25;
+  const m = new THREE.Mesh(
+    new DecalGeometry(target, intersect.point, mouseHelper.rotation, new THREE.Vector3(size,size,size)),
+    decalMat.clone()
+  );
+  m.material.color.setHex(colors[Math.floor(Math.random()*colors.length)]);
+  scene.add(m); decals.push(m);
+}
+
+addEventListener('pointerdown', (e) => {
+  if (e.button === 2) {
+    decals.forEach(d => { scene.remove(d); d.geometry.dispose(); }); decals.length=0; return;
+  }
+  ptr.x=(e.clientX/innerWidth)*2-1; ptr.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObject(target);
+  if (hits.length) stamp(hits[0]);
+});
+addEventListener('contextmenu', e => e.preventDefault());
+
+scene.add(new THREE.AmbientLight(0xffffff,0.5));
+const d = new THREE.DirectionalLight(0xffffff,1.6); d.position.set(3,4,2); scene.add(d);
+onResize(camera, renderer);
+(function tick(){ requestAnimationFrame(tick); target.rotation.y+=0.003; controls.update(); renderer.render(scene,camera); })();
+
+</script>
+</body>
+</html>

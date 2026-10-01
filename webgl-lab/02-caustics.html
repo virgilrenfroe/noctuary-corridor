@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>02 · Realtime caustics (WebGL) · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 02 Realtime caustics (WebGL)</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Realtime caustics (WebGL).</b> Animated projected caustic pattern under a refractive blob — WebGL fallback (not WebGPU compute caustics).</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+const renderer = makeRenderer();
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0c1420);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(2.8, 2.4, 3.4);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0, 0.2, 0);
+
+// Procedural caustic texture
+const cSize = 256;
+const cCanvas = document.createElement('canvas'); cCanvas.width=cSize; cCanvas.height=cSize;
+const ctx = cCanvas.getContext('2d');
+const cTex = new THREE.CanvasTexture(cCanvas);
+cTex.wrapS = cTex.wrapT = THREE.RepeatWrapping;
+cTex.colorSpace = THREE.SRGBColorSpace;
+
+function paintCaustics(t) {
+  const img = ctx.createImageData(cSize, cSize);
+  const d = img.data;
+  for (let y=0;y<cSize;y++) for (let x=0;x<cSize;x++) {
+    const u=x/cSize, v=y/cSize;
+    const a = Math.sin(u*18 + Math.cos(v*14+t)*2 + t*1.3);
+    const b = Math.sin(v*16 + Math.sin(u*12-t)*2 - t*0.9);
+    const c = Math.sin((u+v)*22 + t*0.7);
+    let w = Math.max(0, a*b*c);
+    w = Math.pow(w, 2.2);
+    const i=(y*cSize+x)*4;
+    const vcol = Math.min(255, 40 + w*420);
+    d[i]=vcol*0.55; d[i+1]=vcol*0.85; d[i+2]=255; d[i+3]=255;
+  }
+  ctx.putImageData(img,0,0); cTex.needsUpdate = true;
+}
+
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x1a3048, roughness: 0.35, metalness: 0.05,
+  map: cTex, emissiveMap: cTex, emissive: new THREE.Color(0x3aa0ff), emissiveIntensity: 0.55
+});
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(6,6), floorMat);
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+
+const glass = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(0.55, 2),
+  new THREE.MeshPhysicalMaterial({ color:0xb8e8ff, transmission:0.92, thickness:1.5, roughness:0.08, metalness:0, ior:1.45, transparent:true })
+);
+glass.position.y = 0.85; glass.castShadow = true; scene.add(glass);
+
+const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+sun.position.set(2, 6, 1); sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024); scene.add(sun);
+scene.add(new THREE.AmbientLight(0x334466, 0.5));
+
+onResize(camera, renderer);
+let t0 = performance.now();
+(function tick(){
+  requestAnimationFrame(tick);
+  const t = (performance.now()-t0)*0.001;
+  paintCaustics(t);
+  cTex.offset.set(Math.sin(t*0.2)*0.05, Math.cos(t*0.15)*0.05);
+  glass.rotation.y = t*0.35; glass.position.y = 0.85 + Math.sin(t)*0.08;
+  controls.update(); renderer.render(scene, camera);
+})();
+
+</script>
+</body>
+</html>

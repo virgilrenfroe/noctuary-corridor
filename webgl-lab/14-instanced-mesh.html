@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>14 · GPU InstancedMesh · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 14 GPU InstancedMesh</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>GPU InstancedMesh.</b> 4000 instanced boxes with per-instance color + matrix. One draw call — orbit to appreciate density.</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+const renderer = makeRenderer();
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x08090e);
+scene.fog = new THREE.Fog(0x08090e, 20, 80);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(18, 14, 22);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const COUNT = 4000;
+const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const mat = new THREE.MeshStandardMaterial({ roughness:0.4, metalness:0.3 });
+const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
+mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+const dummy = new THREE.Object3D();
+const color = new THREE.Color();
+for (let i=0;i<COUNT;i++) {
+  dummy.position.set((Math.random()-0.5)*40, Math.random()*12, (Math.random()-0.5)*40);
+  dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+  const s = 0.4 + Math.random()*1.6; dummy.scale.setScalar(s);
+  dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
+  color.setHSL(0.08 + Math.random()*0.15, 0.7, 0.45 + Math.random()*0.25);
+  mesh.setColorAt(i, color);
+}
+scene.add(mesh);
+scene.add(new THREE.AmbientLight(0x445566, 0.6));
+const d = new THREE.DirectionalLight(0xffe0b0, 2); d.position.set(10,20,8); scene.add(d);
+
+onResize(camera, renderer);
+(function tick(){
+  requestAnimationFrame(tick);
+  const t = performance.now()*0.001;
+  for (let i=0;i<COUNT;i+=7) {
+    mesh.getMatrixAt(i, dummy.matrix); dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+    dummy.rotation.y += 0.02; dummy.position.y += Math.sin(t + i)*0.01;
+    dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  controls.update(); renderer.render(scene, camera);
+})();
+
+</script>
+</body>
+</html>

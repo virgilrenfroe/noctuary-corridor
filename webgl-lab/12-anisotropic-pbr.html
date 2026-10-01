@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>12 · Anisotropic PBR · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 12 Anisotropic PBR</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Anisotropic PBR.</b> MeshPhysicalMaterial anisotropy on brushed-metal discs and a brushed knot. Rotate to see specular stretch.</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+const renderer = makeRenderer();
+renderer.toneMappingExposure = 1.1;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101218);
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 2.2, 4.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0,0.3,0);
+
+scene.environment = null;
+const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.6); scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 2.5); key.position.set(3,5,2); scene.add(key);
+const fill = new THREE.PointLight(0x88aaff, 30, 20); fill.position.set(-3,2,2); scene.add(fill);
+
+function brushed(aniso=1, rot=0, color=0xc0c6d0) {
+  return new THREE.MeshPhysicalMaterial({
+    color, metalness:1, roughness:0.35,
+    anisotropy: aniso, anisotropyRotation: rot,
+  });
+}
+
+const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,0.12,64), brushed(1, 0, 0xd8dde8));
+disc.position.y=0.06; scene.add(disc);
+const disc2 = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,0.1,64), brushed(1, Math.PI/4, 0xf0c24b));
+disc2.position.set(-1.8,0.05,0.3); scene.add(disc2);
+const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.45,0.14,160,32), brushed(0.9, 0.5, 0x8a9bb0));
+knot.position.set(1.6,0.7,0); scene.add(knot);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(12,12), new THREE.MeshStandardMaterial({color:0x1a1e28, roughness:0.9}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-0.001; scene.add(floor);
+
+onResize(camera, renderer);
+(function tick(){
+  requestAnimationFrame(tick);
+  const t=performance.now()*0.001;
+  knot.rotation.y=t*0.4; disc.material.anisotropyRotation = t*0.25;
+  controls.update(); renderer.render(scene,camera);
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>13 · Ocean / water shader · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 13 Ocean / water shader</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Ocean / water shader.</b> three.js Water addon with normals + sun reflection. Drag to orbit; waves animate continuously.</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+import { Water } from 'three/addons/objects/Water.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+
+const renderer = makeRenderer();
+renderer.toneMappingExposure = 0.55;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.5, 20000);
+camera.position.set(30, 20, 60);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495; controls.target.set(0,0,0);
+
+const sun = new THREE.Vector3();
+const water = new Water(new THREE.PlaneGeometry(10000,10000), {
+  textureWidth: 512, textureHeight: 512,
+  waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', (t)=>{ t.wrapS=t.wrapT=THREE.RepeatWrapping; }),
+  sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x001e0f,
+  distortionScale: 3.7, fog: false
+});
+water.rotation.x = -Math.PI/2; scene.add(water);
+
+const sky = new Sky(); sky.scale.setScalar(10000); scene.add(sky);
+const skyUniforms = sky.material.uniforms;
+skyUniforms['turbidity'].value = 8;
+skyUniforms['rayleigh'].value = 2;
+skyUniforms['mieCoefficient'].value = 0.005;
+skyUniforms['mieDirectionalG'].value = 0.8;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const sceneEnv = new THREE.Scene();
+let renderTarget;
+
+function updateSun(elevation=3, azimuth=180) {
+  const phi = THREE.MathUtils.degToRad(90 - elevation);
+  const theta = THREE.MathUtils.degToRad(azimuth);
+  sun.setFromSphericalCoords(1, phi, theta);
+  sky.material.uniforms['sunPosition'].value.copy(sun);
+  water.material.uniforms['sunDirection'].value.copy(sun).normalize();
+  if (renderTarget) renderTarget.dispose();
+  sceneEnv.add(sky);
+  renderTarget = pmrem.fromScene(sceneEnv);
+  scene.add(sky);
+  scene.environment = renderTarget.texture;
+}
+updateSun();
+
+const buoy = new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,4,16), new THREE.MeshStandardMaterial({color:0xe07060, roughness:0.5}));
+buoy.position.y = 1; scene.add(buoy);
+
+onResize(camera, renderer);
+(function tick(){
+  requestAnimationFrame(tick);
+  water.material.uniforms['time'].value += 1.0/60.0;
+  buoy.position.y = 1 + Math.sin(performance.now()*0.002)*0.4;
+  buoy.rotation.z = Math.sin(performance.now()*0.001)*0.08;
+  controls.update(); renderer.render(scene, camera);
+})();
+
+</script>
+</body>
+</html>

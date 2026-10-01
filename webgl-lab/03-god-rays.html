@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>03 · Volumetric lighting / god rays · WebGL Lab</title>
+<style>
+:root { --ink:#0a0b10; --paper:#e8e2d6; --mute:rgba(232,226,214,.55); --accent:#f0c24b; --line:rgba(232,226,214,.16); }
+*{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--ink);color:var(--paper);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.brand a{color:inherit;text-decoration:none}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note b{color:var(--accent);font-weight:600}
+.error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+</style>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.170.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 03 Volumetric lighting / god rays</div>
+    <div class="pill">three@0.170.0</div>
+  </div>
+  <div class="note"><b>Volumetric lighting / god rays.</b> Occlusion-map radial blur god rays through a window cutout. Pure WebGL post-process (no WebGPU).</div>
+</div>
+<div class="error" id="err"></div>
+<script type="module">
+
+const err = document.getElementById('err');
+window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
+window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function makeRenderer(opts={}) {
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.setSize(innerWidth, innerHeight);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.0;
+  document.body.prepend(r.domElement);
+  return r;
+}
+function onResize(camera, renderer, composer=null) {
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    if (composer) composer.setSize(innerWidth, innerHeight);
+  });
+}
+
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const renderer = makeRenderer();
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x020308);
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 1.2, 4.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0,1.1,0);
+
+// Room
+const room = new THREE.Mesh(new THREE.BoxGeometry(8,4,8), new THREE.MeshStandardMaterial({color:0x151820, side:THREE.BackSide, roughness:1}));
+scene.add(room);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(8,8), new THREE.MeshStandardMaterial({color:0x1c2030, roughness:0.8}));
+floor.rotation.x=-Math.PI/2; scene.add(floor);
+
+// Window wall with hole (bright emissive panel behind)
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(8,4), new THREE.MeshStandardMaterial({color:0x12151e, roughness:1}));
+wall.position.set(0,2,-3.95); scene.add(wall);
+const lightPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.2), new THREE.MeshBasicMaterial({color:0xfff2cc}));
+lightPanel.position.set(0, 1.8, -3.9); scene.add(lightPanel);
+// bars
+for (let i=-2;i<=2;i++) {
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,0.08), new THREE.MeshStandardMaterial({color:0x0a0a0e}));
+  bar.position.set(i*0.35, 1.8, -3.85); scene.add(bar);
+}
+
+const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.3,2.4,16), new THREE.MeshStandardMaterial({color:0x2a3040, roughness:0.6}));
+pillar.position.set(-1.2,1.2,0.5); scene.add(pillar);
+const statue = new THREE.Mesh(new THREE.TorusKnotGeometry(0.35,0.12,100,16), new THREE.MeshStandardMaterial({color:0x8a7bb8, roughness:0.35, metalness:0.4}));
+statue.position.set(1.1,1.1,0.2); scene.add(statue);
+
+scene.add(new THREE.AmbientLight(0x334455, 0.25));
+const key = new THREE.DirectionalLight(0xffe6b0, 1.2); key.position.set(0,3,-2); scene.add(key);
+
+// God rays shader
+const GodRaysShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    lightPosition: { value: new THREE.Vector2(0.5, 0.62) },
+    exposure: { value: 0.35 },
+    decay: { value: 0.95 },
+    density: { value: 0.9 },
+    weight: { value: 0.4 },
+    samples: { value: 50 }
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 lightPosition;
+    uniform float exposure, decay, density, weight; uniform int samples;
+    varying vec2 vUv;
+    void main(){
+      vec2 texCoord = vUv;
+      vec2 delta = texCoord - lightPosition;
+      delta *= 1.0 / float(samples) * density;
+      vec4 color = texture2D(tDiffuse, texCoord);
+      float illuminationDecay = 1.0;
+      for(int i=0;i<100;i++){
+        if(i>=samples) break;
+        texCoord -= delta;
+        vec4 s = texture2D(tDiffuse, texCoord);
+        s *= illuminationDecay * weight;
+        color += s;
+        illuminationDecay *= decay;
+      }
+      gl_FragColor = color * exposure;
+    }`
+};
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const god = new ShaderPass(GodRaysShader);
+composer.addPass(god);
+composer.addPass(new OutputPass());
+
+onResize(camera, renderer, composer);
+(function tick(){
+  requestAnimationFrame(tick);
+  // project light panel to NDC for ray origin
+  const sp = lightPanel.position.clone().project(camera);
+  god.uniforms.lightPosition.value.set(sp.x*0.5+0.5, sp.y*0.5+0.5);
+  statue.rotation.y += 0.005;
+  controls.update(); composer.render();
+})();
+
+</script>
+</body>
+</html>
