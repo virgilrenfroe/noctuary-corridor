@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#d8d2c6" />
+<meta name="description" content="Tap to toss a bouncing sphere — gravity & restitution, live in the browser. From Noctuary corridor." />
+<meta property="og:title" content="Noctuary — Gravity & bounce" />
+<meta property="og:description" content="Tap to toss. g = −9.82 with restitution. One playable physics demo from the corridor." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://virgilrenfroe.github.io/noctuary-corridor/physics-x.html" />
+<meta property="og:image" content="https://virgilrenfroe.github.io/noctuary-corridor/app-shots/noctuary.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Noctuary — Gravity & bounce" />
+<meta name="twitter:description" content="Tap to toss a bouncing sphere. Live physics, no install." />
+<meta name="twitter:image" content="https://virgilrenfroe.github.io/noctuary-corridor/app-shots/noctuary.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Noctuary — Gravity & bounce</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #12151c;
+    --paper: #f7f1e6;
+    --mute: rgba(18,21,28,0.55);
+    --accent: #f0c24b;
+    --bg: #d8d2c6;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: var(--font-sans);
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .chrome {
+    position: fixed; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: calc(12px + var(--safe-top)) 14px calc(14px + var(--safe-bot));
+    pointer-events: none;
+  }
+  .top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  }
+  .label {
+    max-width: min(78%, 280px);
+    padding: 10px 12px; border-radius: 14px;
+    border: 1px solid rgba(18,21,28,0.12);
+    background: rgba(247,241,230,0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .label .tag {
+    margin: 0 0 3px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(18,21,28,0.5);
+  }
+  .label h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.2rem, 5.2vw, 1.55rem); letter-spacing: -0.03em; line-height: 1.05;
+  }
+  .label p {
+    margin: 5px 0 0; font-size: 11px; line-height: 1.35; color: var(--mute);
+  }
+  .room {
+    pointer-events: auto;
+    flex-shrink: 0;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; text-decoration: none; color: var(--ink);
+    padding: 10px 12px; border-radius: 999px;
+    border: 1px solid rgba(18,21,28,0.14);
+    background: rgba(247,241,230,0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .room:active { transform: scale(0.97); }
+  .bottom {
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  }
+  .tap {
+    pointer-events: auto;
+    appearance: none; border: 0; cursor: pointer;
+    width: 100%; min-height: 56px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(1.05rem, 4.5vw, 1.25rem);
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    background: linear-gradient(180deg, #f5e6a8 0%, var(--accent) 100%);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.55) inset,
+      0 8px 22px rgba(18,21,28,0.14);
+    touch-action: manipulation;
+  }
+  .tap:active { transform: scale(0.985); }
+  .foot {
+    text-align: center;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(18,21,28,0.48);
+  }
+  body.still .tap { opacity: 0.55; }
+</style>
+</head>
+<body>
+  <div class="chrome">
+    <div class="top">
+      <div class="label">
+        <p class="tag">Noctuary · rigid body</p>
+        <h1>Gravity & bounce</h1>
+        <p>g = −9.82 · restitution on contact</p>
+      </div>
+      <a class="room" href="./spatial-drill-physics-room.html">Full room →</a>
+    </div>
+    <div class="bottom">
+      <button type="button" class="tap" id="tap" aria-label="Tap to toss the ball">Tap to toss</button>
+      <div class="foot">Or tap anywhere · no WASD</div>
+    </div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (still) document.body.classList.add('still');
+
+const BG = 0xd8d2c6;
+const ACCENT = 0xf0c24b;
+const VIOLET = 0x8a7bb8;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setClearColor(BG, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(BG, 7, 18);
+const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 40);
+camera.position.set(0, 1.7, 4.6);
+camera.lookAt(0, 0.85, 0);
+
+scene.add(new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.15));
+const key = new THREE.DirectionalLight(0xfff8ee, 1.05);
+key.position.set(3.2, 6.5, 3.5);
+scene.add(key);
+const fill = new THREE.PointLight(VIOLET, 11, 16);
+fill.position.set(-2.2, 2.1, 1.8);
+scene.add(fill);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(12, 9),
+  new THREE.MeshStandardMaterial({ color: 0xcfc7b8, roughness: 0.82, metalness: 0.04 })
+);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+const back = new THREE.Mesh(
+  new THREE.PlaneGeometry(12, 7),
+  new THREE.MeshStandardMaterial({ color: 0xbdb5a8, roughness: 0.92, metalness: 0.02 })
+);
+back.position.set(0, 2.9, -2.8);
+scene.add(back);
+
+function resize() {
+  const w = innerWidth;
+  const h = innerHeight;
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+addEventListener('resize', resize);
+resize();
+
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, still ? 0 : -9.82, 0) });
+world.allowSleep = true;
+world.defaultContactMaterial.friction = 0.35;
+world.defaultContactMaterial.restitution = 0.72;
+
+const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(groundBody);
+
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.32, 28, 20),
+  new THREE.MeshStandardMaterial({ color: ACCENT, roughness: 0.28, metalness: 0.08 })
+);
+scene.add(ball);
+const body = new CANNON.Body({
+  mass: 1.2,
+  shape: new CANNON.Sphere(0.32),
+  position: new CANNON.Vec3(0, 2.5, 0),
+  linearDamping: 0.05,
+  angularDamping: 0.08,
+});
+world.addBody(body);
+
+const shadow = new THREE.Mesh(
+  new THREE.CircleGeometry(0.36, 24),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 })
+);
+shadow.rotation.x = -Math.PI / 2;
+shadow.position.y = 0.01;
+scene.add(shadow);
+
+function toss() {
+  if (still) return;
+  body.wakeUp();
+  body.velocity.set((Math.random() - 0.5) * 3.6, 4.4 + Math.random() * 1.4, (Math.random() - 0.5) * 1.1);
+  body.angularVelocity.set(Math.random() * 4, Math.random() * 2, Math.random() * 4);
+  body.position.y = Math.max(body.position.y, 1.35);
+}
+
+const tapBtn = document.getElementById('tap');
+tapBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  toss();
+});
+
+addEventListener('pointerdown', (e) => {
+  if (e.target.closest('a, button')) return;
+  toss();
+});
+
+const clock = new THREE.Clock();
+function frame() {
+  const t = clock.elapsedTime;
+  if (!still) world.fixedStep();
+  ball.position.copy(body.position);
+  ball.quaternion.copy(body.quaternion);
+  shadow.position.x = body.position.x;
+  shadow.position.z = body.position.z;
+  shadow.scale.setScalar(1.1 - Math.min(0.55, body.position.y * 0.18));
+  key.intensity = 1.0 + Math.sin(t * 0.6) * 0.05;
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// Auto-nudge once so phone visitors see motion without hunting for the button
+if (!still) setTimeout(toss, 500);
+</script>
+</body>
+</html>
