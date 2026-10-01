@@ -222,8 +222,11 @@ const ROWS = 4;
 const CELL_W = OUTER_W / COLS;
 const CELL_D = OUTER_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 3;
-const INTERACT_DIST = 4.2;
+const MAX_ARMED = 8;
+const ARM_DIST = 12;
+const INTERACT_DIST = 5.8;
+/** Foyer spawn: just inside +Z wall, clear of hung frames, looking down −Z into the grid */
+const SPAWN = { x: 0, y: EYE, z: OUTER_D / 2 - 1.05, yaw: 0, pitch: -0.04 };
 
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1' },
@@ -270,9 +273,9 @@ scene.background = new THREE.Color(0xcfc8ba);
 const cssScene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
-const yaw = { value: 0 };
-const pitch = { value: -0.04 };
-const pos = new THREE.Vector3(0, EYE, OUTER_D / 2 - 1.8);
+const yaw = { value: SPAWN.yaw };
+const pitch = { value: SPAWN.pitch };
+const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
 
 scene.add(new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.2));
 const key = new THREE.DirectionalLight(0xfff6e8, 1.2);
@@ -354,9 +357,12 @@ for (let i = 0; i < CELLS.length; i++) {
   wire.position.set(cx, OUTER_H / 2, cz);
   debugGroup.add(wire);
 
+  // Hang toward the −Z half of the cell so the +Z face stays a walk aisle
+  const panelZ = cz - CELL_D * 0.22;
+
   // Hung frame + CSS3D iframe (faces entrance / +Z)
   const group = new THREE.Group();
-  group.position.set(cx, PANEL_Y, cz);
+  group.position.set(cx, PANEL_Y, panelZ);
   // Face +Z so visitors entering from +Z see the front
   group.rotation.y = 0;
 
@@ -398,16 +404,16 @@ for (let i = 0; i < CELLS.length; i++) {
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
-  cssObj.position.set(cx, PANEL_Y, cz + 0.045);
+  cssObj.position.set(cx, PANEL_Y, panelZ + 0.045);
   cssObj.rotation.y = 0;
   cssScene.add(cssObj);
 
   const spot = new THREE.PointLight(0xfff6e8, 4.5, CELL_W * 1.4);
-  spot.position.set(cx, OUTER_H - 0.6, cz + 0.8);
+  spot.position.set(cx, OUTER_H - 0.6, panelZ + 0.9);
   scene.add(spot);
 
   hung.push({
-    meta, col, row, cx, cz,
+    meta, col, row, cx, cz, panelZ,
     aabb: { minX, maxX, minZ, maxZ },
     group, hit, cssObj, iframe, spot,
     embedArmed: false,
@@ -446,31 +452,43 @@ function updateActiveCell() {
   else chip.classList.remove('show');
 }
 
-function updateLazyEmbeds() {
-  const scored = hung.map((h) => ({
-    h,
-    dist: Math.hypot(pos.x - h.cx, pos.z - h.cz),
-  })).sort((a, b) => a.dist - b.dist);
+function panelDist(h) {
+  return Math.hypot(pos.x - h.cx, pos.z - h.panelZ);
+}
 
+function updateLazyEmbeds() {
+  if (overviewOn) return;
+
+  const scored = hung.map((h) => ({ h, dist: panelDist(h) }))
+    .sort((a, b) => a.dist - b.dist);
+
+  // Arm nearest panels within ARM_DIST (raise count so back/side cells load)
   scored.forEach(({ h, dist }, i) => {
-    const want = dist < 8.5 && i < MAX_ARMED;
-    const interact = want && dist < INTERACT_DIST;
-    h.canInteract = interact;
-    h.iframe.style.pointerEvents = interact ? 'auto' : 'none';
+    const want = dist < ARM_DIST && i < MAX_ARMED;
     if (want && !h.embedArmed) {
       h.iframe.src = h.embedUrl;
       h.iframe.style.opacity = '1';
       h.embedArmed = true;
-    } else if (!want && h.embedArmed) {
+    } else if (!want && h.embedArmed && !panelPointerLock) {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;
-      h.canInteract = false;
-      h.iframe.style.pointerEvents = 'none';
     }
-    // Dim unarmed frames — still visible as dark panes so the hang reads
+    h.canInteract = false;
+    h.iframe.style.pointerEvents = 'none';
     h.group.visible = true;
   });
+
+  // Exactly one interactive panel: nearest armed within INTERACT_DIST
+  let best = null;
+  for (const { h, dist } of scored) {
+    if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
+  }
+  if (best) {
+    best.canInteract = true;
+    best.iframe.style.pointerEvents = 'auto';
+  } else {
+  }
 }
 
 // —— Controls ——
@@ -486,7 +504,16 @@ const gate = document.getElementById('gate');
 const btnEnter = document.getElementById('btn-enter');
 let entered = reduceMotion || params.has('still');
 if (entered) gate.classList.add('hide');
-btnEnter.addEventListener('click', () => { entered = true; gate.classList.add('hide'); });
+btnEnter.addEventListener('click', () => {
+  entered = true;
+  gate.classList.add('hide');
+  pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
+  yaw.value = SPAWN.yaw;
+  pitch.value = SPAWN.pitch;
+  velocity.set(0, 0, 0);
+  updateActiveCell();
+  updateLazyEmbeds();
+});
 
 let debugOn = params.has('debug');
 function setDebug(on) {
@@ -498,6 +525,7 @@ setDebug(debugOn);
 document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
 
 // —— Overview / walk camera ——
+let overviewOn = false;
 const WALK_FOV = 48;
 const OVERVIEW_FOV = 58;
 const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.35, 0);
@@ -568,13 +596,17 @@ function setOverview(on) {
     camera.fov = OVERVIEW_FOV;
     camera.updateProjectionMatrix();
     overview.on = true;
+    overviewOn = true;
   } else {
     overview.on = false;
+    overviewOn = false;
     pos.copy(walkSnapshot.pos);
     yaw.value = walkSnapshot.yaw;
     pitch.value = walkSnapshot.pitch;
     camera.fov = WALK_FOV;
     camera.updateProjectionMatrix();
+    updateActiveCell();
+    updateLazyEmbeds();
   }
   document.getElementById('btn-overview').classList.toggle('on', overview.on);
   document.body.classList.toggle('overview', overview.on);
@@ -596,8 +628,10 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
   if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
   if (e.code === 'KeyR') {
-    pos.set(0, EYE, OUTER_D / 2 - 1.8);
-    yaw.value = 0; pitch.value = -0.04; velocity.set(0, 0, 0);
+    pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
+    yaw.value = SPAWN.yaw; pitch.value = SPAWN.pitch; velocity.set(0, 0, 0);
+    updateActiveCell();
+    updateLazyEmbeds();
   }
 });
 document.addEventListener('keyup', (e) => {
@@ -662,9 +696,21 @@ stage.addEventListener('pointerdown', (e) => {
     if (hits.length) {
       const idx = hits[0].object.userData.cellIndex;
       const panel = hung[idx];
-      if (panel && panel.canInteract) {
-        panelPointerLock = true;
+      const dist = panel ? panelDist(panel) : Infinity;
+      if (panel && dist < INTERACT_DIST) {
+        // Ensure this panel is armed and is the sole interactive target
+        if (!panel.embedArmed) {
+          panel.iframe.src = panel.embedUrl;
+          panel.iframe.style.opacity = '1';
+          panel.embedArmed = true;
+        }
+        for (const h of hung) {
+          h.canInteract = false;
+          h.iframe.style.pointerEvents = 'none';
+        }
+        panel.canInteract = true;
         panel.iframe.style.pointerEvents = 'auto';
+            panelPointerLock = true;
         return;
       }
     }
@@ -750,7 +796,7 @@ function frame() {
     updateLazyEmbeds();
     applyCamera();
   } else if (reduceMotion || params.has('still')) {
-    pos.set(0, EYE + 0.15, OUTER_D / 2 - 2.5);
+    pos.set(SPAWN.x, SPAWN.y + 0.15, SPAWN.z);
     yaw.value = 0; pitch.value = -0.05;
     applyCamera();
   } else {
