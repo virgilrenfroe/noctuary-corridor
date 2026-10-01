@@ -1245,6 +1245,22 @@ mobilePad.addEventListener('pointerup', (e) => {
 });
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
+stage.addEventListener('pointermove', (e) => {
+  if (overview.on || !entered || panelPointerLock || dragging) return;
+  // Don't fight look-drag; only refresh hover when idle
+  const next = panelUnderPointer(e);
+  if (next !== hoverPanel) {
+    hoverPanel = next;
+    updateLazyEmbeds();
+  }
+}, { passive: true });
+stage.addEventListener('pointerleave', () => {
+  if (hoverPanel) {
+    hoverPanel = null;
+    if (!panelPointerLock) updateLazyEmbeds();
+  }
+});
+
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
   if (!overview.on) {
