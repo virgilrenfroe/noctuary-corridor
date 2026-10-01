@@ -229,7 +229,7 @@ const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
 const MAX_ARMED = 8;
 const ARM_DIST = 12;
-const INTERACT_DIST = 5.8;
+const INTERACT_DIST = Math.max(7.5, CELL_D * 1.85);
 /** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
 const SPAWN = {
   x: 0,
@@ -325,6 +325,72 @@ addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
 addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
 addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
 addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
+
+// —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
+// Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
+const WALLPAPER_COUNT = mobileLike ? 700 : 1400;
+const wallpaperGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+const wallpaperMat = new THREE.MeshStandardMaterial({
+  roughness: 0.48,
+  metalness: 0.22,
+  transparent: true,
+  opacity: 0.88,
+});
+const wallpaper = new THREE.InstancedMesh(wallpaperGeo, wallpaperMat, WALLPAPER_COUNT);
+wallpaper.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+wallpaper.frustumCulled = false;
+wallpaper.matrixAutoUpdate = false;
+wallpaper.raycast = () => {}; // never steal clicks / navigation
+const wallpaperDummy = new THREE.Object3D();
+const wallpaperColor = new THREE.Color();
+const wallpaperBase = new Float32Array(WALLPAPER_COUNT * 3);
+const wallpaperPhase = new Float32Array(WALLPAPER_COUNT);
+const wallpaperScale = new Float32Array(WALLPAPER_COUNT);
+const WALL_Z = -OUTER_D / 2 + 0.12; // flush just in front of far wall plane
+for (let i = 0; i < WALLPAPER_COUNT; i++) {
+  const x = (Math.random() - 0.5) * (OUTER_W - 0.6);
+  const y = 0.25 + Math.random() * (OUTER_H - 0.5);
+  const z = WALL_Z + (Math.random() - 0.5) * 0.55;
+  wallpaperBase[i * 3] = x;
+  wallpaperBase[i * 3 + 1] = y;
+  wallpaperBase[i * 3 + 2] = z;
+  wallpaperPhase[i] = Math.random() * Math.PI * 2;
+  const s = 0.35 + Math.random() * 1.35;
+  wallpaperScale[i] = s;
+  wallpaperDummy.position.set(x, y, z);
+  wallpaperDummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * 0.4);
+  wallpaperDummy.scale.setScalar(s);
+  wallpaperDummy.updateMatrix();
+  wallpaper.setMatrixAt(i, wallpaperDummy.matrix);
+  // Warm amber/bronze, dialed so hung panels stay readable
+  wallpaperColor.setHSL(0.07 + Math.random() * 0.1, 0.55 + Math.random() * 0.2, 0.32 + Math.random() * 0.22);
+  wallpaper.setColorAt(i, wallpaperColor);
+}
+wallpaper.instanceMatrix.needsUpdate = true;
+if (wallpaper.instanceColor) wallpaper.instanceColor.needsUpdate = true;
+scene.add(wallpaper);
+scene.add(new THREE.PointLight(0xffe0b0, 18, 22).translateX(0).translateY(OUTER_H * 0.55).translateZ(WALL_Z + 2.2));
+
+function updateWallpaper(t) {
+  if (reduceMotion) return;
+  // Update a stride of instances each frame (same motion aesthetic as lab 14)
+  for (let i = 0; i < WALLPAPER_COUNT; i += 5) {
+    wallpaper.getMatrixAt(i, wallpaperDummy.matrix);
+    wallpaperDummy.matrix.decompose(wallpaperDummy.position, wallpaperDummy.quaternion, wallpaperDummy.scale);
+    wallpaperDummy.rotation.y += 0.018;
+    wallpaperDummy.rotation.x += 0.006;
+    const bx = wallpaperBase[i * 3];
+    const by = wallpaperBase[i * 3 + 1];
+    const bz = wallpaperBase[i * 3 + 2];
+    wallpaperDummy.position.x = bx + Math.sin(t * 0.55 + wallpaperPhase[i]) * 0.06;
+    wallpaperDummy.position.y = by + Math.sin(t + wallpaperPhase[i]) * 0.09;
+    wallpaperDummy.position.z = bz;
+    wallpaperDummy.scale.setScalar(wallpaperScale[i]);
+    wallpaperDummy.updateMatrix();
+    wallpaper.setMatrixAt(i, wallpaperDummy.matrix);
+  }
+  wallpaper.instanceMatrix.needsUpdate = true;
+}
 
 const ceil = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), ceilMat);
 ceil.rotation.x = Math.PI / 2;
@@ -474,15 +540,36 @@ function panelDist(h) {
   return Math.hypot(pos.x - h.cx, pos.z - h.panelZ);
 }
 
+// Raycaster lives above updateLazyEmbeds so facing/interact can use center-screen casts.
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const centerNDC = new THREE.Vector2(0, 0);
+
+function facingPanelWithin(maxDist) {
+  raycaster.setFromCamera(centerNDC, camera);
+  const hits = raycaster.intersectObjects(hung.map((h) => h.hit), false);
+  if (!hits.length) return null;
+  const panel = hung[hits[0].object.userData.cellIndex];
+  if (!panel || panelDist(panel) > maxDist) return null;
+  return panel;
+}
+
 function updateLazyEmbeds() {
   if (overviewOn) return;
 
   const scored = hung.map((h) => ({ h, dist: panelDist(h) }))
     .sort((a, b) => a.dist - b.dist);
 
-  // Arm nearest panels within ARM_DIST (raise count so back/side cells load)
-  scored.forEach(({ h, dist }, i) => {
-    const want = dist < ARM_DIST && i < MAX_ARMED;
+  // Always arm activeCell when inside a zone, plus nearest-N within ARM_DIST.
+  const armSet = new Set();
+  if (activeCell) armSet.add(activeCell);
+  for (const { h, dist } of scored) {
+    if (armSet.size >= MAX_ARMED) break;
+    if (dist < ARM_DIST) armSet.add(h);
+  }
+
+  for (const h of hung) {
+    const want = armSet.has(h);
     if (want && !h.embedArmed) {
       h.iframe.src = h.embedUrl;
       h.iframe.style.opacity = '1';
@@ -495,17 +582,25 @@ function updateLazyEmbeds() {
     h.canInteract = false;
     h.iframe.style.pointerEvents = 'none';
     h.group.visible = true;
-  });
+  }
 
-  // Exactly one interactive panel: nearest armed within INTERACT_DIST
+  // Prefer activeCell → center-screen facing → nearest armed (all within INTERACT_DIST).
   let best = null;
-  for (const { h, dist } of scored) {
-    if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
+  if (activeCell && activeCell.embedArmed && panelDist(activeCell) < INTERACT_DIST) {
+    best = activeCell;
+  } else {
+    const facing = facingPanelWithin(INTERACT_DIST);
+    if (facing && facing.embedArmed) {
+      best = facing;
+    } else {
+      for (const { h, dist } of scored) {
+        if (h.embedArmed && dist < INTERACT_DIST) { best = h; break; }
+      }
+    }
   }
   if (best) {
     best.canInteract = true;
     best.iframe.style.pointerEvents = 'auto';
-  } else {
   }
 }
 
@@ -515,8 +610,6 @@ const velocity = new THREE.Vector3();
 let dragging = false;
 let panelPointerLock = false;
 let lastX = 0, lastY = 0, downX = 0, downY = 0;
-const raycaster = new THREE.Raycaster();
-const pointerNDC = new THREE.Vector2();
 
 const gate = document.getElementById('gate');
 const btnEnter = document.getElementById('btn-enter');
@@ -733,7 +826,14 @@ stage.addEventListener('pointerdown', (e) => {
       const idx = hits[0].object.userData.cellIndex;
       const panel = hung[idx];
       const dist = panel ? panelDist(panel) : Infinity;
-      if (panel && dist < INTERACT_DIST) {
+      const facing = facingPanelWithin(INTERACT_DIST);
+      // activeCell, center-facing, or generous distance — same rules as updateLazyEmbeds
+      const allow = panel && (
+        (panel === activeCell && dist < INTERACT_DIST) ||
+        panel === facing ||
+        dist < INTERACT_DIST
+      );
+      if (allow) {
         // Ensure this panel is armed and is the sole interactive target
         if (!panel.embedArmed) {
           panel.iframe.src = panel.embedUrl;
@@ -746,7 +846,7 @@ stage.addEventListener('pointerdown', (e) => {
         }
         panel.canInteract = true;
         panel.iframe.style.pointerEvents = 'auto';
-            panelPointerLock = true;
+        panelPointerLock = true;
         return;
       }
     }
@@ -838,6 +938,7 @@ function frame() {
   } else {
     applyCamera();
   }
+  updateWallpaper(performance.now() * 0.001);
   renderer.render(scene, camera);
   cssRenderer.render(cssScene, camera);
   requestAnimationFrame(frame);
