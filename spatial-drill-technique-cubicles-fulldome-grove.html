@@ -59,8 +59,9 @@
   #gl-tip.show { display: block; }
 
   /* Crossbar walkpad — liquid mercury chrome (Sketch C / floating lab metal) */
+  /* Always on for capture (chrome mercury crossbar); hide only in overview */
   #mobile-pad {
-    display: none; position: fixed;
+    display: block; position: fixed;
     left: max(12px, env(safe-area-inset-left));
     bottom: max(12px, env(safe-area-inset-bottom));
     z-index: 4; width: 148px; height: 148px;
@@ -798,7 +799,9 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 
 // —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
 // Sharp planar −Z mural (NOT sphere / NOT full-dome equirect smear).
-// Portrait-framed panel (~12×15.5) so face + body stay mural-sharp on the box back wall.
+// Portrait band ~12×15.5 (8d1cdef) — smaller than OUTER_W×OUTER_H so cover
+// stays mild (repY≈1), face+body visible; do NOT clamp to OUTER_H (that
+// widened aspect → aggressive top crop / “zoomed in”).
 (function installStargazingWall() {
   try {
     const vid = document.createElement('video');
@@ -824,17 +827,27 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.anisotropy = maxAniso;
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
+    // Tall/narrow mural closer to portrait aspect so cover keeps face + torso (repY ≈ 1).
     const muralW = 12.0;
-    const muralH = Math.min(15.5, OUTER_H * 0.98);
-    const wallAspect = muralW / muralH;
+    const muralH = 15.5;
+    const bandAspect = muralW / muralH;
     const videoAspect = 720 / 974;
-    if (videoAspect > wallAspect) {
-      tex.repeat.set(wallAspect / videoAspect, 1);
-      tex.offset.set((1 - tex.repeat.x) / 2, 0);
+    let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
+    if (videoAspect > bandAspect) {
+      // Video wider than band → crop left/right (center)
+      repX = bandAspect / videoAspect;
+      repY = 1.0;
+      offX = (1.0 - repX) * 0.5;
+      offY = 0.0;
     } else {
-      tex.repeat.set(1, videoAspect / wallAspect);
-      tex.offset.set(0, (1 - tex.repeat.y) * 0.28);
+      // Slightly taller band → tiny top/bottom crop; bias upper-center (face + body)
+      repX = 1.0;
+      repY = videoAspect / bandAspect;
+      offX = 0.0;
+      offY = (1.0 - repY) * 0.28;
     }
+    tex.repeat.set(repX, repY);
+    tex.offset.set(offX, offY);
     const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
@@ -852,6 +865,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       fog: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(muralW, muralH), mat);
+    // Bottom near floor; top may extend past ceiling — framing aspect matters for UV, not room fit.
     mesh.position.set(0, muralH * 0.5 + 0.15, WALL_Z + 0.04);
     mesh.rotation.y = 0;
     mesh.receiveShadow = false;
@@ -881,11 +895,14 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     window.__stargazingWall = {
       mesh, vid, tex, muralW, muralH,
       dome: false, equirect: false, highResBand: true, portraitBand: true,
+      cover: { repX, repY, offX, offY }, videoAspect,
       anisotropy: maxAniso,
     };
     console.info(
       '[cubicles] stargazing sharp back-wall portrait',
-      muralW.toFixed(2), '×', muralH.toFixed(2),
+      muralW.toFixed(1) + '×' + muralH.toFixed(1),
+      'cover', repX.toFixed(3), repY.toFixed(3),
+      'offY', offY.toFixed(3),
       'aniso', maxAniso
     );
   } catch (err) {
