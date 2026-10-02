@@ -2570,9 +2570,9 @@ function updateBeatLabs(t) {
     return;
   }
   // Elegant caps — never fight walk/look
-  const AMP_Y = 0.055;      // ~5.5 cm bob
-  const AMP_SCALE = 0.022;  // ±2.2% scale
-  const AMP_YAW = 0.018;    // ~1° yaw
+  const AMP_Y = 0.085;      // ~8.5 cm bob
+  const AMP_SCALE = 0.035;  // ±3.5% scale
+  const AMP_YAW = 0.028;    // ~1.6° yaw
   for (const h of hung) {
     const ph = h.beatPhase || 0;
     // Staggered micro-phase so the field breathes, not marches in lockstep
