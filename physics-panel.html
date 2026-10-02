@@ -64,7 +64,7 @@
   body.embed .label,
   body.embed .hint,
   body.embed .open-full { display: none !important; }
-  body.embed, body.embed html, html.embed { background: transparent !important; }
+  html.embed, body.embed { background: transparent !important; }
   body.embed canvas { background: transparent !important; }
   /* Never show open-full chrome plate in floating embeds */
   body.embed .open-full { display: none !important; visibility: hidden !important; }
@@ -196,9 +196,13 @@ const ACCENT = 0xf0c24b;
 const VIOLET = 0x8a7bb8;
 const TEAL = 0x4db6a4;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !!embed, premultipliedAlpha: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !!embed, premultipliedAlpha: !embed, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-if (embed) { renderer.setClearColor(0x000000, 0); renderer.setClearAlpha(0); }
+if (embed) {
+  renderer.setClearColor(0x000000, 0); renderer.setClearAlpha(0);
+  renderer.domElement.style.background = 'transparent';
+  renderer.domElement.style.backgroundColor = 'transparent';
+}
 else renderer.setClearColor(BG, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);

@@ -16,7 +16,7 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
-body.embed,body.embed html{background:transparent!important} body.embed canvas{background:transparent!important}
+html.embed,body.embed{background:transparent!important} body.embed canvas{background:transparent!important;background-color:transparent!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -44,13 +44,17 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:true, powerPreference:'high-performance', ...opts });
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:!embed, powerPreference:'high-performance', ...opts });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
   r.toneMappingExposure = 1.0;
   if (embed) { r.setClearColor(0x000000, 0); r.setClearAlpha(0); }
+  if (embed) {
+    r.domElement.style.background = 'transparent';
+    r.domElement.style.backgroundColor = 'transparent';
+  }
   document.body.prepend(r.domElement);
   return r;
 }
@@ -89,6 +93,7 @@ knot.position.set(0,1.4,-0.8); scene.add(knot);
 scene.add(new THREE.HemisphereLight(0xffffff,0x445566,1));
 const sun = new THREE.DirectionalLight(0xffe6c0, 2); sun.position.set(4,6,2); scene.add(sun);
 
+const __embedLut = document.body.classList.contains('embed');
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const lutPass = new LUTPass(); composer.addPass(lutPass);
@@ -111,8 +116,14 @@ addEventListener('keydown', (e) => {
   if (e.key==='4') { lutPass.intensity = 0.5; }
 });
 
-onResize(camera, renderer, composer);
-(function tick(){ requestAnimationFrame(tick); knot.rotation.y+=0.01; controls.update(); composer.render(); })();
+onResize(camera, renderer, __embedLut ? null : composer);
+(function tick(){
+  requestAnimationFrame(tick);
+  knot.rotation.y+=0.01; controls.update();
+  // Embed: direct render — composer LUT fills an opaque plate across the iframe.
+  if (__embedLut) renderer.render(scene, camera);
+  else composer.render();
+})();
 
 </script>
 </body>
