@@ -799,9 +799,9 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 
 // —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
 // Sharp planar −Z mural (NOT sphere / NOT full-dome equirect smear).
-// Widen bandW toward OUTER_W cover (~24×18, ~75% wall) — fills more back wall
-// than the 12×15.5 strip while cover UV + lower bias keep face+body readable.
-// Still not OUTER_W×OUTER_H (that zoomed to top ~28% only).
+// Widen bandW toward OUTER_W cover (~24×18, ~75% wall). Cover UV crops
+// vertically (repY≈0.55); bias offY to TOP of source so face lands in strip
+// (was *0.28 mid-lower — face off-frame). Not OUTER_W×OUTER_H / not sphere.
 (function installStargazingWall() {
   try {
     const vid = document.createElement('video');
@@ -840,11 +840,12 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       offX = (1.0 - repX) * 0.5;
       offY = 0.0;
     } else {
-      // Slightly taller band → tiny top/bottom crop; bias upper-center (face + body)
+      // Band wider than portrait → crop top/bottom; pin sample to TOP of source
+      // so woman’s face is in the strip (top-half crop: offY = 1 − repY).
       repX = 1.0;
       repY = videoAspect / bandAspect;
       offX = 0.0;
-      offY = (1.0 - repY) * 0.28;
+      offY = 1.0 - repY;
     }
     tex.repeat.set(repX, repY);
     tex.offset.set(offX, offY);

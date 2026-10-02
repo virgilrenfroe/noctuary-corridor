@@ -8,7 +8,7 @@ Direct hall (no unlock): https://virgilrenfroe.github.io/noctuary-corridor/spati
 
 Physics room (dedicated wing): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-physics-room.html
 Technique cubicles (outer sphere · stargazer high-res back band · soft water disc · 5×4 equal cells · hung WebGL Lab 01–18 + cloth/particles): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles.html?v=hero2
-Technique cubicles capture (box grove · sharp stargazer 24×18 toward OUTER_W · chrome mercury walkpad): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles-fulldome-grove.html?v=wideband1
+Technique cubicles capture (box grove · sharp stargazer 24×18 toward OUTER_W · chrome mercury walkpad): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles-fulldome-grove.html?v=tophalf1
 
 Env bake (not hung panels): physics room = HDR IBL/PMREM + SSAO + soft/contact shadows + transmission glass orb; night hall physics door = stencil/glass portal aperture.
 
