@@ -12,10 +12,22 @@ canvas{display:block;width:100%;height:100%}
 .top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
 .brand a{color:inherit;text-decoration:none}
-.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
+.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:560px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
 .note b{color:var(--accent);font-weight:600}
+.word-bar{position:absolute;bottom:14px;right:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;max-width:min(420px,calc(100% - 28px));pointer-events:auto}
+.word-bar input{width:140px;border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;outline:none}
+.word-bar input:focus{border-color:var(--accent)}
+.word-bar button,.word-chip{border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
+.word-bar button:hover,.word-chip:hover{border-color:var(--accent);color:var(--accent)}
+.word-chip{position:fixed;top:12px;right:12px;z-index:3;display:none;pointer-events:auto;backdrop-filter:blur(10px);gap:6px;align-items:center;max-width:min(220px,calc(100% - 24px));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.word-chip .lbl{opacity:.55;letter-spacing:.16em;font-size:9px}
+.word-chip .val{color:var(--accent);font-weight:600}
+.current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.current-pill strong{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
-body.embed .hud{display:none!important} body.embed .error{display:none!important}
+body.embed .hud{display:none!important}
+body.embed .error{display:none!important}
+body.embed .word-chip{display:flex!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -28,10 +40,17 @@ body.embed .hud{display:none!important} body.embed .error{display:none!important
 <div class="hud">
   <div class="top">
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 09 Decals</div>
+    <div class="current-pill">Word · <strong id="hudWord">HELLO</strong></div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>Decals.</b> Click the mesh to stamp DecalGeometry stickers. Right-click clears. Classic projected decals.</div>
+  <div class="note"><b>Word stamps.</b> Click the mesh to stamp the current word via DecalGeometry. Each stamp advances to the next word. Edit the list, press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b> to pick. Right-click clears.</div>
+  <div class="word-bar">
+    <input id="wordInput" type="text" maxlength="24" placeholder="CUSTOM WORD" autocomplete="off" spellcheck="false"/>
+    <button type="button" id="addWord">Add</button>
+    <button type="button" id="nextWord">Next</button>
+  </div>
 </div>
+<button type="button" class="word-chip" id="wordChip" title="Click: next word · Double-click: custom"><span class="lbl">Word</span><span class="val" id="chipWord">HELLO</span></button>
 <div class="error" id="err"></div>
 <script type="module">
 
@@ -75,47 +94,199 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
+const words = ['HELLO', 'YES', 'NO', 'LOOK', 'HERE', 'STAMP'];
+let wordIndex = 0;
+
+const hudWord = document.getElementById('hudWord');
+const chipWord = document.getElementById('chipWord');
+const wordInput = document.getElementById('wordInput');
+const wordChip = document.getElementById('wordChip');
+
+function normalizeWord(s) {
+  return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 24);
+}
+function currentWord() {
+  return words[wordIndex] || 'STAMP';
+}
+function syncWordUI() {
+  const w = currentWord();
+  if (hudWord) hudWord.textContent = w;
+  if (chipWord) chipWord.textContent = w;
+}
+function setWordIndex(i) {
+  if (!words.length) return;
+  wordIndex = ((i % words.length) + words.length) % words.length;
+  syncWordUI();
+}
+function nextWord() { setWordIndex(wordIndex + 1); }
+function prevWord() { setWordIndex(wordIndex - 1); }
+function addCustomWord(raw, { select = true } = {}) {
+  const w = normalizeWord(raw);
+  if (!w) return false;
+  const existing = words.indexOf(w);
+  if (existing >= 0) {
+    if (select) setWordIndex(existing);
+    return true;
+  }
+  words.push(w);
+  if (select) setWordIndex(words.length - 1);
+  return true;
+}
+
+const textureCache = new Map();
+function makeWordTexture(word) {
+  const key = word;
+  if (textureCache.has(key)) return textureCache.get(key);
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  // soft dark plate so letters read on the sphere
+  ctx.fillStyle = 'rgba(8,10,16,0.55)';
+  const pad = 18;
+  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 28);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(240,194,75,0.55)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 28);
+  ctx.stroke();
+  ctx.fillStyle = '#f0c24b';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // fit text into plate
+  let fontSize = word.length <= 4 ? 72 : word.length <= 6 ? 56 : word.length <= 9 ? 42 : 32;
+  ctx.font = `700 ${fontSize}px "IBM Plex Sans", system-ui, sans-serif`;
+  while (fontSize > 18 && ctx.measureText(word).width > size - pad * 2 - 24) {
+    fontSize -= 2;
+    ctx.font = `700 ${fontSize}px "IBM Plex Sans", system-ui, sans-serif`;
+  }
+  ctx.fillText(word, size / 2, size / 2 + 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  textureCache.set(key, tex);
+  return tex;
+}
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
 const decals = [];
-const decalMat = new THREE.MeshStandardMaterial({
-  color: 0xf0c24b, transparent: true, depthTest: true, depthWrite: false,
-  polygonOffset: true, polygonOffsetFactor: -4, opacity: 0.95, roughness: 0.6, metalness: 0.1
-});
-const colors = [0xf0c24b, 0xe07060, 0x5ec8c0, 0x8a7bb8, 0xffffff];
+const decalMatBase = {
+  color: 0xffffff,
+  transparent: true,
+  depthTest: true,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -4,
+  opacity: 1,
+  roughness: 0.65,
+  metalness: 0.05,
+  map: null
+};
 
 const ray = new THREE.Raycaster();
 const ptr = new THREE.Vector2();
 const mouseHelper = new THREE.Object3D();
 
 function stamp(intersect) {
+  const word = currentWord();
+  const map = makeWordTexture(word);
   const n = intersect.face.normal.clone();
   n.transformDirection(target.matrixWorld);
   n.multiplyScalar(10); n.add(intersect.point);
   mouseHelper.position.copy(intersect.point);
   mouseHelper.lookAt(n);
-  const size = 0.25 + Math.random()*0.25;
+  // readable on the unit sphere; slight random scale for variety
+  const size = 0.42 + Math.random() * 0.12;
+  const mat = new THREE.MeshStandardMaterial({
+    ...decalMatBase,
+    map
+  });
   const m = new THREE.Mesh(
-    new DecalGeometry(target, intersect.point, mouseHelper.rotation, new THREE.Vector3(size,size,size)),
-    decalMat.clone()
+    new DecalGeometry(target, intersect.point, mouseHelper.rotation, new THREE.Vector3(size, size, size * 0.35)),
+    mat
   );
-  m.material.color.setHex(colors[Math.floor(Math.random()*colors.length)]);
   scene.add(m); decals.push(m);
+  nextWord(); // successive words
+}
+
+function clearDecals() {
+  decals.forEach(d => {
+    scene.remove(d);
+    d.geometry.dispose();
+    if (d.material) d.material.dispose();
+  });
+  decals.length = 0;
+}
+
+function isTypingTarget(el) {
+  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
 addEventListener('pointerdown', (e) => {
+  if (e.target.closest && (e.target.closest('.word-bar') || e.target.closest('.word-chip') || e.target.closest('.brand') || e.target.closest('.pill'))) return;
   if (e.button === 2) {
-    decals.forEach(d => { scene.remove(d); d.geometry.dispose(); }); decals.length=0; return;
+    clearDecals();
+    return;
   }
-  ptr.x=(e.clientX/innerWidth)*2-1; ptr.y=-(e.clientY/innerHeight)*2+1;
+  if (e.button !== 0) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
   ray.setFromCamera(ptr, camera);
   const hits = ray.intersectObject(target);
   if (hits.length) stamp(hits[0]);
 });
 addEventListener('contextmenu', e => e.preventDefault());
 
-scene.add(new THREE.AmbientLight(0xffffff,0.5));
-const d = new THREE.DirectionalLight(0xffffff,1.6); d.position.set(3,4,2); scene.add(d);
+document.getElementById('nextWord')?.addEventListener('click', (e) => { e.stopPropagation(); nextWord(); });
+document.getElementById('addWord')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (addCustomWord(wordInput.value)) wordInput.value = '';
+});
+wordInput?.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (addCustomWord(wordInput.value)) wordInput.value = '';
+  }
+});
+wordChip?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  nextWord();
+});
+wordChip?.addEventListener('dblclick', (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  const custom = prompt('Custom word to stamp:', currentWord());
+  if (custom != null) addCustomWord(custom);
+});
+
+addEventListener('keydown', (e) => {
+  if (isTypingTarget(e.target)) return;
+  if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextWord(); return; }
+  if (e.key === '[') { prevWord(); return; }
+  if (e.key >= '1' && e.key <= '9') {
+    const i = parseInt(e.key, 10) - 1;
+    if (i < words.length) setWordIndex(i);
+  }
+});
+
+syncWordUI();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(3, 4, 2); scene.add(d);
 onResize(camera, renderer);
-(function tick(){ requestAnimationFrame(tick); target.rotation.y+=0.003; controls.update(); renderer.render(scene,camera); })();
+(function tick(){ requestAnimationFrame(tick); target.rotation.y += 0.003; controls.update(); renderer.render(scene, camera); })();
 
 </script>
 </body>
