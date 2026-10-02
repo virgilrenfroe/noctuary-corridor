@@ -681,14 +681,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall4' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall5' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall4' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall5' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -1261,10 +1261,14 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     vid.crossOrigin = 'anonymous';
     vid.loop = true;
     vid.muted = true;
+    vid.defaultMuted = true;
+    vid.autoplay = true;
     vid.playsInline = true;
     vid.setAttribute('playsinline', '');
+    vid.setAttribute('webkit-playsinline', '');
     vid.setAttribute('muted', '');
-    vid.preload = 'none';
+    vid.setAttribute('autoplay', '');
+    vid.preload = 'metadata';
     vid.width = 720;
     vid.height = 974;
     vid.setAttribute('aria-hidden', 'true');
@@ -1333,20 +1337,29 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     scene.add(rim);
     const tryPlay = () => {
       if (!vid.src) return;
+      try { vid.muted = true; vid.defaultMuted = true; } catch {}
       const p = vid.play();
-      if (p && typeof p.catch === 'function') p.catch(() => {});
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          promoteVideoMap();
+          console.info('[cubicles] stargazer play() ok', 'rs', vid.readyState, 'paused', vid.paused);
+        }).catch((err) => {
+          console.warn('[cubicles] stargazer play() blocked', err && err.name);
+        });
+      }
     };
     let videoStarted = false;
     const startStargazerVideo = () => {
-      if (videoStarted) { tryPlay(); return; }
+      if (videoStarted) { tryPlay(); promoteVideoMap(); return; }
       videoStarted = true;
       vid.preload = 'auto';
-      vid.src = STARGAZER_MP4;
+      if (!vid.src) vid.src = STARGAZER_MP4;
       try { vid.load(); } catch {}
       vid.addEventListener('canplay', tryPlay, { once: true });
-      vid.addEventListener('loadeddata', tryPlay, { once: true });
+      vid.addEventListener('loadeddata', () => { promoteVideoMap(); tryPlay(); }, { once: true });
+      vid.addEventListener('playing', promoteVideoMap);
       tryPlay();
-      console.info('[cubicles] stargazer mp4 deferred start (after ambient)');
+      console.info('[cubicles] stargazer mp4 start (unlock)');
     };
     window.__stargazingWall = {
       mesh, vid, tex, muralW, muralH,
@@ -1354,6 +1367,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       cover: { repX, repY, offX, offY }, videoAspect,
       anisotropy: maxAniso,
       start: startStargazerVideo,
+      play: tryPlay,
       posterFirst: true,
     };
     console.info(
@@ -1926,12 +1940,19 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const cssH = 1100;
   const cssW = Math.max(480, Math.round(cssH * (WALL_LAB_W / WALL_LAB_H)));
   const scale = WALL_LAB_W / cssW;
+  let embedUrl = meta.src;
+  if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall5');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wall5';
+  if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
+
   const iframe = document.createElement('iframe');
-  iframe.src = 'about:blank';
-  iframe.setAttribute('loading', 'lazy');
+  // Arm immediately with correct opaque wall embed src (not about:blank / not lazy).
+  iframe.setAttribute('loading', 'eager');
+  iframe.src = embedUrl;
   iframe.title = meta.name + ' · ' + spec.side + ' wall';
   iframe.setAttribute('referrerpolicy', 'no-referrer');
-  iframe.allow = 'autoplay';
+  iframe.allow = 'autoplay; fullscreen';
   iframe.style.width = cssW + 'px';
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
@@ -1942,8 +1963,9 @@ for (let li = 0; li < wallSpecs.length; li++) {
   iframe.style.pointerEvents = 'none';
   iframe.style.borderRadius = '0';
   iframe.style.boxShadow = 'none';
-  iframe.style.opacity = '0';
-  iframe.style.transition = 'opacity 0.45s ease';
+  // Start slightly visible so plate bg paints even before WebGL canvas boots.
+  iframe.style.opacity = '0.92';
+  iframe.style.transition = 'opacity 0.35s ease';
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
@@ -2000,11 +2022,6 @@ for (let li = 0; li < wallSpecs.length; li++) {
   spot.position.set(cx + inNx * 1.1, wallY + WALL_LAB_H * 0.15, panelZ);
   scene.add(spot);
 
-  let embedUrl = meta.src;
-  if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall4');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall4';
-
   hung.push({
     meta, col: spec.side === 'left' ? 0 : COLS - 1, row: 1,
     cx, cz, panelZ,
@@ -2015,7 +2032,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
       maxZ: panelZ + WALL_LAB_W * 0.5,
     },
     group, frame: frameGroup, ghost: null, hit, cssObj, iframe, spot,
-    embedArmed: false,
+    embedArmed: true, // src set at create — opaque wall embed already loading
     canInteract: false,
     embedUrl,
     cssBaseScale: scale,
@@ -2037,33 +2054,46 @@ revealLabWhenReady = function revealLabWhenReady(panel) {
   if (!panel || panel._revealWatch) return;
   panel._revealWatch = true;
   let tries = 0;
+  const paint = (why) => {
+    panel.iframe.style.opacity = '1';
+    panel._revealWatch = false;
+    if (why) console.info('[cubicles] wall iframe paint', panel.meta?.id, why);
+  };
   const tick = () => {
     tries++;
     try {
       const doc = panel.iframe.contentDocument;
       const canvas = doc && doc.querySelector('canvas');
-      if (canvas && canvas.width > 0) {
-        panel.iframe.style.opacity = '1';
-        panel._revealWatch = false;
+      // Wall embeds: any canvas OR opaque body.wall means the lab armed; don't wait forever.
+      if (canvas && (canvas.width > 0 || canvas.clientWidth > 0)) {
+        paint('canvas');
         return;
       }
+      if (doc && doc.body && doc.body.classList.contains('wall')) {
+        // Module may still be booting — keep polling briefly, but show plate bg.
+        if (tries > 12) { paint('wall-body'); return; }
+      }
     } catch {}
-    if (tries < 180) requestAnimationFrame(tick);
-    else { panel._revealWatch = false; }
+    // Hard fallback: never leave empty side-wall frames (opacity 0 forever).
+    if (tries >= 90) { paint('timeout'); return; }
+    requestAnimationFrame(tick);
   };
   panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
+  // If src already set / cached load fired before listener, still poll.
   requestAnimationFrame(tick);
 }
 
 armLab = function armLab(panel) {
   if (!panel) return;
-  if (!panel.embedArmed) {
+  const blank = !panel.iframe.src || panel.iframe.src === 'about:blank' || panel.iframe.getAttribute('src') === 'about:blank';
+  if (!panel.embedArmed || blank) {
+    // Eager correct src (opaque wall embed) — do not leave about:blank.
+    panel.iframe.loading = 'eager';
     panel.iframe.src = panel.embedUrl;
     panel.embedArmed = true;
-    revealLabWhenReady(panel);
-  } else if (panel.iframe.style.opacity !== '1') {
-    revealLabWhenReady(panel);
   }
+  // Always (re)watch paint — wall plates must not stay empty.
+  revealLabWhenReady(panel);
 }
 
 /** Pre-arm both side-wall labs (MAX_ARMED=2). */
@@ -2989,6 +3019,14 @@ function updateCssDepthOcclusion() {
 
   for (const h of hung) {
     if (!h.cssObj || !h.iframe) continue;
+    // Side-wall LIVE plates span most of the wall AABB — tree NDC overlap falsely hid them (empty frames).
+    if (h.wallMounted) {
+      if (h._depthOccluded) {
+        h._depthOccluded = false;
+        h.cssObj.visible = true;
+      }
+      continue;
+    }
     let occluded = false;
     if (h.embedArmed) {
       for (let i = 0; i < TREE_OCCLUDERS.length; i++) {
@@ -3319,30 +3357,21 @@ let lastX = 0, lastY = 0, downX = 0, downY = 0;
 const gate = document.getElementById('gate'); // may be null (gate copy stripped)
 let entered = false;
 let stargazerKickScheduled = false;
+function unlockStargazerVideo(why) {
+  // On user unlock: start + play() immediately (muted loop). Do NOT gate on ambient.
+  try {
+    window.__stargazingWall?.start?.();
+    window.__stargazingWall?.play?.();
+  } catch (e) {
+    console.warn('[cubicles] stargazer unlock failed', e);
+  }
+  if (!stargazerKickScheduled) {
+    stargazerKickScheduled = true;
+    console.info('[cubicles] stargazer unlock', why || 'gesture');
+  }
+}
 function startStargazerWhenAmbientAllows() {
-  // Don't let ~4.6MB stargazer compete with ambient first bytes.
-  if (stargazerKickScheduled) {
-    if (window.__wormholeAmbient?.started) {
-      try { window.__stargazingWall?.start?.(); } catch {}
-    }
-    return;
-  }
-  stargazerKickScheduled = true;
-  const bed = window.__wormholeAmbient;
-  if (bed?.started) {
-    try { window.__stargazingWall?.start?.(); } catch {}
-    return;
-  }
-  const kick = () => {
-    window.removeEventListener('cubicles-ambient-playing', kick);
-    try { window.__stargazingWall?.start?.(); } catch {}
-  };
-  window.addEventListener('cubicles-ambient-playing', kick, { once: true });
-  // Fallback only after ambient had a long head-start — never starve the 96kbps bed
-  setTimeout(() => {
-    window.removeEventListener('cubicles-ambient-playing', kick);
-    try { window.__stargazingWall?.start?.(); } catch {}
-  }, 8000);
+  unlockStargazerVideo('ambient-or-enter');
 }
 function silentEnter({ reset = true } = {}) {
   if (entered) return;
@@ -3350,7 +3379,7 @@ function silentEnter({ reset = true } = {}) {
   window.__cubiclesEntered = true;
   if (gate) gate.classList.add('hide');
   try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  startStargazerWhenAmbientAllows();
+  unlockStargazerVideo('silentEnter');
   if (reset) {
     resetToFoyer();
     velocity.set(0, 0, 0);
@@ -3362,7 +3391,15 @@ function silentEnter({ reset = true } = {}) {
 }
 window.addEventListener('pointerdown', () => {
   try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  startStargazerWhenAmbientAllows();
+  unlockStargazerVideo('pointerdown');
+}, { passive: true });
+window.addEventListener('touchstart', () => {
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+  unlockStargazerVideo('touchstart');
+}, { passive: true });
+window.addEventListener('keydown', () => {
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+  unlockStargazerVideo('keydown');
 }, { passive: true });
 
 let debugOn = params.has('debug');
@@ -3437,6 +3474,8 @@ function setOverview(on) {
     panelPointerLock = false;
     for (const h of hung) {
       h.iframe.style.pointerEvents = 'none';
+      // Keep side-wall LIVE embeds warm in overview (blanking caused empty frames on return).
+      if (h.wallMounted) { h.canInteract = false; continue; }
       if (h.embedArmed) {
         h.iframe.src = 'about:blank';
         h.iframe.style.opacity = '0';
