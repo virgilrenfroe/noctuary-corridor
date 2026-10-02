@@ -25,9 +25,11 @@ canvas{display:block;width:100%;height:100%}
 .current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.06em;max-width:min(420px,42vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .current-pill strong{color:var(--accent);font-weight:600;text-transform:none;letter-spacing:.02em}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
+.embed-hint{display:none;position:fixed;bottom:10px;left:10px;z-index:3;pointer-events:none;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(8px);border-radius:999px;padding:6px 10px;color:var(--mute);font-size:10px;letter-spacing:.06em;max-width:calc(100% - 24px)}
 body.embed .hud{display:none!important}
 body.embed .error{display:none!important}
-body.embed .word-chip{display:flex!important}
+body.embed .word-chip{display:flex!important;max-width:min(240px,calc(100% - 24px));font-size:10px;padding:6px 10px}
+body.embed .embed-hint{display:block!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -40,17 +42,18 @@ body.embed .word-chip{display:flex!important}
 <div class="hud">
   <div class="top">
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 09 Decals</div>
-    <div class="current-pill">Intro · <strong id="hudWord">Call me Ishmael.</strong></div>
+    <div class="current-pill">Hobbit · <strong id="hudWord">In a hole in the ground there lived a hobbit.</strong></div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>Famous openings.</b> Click to stamp the current book intro via DecalGeometry — each stamp advances. Type your own phrase and <b>Add</b>, or press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b>. Right-click clears.</div>
+  <div class="note"><b>The Hobbit.</b> Click to stamp successive opening phrases via DecalGeometry — each stamp advances. Type your own phrase and <b>Add</b>, or press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b>. Right-click clears.</div>
   <div class="word-bar">
-    <input id="wordInput" type="text" maxlength="120" placeholder="Your opening line…" autocomplete="off" spellcheck="false"/>
+    <input id="wordInput" type="text" maxlength="120" placeholder="Your Hobbit phrase…" autocomplete="off" spellcheck="false"/>
     <button type="button" id="addWord">Add</button>
     <button type="button" id="nextWord">Next</button>
   </div>
 </div>
-<button type="button" class="word-chip" id="wordChip" title="Click: next intro · Double-click: type your own"><span class="lbl">Intro</span><span class="val" id="chipWord">Call me Ishmael.</span></button>
+<button type="button" class="word-chip" id="wordChip" title="Click: next Hobbit phrase · Double-click: type your own"><span class="lbl">Hobbit</span><span class="val" id="chipWord">In a hole in the ground there lived a hobbit.</span></button>
+<div class="embed-hint" id="embedHint">Click sphere to stamp · chip advances</div>
 <div class="error" id="err"></div>
 <script type="module">
 
@@ -94,19 +97,19 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
-// Famous short book openings — user can add/edit their own phrases
+// The Hobbit — successive short opening phrases (user can still add their own)
 const phrases = [
-  'Call me Ishmael.',
-  'It is a truth universally acknowledged…',
   'In a hole in the ground there lived a hobbit.',
-  'All children, except one, grow up.',
-  'It was a bright cold day in April…',
-  'It was the best of times…',
-  'Someone must have slandered Josef K.',
-  'Mrs. Dalloway said she would buy the flowers.',
-  'Happy families are all alike…',
-  'The sun shone, having no alternative…'
+  'Not a nasty, dirty, wet hole…',
+  '…filled with the ends of worms and an oozy smell…',
+  '…nor yet a dry, bare, sandy hole…',
+  '…it was a hobbit-hole, and that means comfort.',
+  'It had a perfectly round door like a porthole…',
+  '…painted green, with a shiny yellow brass knob…',
+  'This hobbit was a very well-to-do hobbit…',
+  '…and his name was Baggins.'
 ];
+const DEFAULT_PHRASE = phrases[0];
 let phraseIndex = 0;
 
 const hudWord = document.getElementById('hudWord');
@@ -122,7 +125,7 @@ function shortLabel(s, max = 42) {
   return s.slice(0, max - 1) + '…';
 }
 function currentPhrase() {
-  return phrases[phraseIndex] || 'Call me Ishmael.';
+  return phrases[phraseIndex] || DEFAULT_PHRASE;
 }
 function syncPhraseUI() {
   const w = currentPhrase();
@@ -299,20 +302,54 @@ function isTypingTarget(el) {
   return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
+let ptrDown = null;
+function eventOnUi(t) {
+  return t && t.closest && (t.closest('.word-bar') || t.closest('.word-chip') || t.closest('.brand') || t.closest('.pill') || t.closest('.embed-hint'));
+}
+function stampAtClient(clientX, clientY) {
+  ptr.x = (clientX / innerWidth) * 2 - 1;
+  ptr.y = -(clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObject(target);
+  if (hits.length) stamp(hits[0]);
+}
 addEventListener('pointerdown', (e) => {
-  if (e.target.closest && (e.target.closest('.word-bar') || e.target.closest('.word-chip') || e.target.closest('.brand') || e.target.closest('.pill'))) return;
+  if (eventOnUi(e.target)) return;
   if (e.button === 2) {
     clearDecals();
     return;
   }
   if (e.button !== 0) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  const hits = ray.intersectObject(target);
-  if (hits.length) stamp(hits[0]);
+  ptrDown = { x: e.clientX, y: e.clientY, id: e.pointerId };
 });
+addEventListener('pointerup', (e) => {
+  if (!ptrDown || e.pointerId !== ptrDown.id) return;
+  const dx = e.clientX - ptrDown.x;
+  const dy = e.clientY - ptrDown.y;
+  const moved = dx * dx + dy * dy;
+  ptrDown = null;
+  if (eventOnUi(e.target)) return;
+  if (e.button !== 0) return;
+  // Click (not drag) stamps — orbit drag still works via OrbitControls
+  if (moved < 36) stampAtClient(e.clientX, e.clientY);
+});
+addEventListener('pointercancel', () => { ptrDown = null; });
 addEventListener('contextmenu', e => e.preventDefault());
+
+// Keep WebGL sized inside CSS3D cubicle iframes (resize may not fire on arm)
+function fitRenderer() {
+  const w = Math.max(1, innerWidth);
+  const h = Math.max(1, innerHeight);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+}
+fitRenderer();
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => fitRenderer()).observe(document.documentElement);
+}
 
 document.getElementById('nextWord')?.addEventListener('click', (e) => { e.stopPropagation(); nextPhrase(); });
 document.getElementById('addWord')?.addEventListener('click', (e) => {
@@ -334,7 +371,7 @@ wordChip?.addEventListener('click', (e) => {
 wordChip?.addEventListener('dblclick', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  const custom = prompt('Your opening line to stamp:', currentPhrase());
+  const custom = prompt('Hobbit phrase to stamp:', currentPhrase());
   if (custom != null) addCustomPhrase(custom);
 });
 
@@ -352,7 +389,7 @@ syncPhraseUI();
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(3, 4, 2); scene.add(d);
-onResize(camera, renderer);
+addEventListener('resize', fitRenderer);
 (function tick(){ requestAnimationFrame(tick); target.rotation.y += 0.003; controls.update(); renderer.render(scene, camera); })();
 
 </script>
