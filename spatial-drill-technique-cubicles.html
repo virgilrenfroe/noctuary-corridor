@@ -317,11 +317,22 @@ const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashP
 if (wantAisle) {
   // Foyer edge looking −Z into a column aisle of cathedral chrome cypresses
   const aisleX = -OUTER_W / 2 + CELL_W * 1.0;
-  SPAWN.x = aisleX + 2.05;
-  SPAWN.z = GRID_Z_MAX + 3.4; // foyer edge — full Taxodium midground
+  SPAWN.x = aisleX + 3.15; // clearance so near-plane does not slice buttress flare
+  SPAWN.z = GRID_Z_MAX + 3.8; // foyer edge — full Taxodium midground
   SPAWN.yaw = 0.16;
-  SPAWN.pitch = 0.2; // knees + feathery gold canopy + moss
+  SPAWN.pitch = 0.06; // waterline + knees grounded; canopy still in frame
   console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw, 'pitch', SPAWN.pitch);
+}
+// Optional still-camera overrides: ?camx=&camz=&yaw=&pitch=
+{
+  const cx = params.get('camx') ?? hashParams.get('camx');
+  const cz = params.get('camz') ?? hashParams.get('camz');
+  const cyaw = params.get('yaw') ?? hashParams.get('yaw');
+  const cpitch = params.get('pitch') ?? hashParams.get('pitch');
+  if (cx != null && cx !== '') SPAWN.x = parseFloat(cx);
+  if (cz != null && cz !== '') SPAWN.z = parseFloat(cz);
+  if (cyaw != null && cyaw !== '') SPAWN.yaw = parseFloat(cyaw);
+  if (cpitch != null && cpitch !== '') SPAWN.pitch = parseFloat(cpitch);
 }
 
 const CELLS = [
@@ -1281,7 +1292,11 @@ function cypressRand(seed) {
 // Shared Taxodium geos — InstancedMesh grove (SwiftShader-safe draw count)
 const _taxTrunkProfiles = (() => {
   const pts = [];
-  for (let i = 0; i <= 28; i++) {
+  // Closed root tip BELOW y=0 — kills hollow lathe ring that read as a severed flat cut
+  pts.push(new THREE.Vector2(0.001, -0.06));
+  pts.push(new THREE.Vector2(0.09, -0.03));
+  pts.push(new THREE.Vector2(0.17, 0.0)); // waterline flare max
+  for (let i = 1; i <= 28; i++) {
     const t = i / 28;
     let r;
     if (t < 0.12) {
@@ -1298,6 +1313,9 @@ const _taxTrunkProfiles = (() => {
     }
     pts.push(new THREE.Vector2(r, t));
   }
+  // Soft closed tip at crown (no open ring)
+  pts.push(new THREE.Vector2(0.012, 1.01));
+  pts.push(new THREE.Vector2(0.001, 1.03));
   return pts;
 })();
 const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 : 20);
@@ -1319,9 +1337,10 @@ const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 :
 // Blunt pneumatophore knees (not ice-cream cones)
 // Cypress knee mound — hemisphere (blunt dome, never a cone tip)
 const taxKneeGeo = new THREE.SphereGeometry(1, mobileLike ? 8 : 12, mobileLike ? 6 : 8, 0, Math.PI * 2, 0, Math.PI * 0.55);
-const taxBranchGeo = new THREE.CylinderGeometry(0.35, 1, 1, mobileLike ? 5 : 6);
-// Thin needle shafts for feathery sprays (NOT fat cones)
-const taxNeedleGeo = new THREE.CylinderGeometry(0.05, 0.18, 1, 3);
+// Open-ended limbs — closed caps read as severed floating trunk chops
+const taxBranchGeo = new THREE.CylinderGeometry(0.22, 1, 1, mobileLike ? 5 : 6, 1, true);
+// Thin needle shafts for feathery sprays (NOT fat cones); open-ended = no mid-air discs
+const taxNeedleGeo = new THREE.CylinderGeometry(0.05, 0.18, 1, 3, 1, true);
 // Soft oval tuft
 const taxTuftGeo = new THREE.SphereGeometry(1, mobileLike ? 4 : 6, mobileLike ? 3 : 4);
 taxTuftGeo.scale(0.7, 1.6, 0.28);
@@ -1368,6 +1387,11 @@ function placeBaldCypresses() {
   }
 
   const dummy = new THREE.Object3D();
+  const _yUp = new THREE.Vector3(0, 1, 0);
+  const _dir = new THREE.Vector3();
+  const WATER_Y = 0.02;
+  // Plant so max flare (local y=0) sits under water; closed root tip continues below
+  const TRUNK_SINK = 0.22;
   let ki = 0, bi = 0, ni = 0, ti = 0, ci = 0, cri = 0;
 
   for (let i = 0; i < n; i++) {
@@ -1375,59 +1399,85 @@ function placeBaldCypresses() {
     const h = p.h;
     const yaw = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
     const base = i * 97 + 11;
+    const trunkY = WATER_Y - TRUNK_SINK;
 
-    dummy.position.set(p.x, 0.02, p.z);
+    dummy.position.set(p.x, trunkY, p.z);
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.set(h, h, h);
     dummy.updateMatrix();
     trunkInst.setMatrixAt(i, dummy.matrix);
 
-    // Vertical bark ridges (chrome catches edges)
+    // Vertical bark ridges — glued to trunk surface (open-ended, no floating chops)
     for (let f = 0; f < flutePer; f++) {
       const ang = yaw + (f / flutePer) * Math.PI * 2 + taxHash(base + f) * 0.1;
-      const rh = h * (0.38 + taxHash(base + 20 + f) * 0.2);
-      dummy.position.set(p.x + Math.cos(ang) * h * 0.052, rh * 0.48, p.z + Math.sin(ang) * h * 0.052);
-      dummy.rotation.set(-Math.sin(ang - yaw) * 0.06, ang, Math.cos(ang - yaw) * 0.06);
-      dummy.scale.set(h * 0.009, rh, h * 0.014);
+      const rh = h * (0.42 + taxHash(base + 20 + f) * 0.22);
+      const midY = trunkY + rh * 0.52;
+      dummy.position.set(p.x + Math.cos(ang) * h * 0.048, midY, p.z + Math.sin(ang) * h * 0.048);
+      dummy.rotation.set(0, ang, 0);
+      dummy.scale.set(h * 0.0055, rh, h * 0.008);
       dummy.updateMatrix();
       branchInst.setMatrixAt(bi++, dummy.matrix);
     }
 
-    // Woody cypress knees — stubby tapered pegs around flare
+    // Woody cypress knees — dome mounds emerging FROM water (not hovering above)
     for (let k = 0; k < kneesPer; k++) {
       const ang = yaw + (k / kneesPer) * Math.PI * 2 + taxHash(base + 40 + k) * 0.45;
-      const rad = h * (0.12 + taxHash(base + 50 + k) * 0.14);
+      const rad = h * (0.11 + taxHash(base + 50 + k) * 0.13);
       const rKnee = h * (0.032 + taxHash(base + 60 + k) * 0.028); // dome radius
-      // Sit on floor — hemisphere opens upward
-      dummy.position.set(p.x + Math.cos(ang) * rad, 0.01, p.z + Math.sin(ang) * rad);
-      dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.25, ang, (taxHash(base + 90 + k) - 0.5) * 0.25);
-      dummy.scale.set(rKnee * (0.9 + taxHash(base + 70 + k) * 0.35), rKnee * (0.7 + taxHash(base + 75 + k) * 0.35), rKnee * (0.85 + taxHash(base + 77 + k) * 0.3));
+      const sx = rKnee * (0.9 + taxHash(base + 70 + k) * 0.35);
+      const sy = rKnee * (0.7 + taxHash(base + 75 + k) * 0.35);
+      const sz = rKnee * (0.85 + taxHash(base + 77 + k) * 0.3);
+      // Sink ~55% of dome height so the mound emerges from water (not hovering)
+      dummy.position.set(
+        p.x + Math.cos(ang) * rad,
+        WATER_Y - sy * 0.55,
+        p.z + Math.sin(ang) * rad
+      );
+      dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.18, ang, (taxHash(base + 90 + k) - 0.5) * 0.18);
+      dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
       kneeInst.setMatrixAt(ki++, dummy.matrix);
     }
 
     const tips = [];
     for (let b = 0; b < branchPer; b++) {
-      const tAttach = 0.32 + (b / Math.max(1, branchPer - 1)) * 0.52;
+      const tAttach = 0.38 + (b / Math.max(1, branchPer - 1)) * 0.48;
       const ang = yaw + b * 2.399 + taxHash(base + 100 + b) * 0.65;
-      const len = h * (0.18 + (1 - tAttach) * 0.28 + taxHash(base + 110 + b) * 0.1);
-      const thick = h * (0.01 + (1 - tAttach) * 0.01);
-      const up = 0.42 + taxHash(base + 120 + b) * 0.38;
-      const attachY = h * tAttach;
-      const out = len * 0.55;
-      dummy.position.set(
-        p.x + Math.cos(ang) * out * 0.42,
-        attachY + len * up * 0.2,
-        p.z + Math.sin(ang) * out * 0.42
-      );
-      dummy.rotation.set(-Math.sin(ang - yaw) * 0.4 * up, ang, Math.cos(ang - yaw) * 0.32);
+      const len = h * (0.16 + (1 - tAttach) * 0.24 + taxHash(base + 110 + b) * 0.08);
+      // Slim limbs — thick cylinders looked like severed floating trunk chunks
+      const thick = h * (0.0055 + (1 - tAttach) * 0.006);
+      const up = 0.48 + taxHash(base + 120 + b) * 0.32;
+      // Local trunk radius at attach height (flare → stem profile)
+      let trunkR;
+      if (tAttach < 0.12) {
+        const u = tAttach / 0.12;
+        trunkR = h * (0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38));
+      } else if (tAttach < 0.52) {
+        const u = (tAttach - 0.12) / 0.4;
+        trunkR = h * THREE.MathUtils.lerp(0.058, 0.034, u);
+      } else {
+        const u = (tAttach - 0.52) / 0.48;
+        trunkR = h * THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+      }
+      const attachY = trunkY + h * tAttach;
+      const ax = p.x + Math.cos(ang) * trunkR * 0.92;
+      const az = p.z + Math.sin(ang) * trunkR * 0.92;
+      const tipX = ax + Math.cos(ang) * len * 0.92;
+      const tipY = attachY + len * up;
+      const tipZ = az + Math.sin(ang) * len * 0.92;
+      // Center cylinder on the limb span; aim Y-axis along attach→tip (no floating chop ends)
+      dummy.position.set((ax + tipX) * 0.5, (attachY + tipY) * 0.5, (az + tipZ) * 0.5);
+      _dir.set(tipX - ax, tipY - attachY, tipZ - az);
+      if (_dir.lengthSq() < 1e-8) _dir.set(0, 1, 0);
+      else _dir.normalize();
+      dummy.quaternion.setFromUnitVectors(_yUp, _dir);
       dummy.scale.set(thick, len, thick);
       dummy.updateMatrix();
       branchInst.setMatrixAt(bi++, dummy.matrix);
       tips.push({
-        x: p.x + Math.cos(ang) * len * 0.9,
-        y: attachY + len * up * 0.65,
-        z: p.z + Math.sin(ang) * len * 0.9,
+        x: tipX,
+        y: tipY,
+        z: tipZ,
         ang,
       });
     }
@@ -1453,7 +1503,7 @@ function placeBaldCypresses() {
         const crownFlat = yNorm > 0.78 ? 0.75 : 1.05;
         const rad = h * (0.3 * (1 - yNorm * 0.55) + 0.05) * crownFlat * (0.65 + hh * 0.4);
         cx = p.x + Math.cos(ang) * rad;
-        cy = h * yNorm;
+        cy = trunkY + h * yNorm;
         cz = p.z + Math.sin(ang) * rad;
       }
       const nh = h * (0.09 + hh * 0.12);
@@ -1477,7 +1527,7 @@ function placeBaldCypresses() {
       const ts = h * (0.028 + hh * 0.032);
       dummy.position.set(
         (s % 2 ? tip.x : p.x + Math.cos(ang) * rad),
-        s % 2 ? tip.y : h * yNorm,
+        s % 2 ? tip.y : trunkY + h * yNorm,
         s % 2 ? tip.z : p.z + Math.sin(ang) * rad
       );
       dummy.rotation.set((hh - 0.5) * 0.4, hh * Math.PI, (hh2 - 0.5) * 0.4);
@@ -1496,7 +1546,7 @@ function placeBaldCypresses() {
       const useTip = s % 3 !== 2;
       const rad = h * (0.16 + hh * 0.18) * (1.05 - yNorm * 0.4);
       const cx = useTip ? tip.x + Math.cos(ang) * h * 0.06 : p.x + Math.cos(ang) * rad;
-      const cy = useTip ? tip.y + (hh - 0.4) * h * 0.05 : h * yNorm;
+      const cy = useTip ? tip.y + (hh - 0.4) * h * 0.05 : trunkY + h * yNorm;
       const cz = useTip ? tip.z + Math.sin(ang) * h * 0.06 : p.z + Math.sin(ang) * rad;
       const cs = h * (0.05 + hh * 0.045);
       dummy.position.set(cx, cy, cz);
@@ -1518,7 +1568,7 @@ function placeBaldCypresses() {
       const cs = h * (0.07 + hh * 0.05);
       dummy.position.set(
         p.x + Math.cos(ang) * rad,
-        h * yNorm,
+        trunkY + h * yNorm,
         p.z + Math.sin(ang) * rad
       );
       // Hang outward-down like Taxodium needle sprays
@@ -1602,7 +1652,8 @@ for (let c = 1; c < COLS; c++) {
 }
 // Outer buttress trees along side walls (monumental piers)
 for (const side of [-1, 1]) {
-  const x = side * (OUTER_W / 2 - 0.75);
+  // Inset enough that flared buttress (~0.17*h) stays inside outer walls
+  const x = side * (OUTER_W / 2 - 2.15);
   for (let b = 0; b < ROWS; b += 1) {
     const z = GRID_Z_MAX - b * CELL_D - CELL_D * 0.12;
     cypressPositions.push({
@@ -1665,7 +1716,8 @@ function placeSpanishMossFilaments() {
       const ang = (seed / 1000) * Math.PI * 2 + t * 0.37 + s * 0.19;
       // Hang from mid→upper feathery canopy (Taxodium moss zone)
       const attachT = 0.62 + (seed % 18) * 0.012;
-      const canopyY = p.h * attachT;
+      const trunkBaseY = 0.02 - 0.22; // match TRUNK_SINK in placeBaldCypresses
+      const canopyY = trunkBaseY + p.h * attachT;
       // Keep moss ON this tree's crown — never span between trunks
       const rad = 0.25 + (seed % 17) * 0.04 + (s % 4) * 0.03;
       const len = 0.55 + (seed % 23) * 0.05 + (s % 4) * 0.12;
@@ -2293,7 +2345,8 @@ function frame() {
     applyCamera();
   } else if (reduceMotion || params.has('still')) {
     pos.set(SPAWN.x, SPAWN.y + 0.15, SPAWN.z);
-    yaw.value = 0; pitch.value = -0.05;
+    yaw.value = SPAWN.yaw;
+    pitch.value = SPAWN.pitch;
     applyCamera();
   } else {
     applyCamera();
