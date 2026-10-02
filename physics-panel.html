@@ -64,8 +64,10 @@
   body.embed .label,
   body.embed .hint,
   body.embed .open-full { display: none !important; }
-  body.embed, body.embed html { background: transparent !important; }
+  body.embed, body.embed html, html.embed { background: transparent !important; }
   body.embed canvas { background: transparent !important; }
+  /* Never show open-full chrome plate in floating embeds */
+  body.embed .open-full { display: none !important; visibility: hidden !important; }
   body.still .hint { opacity: 0.35; }
   .open-full {
     display: none;
@@ -92,6 +94,9 @@
 </style>
 </head>
 <body>
+<script>
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
+</script>
   <div class="chrome">
     <div class="label">
       <p class="tag" id="tag">Physics</p>
@@ -202,8 +207,14 @@ const scene = new THREE.Scene();
 if (!embed) scene.background = new THREE.Color(BG);
 if (!embed) scene.fog = new THREE.Fog(BG, 8, 22);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
-camera.position.set(0, 1.55, 5.2);
-camera.lookAt(0, 0.9, 0);
+if (embed && (demo === 'cloth' || demo === 'particles')) {
+  camera.fov = demo === 'particles' ? 40 : 38;
+  camera.position.set(0, demo === 'cloth' ? 1.45 : 1.55, demo === 'cloth' ? 4.4 : 4.6);
+  camera.lookAt(0, demo === 'cloth' ? 1.35 : 1.4, 0);
+} else {
+  camera.position.set(0, 1.55, 5.2);
+  camera.lookAt(0, 0.9, 0);
+}
 
 const hemi = new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.15);
 scene.add(hemi);
@@ -702,8 +713,10 @@ function buildCloth() {
   const mesh = new THREE.Mesh(
     geo,
     new THREE.MeshStandardMaterial({
-      color: VIOLET, roughness: 0.55, metalness: 0.05,
+      // Embed/floating: coral reads against magenta/gold cathedral + dark swamp (violet blended in).
+      color: embed ? 0xff6b4a : VIOLET, roughness: 0.48, metalness: 0.08,
       side: THREE.DoubleSide, flatShading: true,
+      emissive: embed ? 0x3a1008 : 0x000000, emissiveIntensity: embed ? 0.22 : 0,
     })
   );
   scene.add(mesh);
@@ -789,16 +802,24 @@ function buildParticles() {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  // Floating embed: brighten + enlarge so curl field reads against dark swamp chrome.
+  const __ptColor = embed ? 0xfff6c8 : ACCENT;
+  // Embed: size in pixels (no attenuation) so curl field stays readable at panel distance.
   const pts = new THREE.Points(
     geo,
-    new THREE.PointsMaterial({ color: ACCENT, size: 0.045, sizeAttenuation: true, transparent: true, opacity: 0.9 })
+    new THREE.PointsMaterial({
+      color: __ptColor,
+      size: embed ? 5.5 : 0.045,
+      sizeAttenuation: !embed,
+      transparent: true, opacity: embed ? 1 : 0.9, depthWrite: false,
+    })
   );
   scene.add(pts);
 
   // Visible cue so pointer drive is obvious
   const vortexMesh = new THREE.Mesh(
-    new THREE.RingGeometry(0.18, 0.28, 32),
-    new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+    new THREE.RingGeometry(embed ? 0.22 : 0.18, embed ? 0.36 : 0.28, 32),
+    new THREE.MeshBasicMaterial({ color: __ptColor, transparent: true, opacity: embed ? 0.75 : 0.55, side: THREE.DoubleSide })
   );
   vortexMesh.position.set(0, 1.4, 0.05);
   scene.add(vortexMesh);

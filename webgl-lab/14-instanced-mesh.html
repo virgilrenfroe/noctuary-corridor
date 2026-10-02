@@ -66,11 +66,13 @@ const renderer = makeRenderer();
 const scene = new THREE.Scene();
 const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
 scene.background = new THREE.Color(0x08090e); __floatClearBg();
-scene.fog = new THREE.Fog(0x08090e, 20, 80);
+const __embed = document.body.classList.contains('embed');
+if (!__embed) scene.fog = new THREE.Fog(0x08090e, 20, 80);
 const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
-camera.position.set(18, 14, 22);
+camera.position.set(__embed ? 14 : 18, __embed ? 11 : 14, __embed ? 16 : 22);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+if (__embed) { controls.target.set(0, 4, 0); controls.update(); }
 
 const COUNT = 4000;
 const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);

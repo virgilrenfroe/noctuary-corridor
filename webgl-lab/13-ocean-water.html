@@ -66,27 +66,41 @@ import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 
 const renderer = makeRenderer();
-renderer.toneMappingExposure = 0.55;
+renderer.toneMappingExposure = document.body.classList.contains('embed') ? 0.85 : 0.55;
 const scene = new THREE.Scene();
 const __embed = document.body.classList.contains('embed');
 const __floatClearBg = () => { if (__embed) scene.background = null; };
 __floatClearBg();
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.5, 20000);
-camera.position.set(__embed ? 8 : 30, __embed ? 5 : 20, __embed ? 12 : 60);
+if (__embed) {
+  // Look down onto the plane so water fills the near-square iframe (no empty sky cut-off).
+  camera.fov = 52;
+  camera.position.set(2.5, 7.5, 11);
+  camera.updateProjectionMatrix();
+} else {
+  camera.position.set(30, 20, 60);
+}
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495; controls.target.set(0, __embed ? 1 : 0, 0);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI*0.495; controls.target.set(0, __embed ? 0.6 : 0, 0);
+if (__embed) { controls.enableDamping = false; controls.update(); }
 
 const sun = new THREE.Vector3();
-const water = new Water(new THREE.PlaneGeometry(10000,10000), {
-  textureWidth: 512, textureHeight: 512,
-  waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', (t)=>{ t.wrapS=t.wrapT=THREE.RepeatWrapping; }),
-  sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x001e0f,
-  distortionScale: 3.7, fog: false
+const water = new Water(new THREE.PlaneGeometry(__embed ? 2000 : 10000, __embed ? 2000 : 10000), {
+  textureWidth: __embed ? 1024 : 512, textureHeight: __embed ? 1024 : 512,
+  waterNormals: new THREE.TextureLoader().load('../vendor/three/examples/textures/waternormals.jpg', (tex)=>{
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    if (__embed) { tex.repeat.set(4, 4); }
+  }),
+  sunDirection: new THREE.Vector3(), sunColor: __embed ? 0xfff2c8 : 0xffffff,
+  waterColor: __embed ? 0x0a8f78 : 0x001e0f,
+  distortionScale: __embed ? 8.0 : 3.7, fog: false,
+  alpha: 1.0
 });
 water.rotation.x = -Math.PI/2; scene.add(water);
 
-const sky = new Sky(); sky.scale.setScalar(10000); scene.add(sky);
-if (__embed) { water.visible = false; sky.visible = false; } // floating labs: buoy only, no liquid/sky stage
+const sky = new Sky(); sky.scale.setScalar(10000);
+// Embed: Water stays; Sky mesh stays OUT of the rendered scene (PMREM only) — sky dome = opaque plate.
+if (!__embed) scene.add(sky);
 const skyUniforms = sky.material.uniforms;
 skyUniforms['turbidity'].value = 8;
 skyUniforms['rayleigh'].value = 2;
@@ -106,11 +120,21 @@ function updateSun(elevation=3, azimuth=180) {
   if (renderTarget) renderTarget.dispose();
   sceneEnv.add(sky);
   renderTarget = pmrem.fromScene(sceneEnv);
-  scene.add(sky);
+  if (!__embed) scene.add(sky);
   scene.environment = renderTarget.texture;
 }
-updateSun();
-if (__embed) { water.visible = false; sky.visible = false; scene.background = null; }
+updateSun(__embed ? 8 : 3, __embed ? 160 : 180);
+if (__embed) {
+  // Sky stays out of the rendered scene (PMREM only). Water fills the view; transparent clear.
+  sky.visible = false;
+  water.visible = true;
+  scene.background = null;
+  // Mirror sun into a directional so the buoy + water glints read without sky dome
+  const sunLit = new THREE.DirectionalLight(0xfff0c8, 2.4);
+  sunLit.position.copy(sun).multiplyScalar(100);
+  scene.add(sunLit);
+  scene.add(new THREE.AmbientLight(0x88aacc, 0.55));
+}
 
 const buoy = new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,4,16), new THREE.MeshStandardMaterial({color:0xe07060, roughness:0.5}));
 buoy.position.y = 1; scene.add(buoy);

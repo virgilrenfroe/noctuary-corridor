@@ -83,10 +83,11 @@ const selectable = [];
 const colors = [0xf0c24b, 0x8a7bb8, 0x5ec8c0, 0xe07060, 0xffffff];
 // Embed/CSS3D iframe (~square) frustum-crops a wide 5-object row. Pack tighter + pull
 // camera so leftmost cube and rightmost DodecahedronGeometry stay fully inside (no hard rect).
-const __gap = __embed ? 0.88 : 1.3;
+// Embed/CSS3D iframe is near-square — prior gap/cam still clipped the rightmost dodecahedron.
+const __gap = __embed ? 0.72 : 1.3;
 const __geoms = __embed
-  ? [new THREE.BoxGeometry(0.7,0.7,0.7), new THREE.SphereGeometry(0.42,32,32), new THREE.ConeGeometry(0.38,0.85,24),
-     new THREE.TorusGeometry(0.34,0.13,16,48), new THREE.DodecahedronGeometry(0.42)]
+  ? [new THREE.BoxGeometry(0.62,0.62,0.62), new THREE.SphereGeometry(0.36,32,32), new THREE.ConeGeometry(0.32,0.72,24),
+     new THREE.TorusGeometry(0.28,0.11,16,48), new THREE.DodecahedronGeometry(0.34)]
   : [new THREE.BoxGeometry(0.8,0.8,0.8), new THREE.SphereGeometry(0.5,32,32), new THREE.ConeGeometry(0.45,1,24),
      new THREE.TorusGeometry(0.4,0.15,16,48), new THREE.DodecahedronGeometry(0.5)];
 for (let i=0;i<5;i++) {
@@ -94,17 +95,26 @@ for (let i=0;i<5;i++) {
     __geoms[i],
     new THREE.MeshStandardMaterial({ color: colors[i], roughness:0.4, metalness:0.2 })
   );
-  m.position.set((i-2)*__gap, 0.55, 0); scene.add(m); selectable.push(m);
+  m.position.set((i-2)*__gap, 0.5, 0); scene.add(m); selectable.push(m);
 }
 if (__embed) {
-  // Near-square panel: keep full row with margin past iframe edges
-  camera.position.set(0, 1.2, 9.5);
-  camera.fov = 38;
+  // Fit full row with margin: pull back + narrow FOV so cube…dodecahedron stay inside frustum.
+  camera.position.set(0, 1.05, 11.8);
+  camera.fov = 32;
   camera.updateProjectionMatrix();
-  controls.target.set(0, 0.55, 0);
+  controls.target.set(0, 0.5, 0);
   controls.enableDamping = false;
   controls.update();
-  window.__outlineEmbed = { gap: __gap, cam: camera.position.toArray(), fov: camera.fov, aspect: camera.aspect };
+  // Hard fit: if aspect is narrow, nudge further back
+  const halfW = 2 * __gap + 0.4; // outer centers + radius pad
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const needZ = (halfW / Math.tan(hFov / 2)) * 1.18;
+  if (needZ > camera.position.z) {
+    camera.position.z = needZ;
+    controls.update();
+  }
+  window.__outlineEmbed = { gap: __gap, cam: camera.position.toArray(), fov: camera.fov, aspect: camera.aspect, needZ };
 }
 const fl = new THREE.Mesh(new THREE.PlaneGeometry(14,14), new THREE.MeshStandardMaterial({color:0x1a1e2a, roughness:0.9}));
 fl.rotation.x=-Math.PI/2; scene.add(fl);
