@@ -1,0 +1,3084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<!-- First-paint critical: Three + cathedral bg + cypress bark (not all 20 lab panels). -->
+<link rel="modulepreload" href="./vendor/three/build/three.module.js" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
+<title>Technique cubicles · corridor-share</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --ink: #1a1d26;
+    --paper: #ebe4d6;
+    --mute: rgba(26,29,38,0.55);
+    --line: rgba(26,29,38,0.14);
+    --accent: #f0c24b;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #cfc8ba; color: var(--ink);
+    font-family: var(--font-sans);
+    touch-action: none; overscroll-behavior: none;
+  }
+  #stage {
+    position: fixed; inset: 0; z-index: 0;
+    cursor: grab; touch-action: none;
+  }
+  #stage.dragging { cursor: grabbing; }
+  #stage.look-locked { cursor: none; }
+  #btn-look-lock { display: none; }
+  @media (pointer: fine) {
+    #btn-look-lock { display: inline-flex; }
+  }
+  #stage.panel-hover { cursor: pointer; }
+  #stage > canvas, #stage > div {
+    position: absolute; inset: 0;
+    display: block; width: 100% !important; height: 100% !important;
+  }
+  .veil {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.3) 100%);
+  }
+  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(235,228,214,0.82);
+    color: var(--ink); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
+  .chip {
+    position: absolute; left: 18px; bottom: 18px;
+    max-width: min(42ch, calc(100vw - 36px));
+    padding: 12px 16px; border-radius: 14px;
+    border: 1px solid var(--line); background: rgba(235,228,214,0.88);
+    backdrop-filter: blur(14px);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    pointer-events: none;
+  }
+  .chip.show { opacity: 1; transform: translateY(0); }
+  .chip .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #b8860b; margin: 0 0 4px;
+  }
+  .chip h2 {
+    margin: 0; font-family: var(--font-display); font-weight: 650;
+    font-size: 1.15rem; letter-spacing: -0.03em; line-height: 1.15;
+  }
+  .chip p { margin: 6px 0 0; font-size: 12px; color: var(--mute); line-height: 1.4; }
+  .keys {
+    position: absolute; right: 18px; bottom: 18px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--mute); text-align: right;
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.75); backdrop-filter: blur(10px);
+  }
+  .keys strong { color: var(--ink); font-weight: 400; }
+  .gate {
+    position: fixed; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(207,200,186,0.55); backdrop-filter: blur(18px);
+    pointer-events: auto; transition: opacity 0.35s ease, visibility 0.35s;
+  }
+  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .gate-card {
+    text-align: center; max-width: 40ch; padding: 28px 32px;
+    border-radius: 24px; border: 1px solid var(--line);
+    background: rgba(255,252,246,0.9);
+  }
+  .gate-card .k {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
+  }
+  .gate-card h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3rem);
+    letter-spacing: -0.04em; line-height: 0.95;
+  }
+  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
+  .gate-card .ctrl {
+    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(26,29,38,0.7);
+  }
+  .gate-card button {
+    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.5);
+    background: rgba(240,194,75,0.18); color: var(--ink);
+    border-radius: 999px; padding: 14px 28px; font: inherit;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
+  }
+  .gate-card button:hover { background: rgba(240,194,75,0.3); }
+  body.reduce .gate { display: none; }
+  body.overview #mobile-pad { display: none !important; }
+  body.overview .chip { display: none !important; }
+  #gl-tip {
+    display: none; position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
+    transform: translateX(-50%); z-index: 6; max-width: min(92vw, 36ch);
+    padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.95); backdrop-filter: blur(12px);
+    font-size: 13px; line-height: 1.4; text-align: center; pointer-events: auto; cursor: pointer;
+  }
+  #gl-tip.show { display: block; }
+  #mobile-pad {
+    display: none; position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 4; width: 148px; height: 148px;
+    pointer-events: auto; touch-action: none; user-select: none;
+  }
+  #mobile-pad .pad-base {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1px solid rgba(26,29,38,0.2);
+    background: rgba(235,228,214,0.55); backdrop-filter: blur(10px);
+  }
+  #mobile-pad .pad-knob {
+    position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
+    margin: -28px 0 0 -28px; border-radius: 50%;
+    border: 1px solid rgba(240,194,75,0.5); background: rgba(240,194,75,0.22);
+    pointer-events: none;
+  }
+  #mobile-pad.active .pad-knob { background: rgba(240,194,75,0.38); }
+  #mobile-pad .pad-cross {
+    position: absolute; inset: 18%; pointer-events: none; opacity: 0.3;
+    background:
+      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
+      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
+  }
+  .keys .keys-mobile { display: none; }
+  .gate-card .ctrl .ctrl-mobile { display: none; }
+  @media (pointer: coarse), (max-width: 900px) {
+    #mobile-pad { display: block; }
+    .keys .keys-desktop { display: none; }
+    .keys .keys-mobile { display: inline; }
+    .gate-card .ctrl .ctrl-desktop { display: none; }
+    .gate-card .ctrl .ctrl-mobile { display: inline; }
+    .chip, .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
+  }
+</style>
+</head>
+<body>
+  <div id="stage" aria-label="Technique cubicles stage"></div>
+  <div class="veil" aria-hidden="true"></div>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Technique cubicles · 5×4</div>
+      <div class="pills">
+        <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
+        <a class="pill" href="./webgpu-lab/INDEX.html">WebGPU Lab</a>
+        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
+        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
+        <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
+        <button class="pill" id="btn-look-lock" type="button" title="Pointer-lock mouse look (double-click stage · Esc exit)">Look lock</button>
+        <button class="pill" id="btn-overview" type="button" title="Toggle overview camera (O)">Overview</button>
+      </div>
+    </div>
+    <div class="chip" id="chip" aria-live="polite">
+      <p class="tag" id="chip-tag">Cell</p>
+      <h2 id="chip-title">—</h2>
+      <p id="chip-hint"></p>
+    </div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag/lock look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · pinch zoom · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
+  </div>
+
+  <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
+    <div class="gate-card">
+      <p class="k">Technique cubicles</p>
+      <h1>One sphere ·<br/>twenty cells</h1>
+      <p>Inside an inward-facing shell. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag/lock look · full 360° · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look · pinch zoom · full 360°</span></p>
+      <button type="button" id="btn-enter">Enter</button>
+    </div>
+  </div>
+
+  <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
+    <div class="pad-base"></div>
+    <div class="pad-cross" aria-hidden="true"></div>
+    <div class="pad-knob" id="pad-knob"></div>
+  </div>
+
+  <div id="gl-tip" role="status" aria-live="polite" hidden>3D view paused — tap to reload</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<script>
+/* Boot guard: if three/module fails (CDN/blocker), beige UI alone must not be silent. */
+(function () {
+  const tip = document.getElementById('gl-tip');
+  let shown = false;
+  function showBootFail(err) {
+    if (shown || !tip) return;
+    const stageEl = document.getElementById('stage');
+    if (stageEl && stageEl.querySelector('canvas')) return; // module already started
+    shown = true;
+    const detail = (err && (err.message || String(err))) || 'unknown error';
+    tip.hidden = false;
+    tip.classList.add('show');
+    tip.innerHTML = '3D failed to load — tap to reload<br><span style="font-size:11px;color:rgba(26,29,38,0.55);word-break:break-word"></span>';
+    tip.querySelector('span').textContent = detail.slice(0, 220);
+  }
+  window.addEventListener('error', (e) => {
+    const msg = e.message || (e.error && e.error.message) || '';
+    if (!msg && !e.filename) return;
+    // Ignore benign resize/resource noise; catch module / fetch / import failures
+    if (/Failed to (fetch|load)|Importing a module|error loading dynamically|SyntaxError|TypeError|three/i.test(msg) ||
+        (e.filename && /three|spatial-drill|vendor\/three/i.test(e.filename))) {
+      showBootFail(e.error || new Error(msg || 'script error'));
+    }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    showBootFail(e.reason || new Error('unhandled rejection'));
+  });
+  if (tip) tip.addEventListener('click', () => { location.reload(); });
+  setTimeout(() => {
+    const stage = document.getElementById('stage');
+    if (stage && !stage.querySelector('canvas')) {
+      showBootFail(new Error('module did not start (no WebGL canvas)'));
+    }
+  }, 4000);
+})();
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { Water } from 'three/addons/objects/Water.js';
+
+const params = new URLSearchParams(location.search);
+// Also accept #chrome=N / #chrome:N for temporary look switches
+const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, '').replace(/,/g, '&'));
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
+if (reduceMotion) document.body.classList.add('reduce');
+
+/** Temporary chrome HDR look for aisle cypresses: ?chrome=1|2|3 (or #chrome=N). */
+function resolveChromeVariant() {
+  const raw = params.get('chrome') || hashParams.get('chrome') || '1';
+  const n = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
+  if (n === 2 || n === 3) return n;
+  return 1;
+}
+const chromeVariant = resolveChromeVariant();
+const CHROME_LOOK = {
+  1: 'heavy-mirror',
+  2: 'brushed-gold-canopy',
+  3: 'cooler-purple-chrome',
+}[chromeVariant];
+console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
+
+/** Walkable nave footprint inside outer sphere shell. 5×4×1 equal cells + entrance foyer. */
+const OUTER_W = 32;   // X — roomier cells for pointer
+const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
+const OUTER_H = 12.0; // Y — cathedral vault for chrome cypress nave
+/** Inward-facing skydome radius (encloses floor corners + vault). */
+const SHELL_R = Math.sqrt((OUTER_W * 0.5) ** 2 + (OUTER_D * 0.5) ** 2 + (OUTER_H * 0.55) ** 2) * 1.14;
+const COLS = 5;
+const ROWS = 4;
+/** Empty entrance strip on +Z; cells do NOT cover this AABB. */
+const FOYER_DEPTH = 6.5;
+const GRID_Z_MIN = -OUTER_D / 2;                 // far wall
+const GRID_Z_MAX = OUTER_D / 2 - FOYER_DEPTH;    // foyer starts here
+const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
+const CELL_W = OUTER_W / COLS;
+const CELL_D = GRID_D / ROWS;
+const EYE = 1.65;
+const MAX_ARMED = 8;
+/** Arm embeds across ~full grid depth so back rows stay live while walking. */
+const ARM_DIST = Math.max(22, GRID_D * 0.95);
+/** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
+const INTERACT_DIST = Math.max(20, CELL_D * 3.6);
+function interactDistFor(panel) {
+  if (!panel) return INTERACT_DIST;
+  // Back half of the grid needs more slack — wallpaper + deeper standing line.
+  return panel.row >= 2 ? INTERACT_DIST * 1.35 : INTERACT_DIST;
+}
+let hoverPanel = null; // panel under cursor (screen ray)
+/** Mid-foyer spawn: outside every cell AABB, looking −Z at the grid */
+const SPAWN = {
+  x: 0,
+  y: EYE,
+  z: (GRID_Z_MAX + OUTER_D / 2) * 0.5, // center of foyer strip
+  yaw: 0,
+  pitch: -0.04,
+};
+/** ?aisle=1 / ?view=aisle — stand beside a column aisle looking at chrome cypresses between panels. */
+const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashParams.get('view') === 'aisle';
+if (wantAisle) {
+  // Foyer edge looking −Z into a column aisle of cathedral chrome cypresses
+  const aisleX = -OUTER_W / 2 + CELL_W * 1.0;
+  SPAWN.x = aisleX + 3.15; // clearance so near-plane does not slice buttress flare
+  SPAWN.z = GRID_Z_MAX + 3.8; // foyer edge — full Taxodium midground
+  SPAWN.yaw = 0.16;
+  SPAWN.pitch = 0.06; // waterline + knees grounded; canopy still in frame
+  console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw, 'pitch', SPAWN.pitch);
+}
+// Optional still-camera overrides: ?camx=&camz=&yaw=&pitch=
+{
+  const cx = params.get('camx') ?? hashParams.get('camx');
+  const cz = params.get('camz') ?? hashParams.get('camz');
+  const cyaw = params.get('yaw') ?? hashParams.get('yaw');
+  const cpitch = params.get('pitch') ?? hashParams.get('pitch');
+  if (cx != null && cx !== '') SPAWN.x = parseFloat(cx);
+  if (cz != null && cz !== '') SPAWN.z = parseFloat(cz);
+  if (cyaw != null && cyaw !== '') SPAWN.yaw = parseFloat(cyaw);
+  if (cpitch != null && cpitch !== '') SPAWN.pitch = parseFloat(cpitch);
+}
+
+const CELLS = [
+  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=float3' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=float3' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=float3' },
+  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=float3' },
+  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=float3' },
+  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=float3' },
+  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=float3' },
+  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=float3' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=float3' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=float4' },
+  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=float3' },
+  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=float3' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=float4' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=float4' },
+  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=float3' },
+  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=float3' },
+  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=float3' },
+  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=float3' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=float3' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float4' },
+];
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+const forceDesktop = params.has('desktop') || params.get('hq') === '1' || hashParams.get('desktop') === '1';
+const mobileLike = !forceDesktop && (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches);
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
+renderer.setClearColor(0x140818, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = chromeVariant === 2 ? 0.88 : chromeVariant === 3 ? 0.82 : 0.72;
+if (wantAisle) {
+  // Aisle: preserve mercury contrast — avoid bloom-crushed white wash
+  renderer.toneMappingExposure = chromeVariant === 2 ? 0.78 : chromeVariant === 3 ? 0.72 : 0.6;
+}
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+let glContextLost = false;
+const glTip = document.getElementById('gl-tip');
+function showGlTip(msg) {
+  if (!glTip) return;
+  glTip.textContent = msg;
+  glTip.hidden = false;
+  glTip.classList.add('show');
+}
+function hideGlTip() {
+  if (!glTip) return;
+  glTip.hidden = true;
+  glTip.classList.remove('show');
+}
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  glContextLost = true;
+  showGlTip('3D view paused — tap to reload');
+}, false);
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  glContextLost = false;
+  hideGlTip();
+  try {
+    renderer.setClearColor(0x140818, 1);
+    renderer.setSize(innerWidth, innerHeight, false);
+    cssRenderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth / Math.max(1, innerHeight);
+    camera.updateProjectionMatrix();
+  } catch {}
+}, false);
+if (glTip) {
+  glTip.addEventListener('click', () => { location.reload(); });
+}
+
+const cssRenderer = new CSS3DRenderer();
+cssRenderer.domElement.style.pointerEvents = 'none';
+stage.appendChild(cssRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x14061a, 12, 42); // dissolve water–shell join; chrome still mid-nave
+scene.background = new THREE.Color(0x1a0820);
+const cssScene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, Math.max(120, SHELL_R * 3.2));
+const yaw = { value: SPAWN.yaw };
+const pitch = { value: SPAWN.pitch };
+const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
+
+// Sketch C — magenta / gold cathedral cross-light (liquid mercury chrome drinks this)
+scene.add(new THREE.HemisphereLight(0xc090ff, 0x0a0610, 0.22));
+const key = new THREE.DirectionalLight(0xffd090, 2.55); // warm gold key — hard specular on chrome
+key.position.set(8, 24, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 55;
+key.shadow.camera.left = -16;
+key.shadow.camera.right = 16;
+key.shadow.camera.top = 18;
+key.shadow.camera.bottom = -12;
+key.shadow.radius = 2.2;
+key.shadow.bias = -0.0004;
+if (chromeVariant === 2) key.intensity = 2.35;
+if (chromeVariant === 3) { key.color.setHex(0xe8c8ff); key.intensity = 1.85; }
+scene.add(key);
+const magentaFill = new THREE.DirectionalLight(
+  chromeVariant === 2 ? 0xd06050 : chromeVariant === 3 ? 0x9030ff : 0xff2ab8,
+  chromeVariant === 3 ? 1.1 : chromeVariant === 2 ? 0.75 : 0.55
+); // magenta / warm / violet cross-fill — dialed so gold key wins on chrome
+magentaFill.position.set(-10, 7, -5);
+scene.add(magentaFill);
+// High gold rim from vault (cathedral clerestory)
+const goldRim = new THREE.DirectionalLight(0xffc040, chromeVariant === 3 ? 0.7 : 1.65);
+goldRim.position.set(-3, 28, -8);
+scene.add(goldRim);
+if (chromeVariant === 2) {
+  scene.add(new THREE.PointLight(0xffb030, 32, 34).translateX(4).translateY(5.5).translateZ(-2)); // stronger gold nave
+  scene.add(new THREE.PointLight(0xd06040, 14, 30).translateX(-5).translateY(3.8).translateZ(2)); // warm amber aisle
+  scene.add(new THREE.PointLight(0xffe090, 18, 22).translateX(0).translateY(9.5).translateZ(-6)); // vault gold
+} else if (chromeVariant === 3) {
+  scene.add(new THREE.PointLight(0xe090ff, 20, 30).translateX(4).translateY(5.5).translateZ(-2)); // cool violet nave
+  scene.add(new THREE.PointLight(0x7028ff, 28, 36).translateX(-5).translateY(3.8).translateZ(2)); // deep purple aisle
+  scene.add(new THREE.PointLight(0xffc060, 10, 20).translateX(0).translateY(9.5).translateZ(-6)); // faint gold vault
+} else {
+  scene.add(new THREE.PointLight(0xffc050, 26, 32).translateX(4).translateY(5.5).translateZ(-2)); // gold nave accent
+  scene.add(new THREE.PointLight(0xff20c0, 14, 34).translateX(-5).translateY(3.8).translateZ(2)); // magenta aisle (tempered)
+  scene.add(new THREE.PointLight(0xffe090, 20, 26).translateX(0).translateY(9.8).translateZ(-6)); // vault gold bead
+  scene.add(new THREE.PointLight(0xc040ff, 8, 24).translateX(6).translateY(4).translateZ(4)); // foyer magenta kick
+}
+
+// —— Inward-facing outer sphere (continuous skydome; no planar box walls) ——
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // legacy refs only
+const SHELL_CENTER_Y = OUTER_H * 0.38;
+const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
+const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
+// shellMat built after stargazer video binds (full-dome VideoTexture). Placeholder dark until then.
+let shellMat = new THREE.MeshBasicMaterial({
+  color: 0x140610,
+  side: THREE.BackSide,
+  fog: true,
+  depthWrite: true,
+});
+
+// Circular swamp water — radial alpha soft-meets the sphere (no rectangular floor edge)
+const WATER_TIME_SCALE = 0.28;
+const waterNormals = new THREE.TextureLoader().load(
+  './demo-assets/textures/waternormals.jpg',
+  (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
+);
+const waterSun = new THREE.Vector3(0.25, 0.75, 0.35).normalize();
+const water = new Water(new THREE.CircleGeometry(WATER_R, mobileLike ? 64 : 96), {
+  textureWidth: mobileLike ? 256 : 512,
+  textureHeight: mobileLike ? 256 : 512,
+  waterNormals,
+  sunDirection: waterSun.clone(),
+  sunColor: 0xffd078,
+  waterColor: 0x140c22,
+  distortionScale: 1.15,
+  fog: true,
+  alpha: 1.0,
+});
+water.rotation.x = -Math.PI / 2;
+water.position.y = 0.02;
+water.raycast = () => {};
+if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
+if (water.material?.fragmentShader) {
+  const wr = WATER_R.toFixed(4);
+  water.material.fragmentShader = water.material.fragmentShader
+    .replace('time / 17.0', 'time / 52.0')
+    .replace('time / 29.0', 'time / 78.0')
+    .replace('time / -19.0', 'time / -58.0')
+    .replace('time / 31.0', 'time / 86.0')
+    .replace('time / 101.0', 'time / 240.0')
+    .replace('time / 97.0', 'time / 230.0')
+    .replace('time / 109.0', 'time / 260.0')
+    .replace('time / -113.0', 'time / -270.0')
+    .replace(
+      'gl_FragColor = vec4( outgoingLight, alpha );',
+      'float _rim = length( worldPosition.xz ) / ' + wr + ';\n'
+      + '\t\t\t\t\tfloat _edgeA = 1.0 - smoothstep( 0.45, 0.92, _rim );\n'
+      + '\t\t\t\t\toutgoingLight = mix( vec3( 0.06, 0.025, 0.04 ), outgoingLight, _edgeA );\n'
+      + '\t\t\t\t\tgl_FragColor = vec4( outgoingLight, alpha * _edgeA );'
+    );
+  water.material.transparent = true;
+  water.material.depthWrite = false;
+  water.material.needsUpdate = true;
+}
+scene.add(water);
+const underAlpha = document.createElement('canvas');
+underAlpha.width = 256; underAlpha.height = 256;
+{
+  const ctx = underAlpha.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 60, 128, 128, 128);
+  g.addColorStop(0, 'rgba(16,6,14,1)');
+  g.addColorStop(0.55, 'rgba(16,6,14,0.7)');
+  g.addColorStop(0.78, 'rgba(16,6,14,0.2)');
+  g.addColorStop(1, 'rgba(16,6,14,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+}
+const underDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(FLOOR_CHORD_R * 1.04, mobileLike ? 48 : 72),
+  new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(underAlpha),
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    fog: true,
+    side: THREE.DoubleSide,
+  })
+);
+underDisc.rotation.x = -Math.PI / 2;
+underDisc.position.y = 0.005;
+underDisc.raycast = () => {};
+scene.add(underDisc);
+window.__waterDisc = { water, underDisc, waterR: WATER_R, floorChordR: FLOOR_CHORD_R };
+
+// —— Sketch C cathedral HDR IBL (local Poly Haven) + magenta/gold tint + mercury bloom ——
+// Non-blocking: failures fall back; never blocks WebGL boot.
+let composer = null;
+let bloomPass = null;
+
+/** Magenta/gold-family equirect; punchy specular lobes for liquid mercury. */
+function makeMagentaGoldEquirect(size = 512, variant = chromeVariant) {
+  const data = new Float32Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size;
+      const v = y / size;
+      const gold = Math.pow(Math.max(0, Math.cos((u - 0.18) * Math.PI * 2) * 0.55 + 0.35), 2.05);
+      const gold2 = Math.pow(Math.max(0, Math.cos((u - 0.72) * Math.PI * 2) * 0.4 + 0.2), 2.2);
+      const magenta = Math.pow(Math.max(0, 1 - Math.abs(v - 0.42) * 1.8), 1.45);
+      const vault = Math.pow(Math.max(0, v - 0.55), 1.25);
+      const coolBand = Math.pow(Math.max(0, 1 - Math.abs(v - 0.55) * 2.2), 1.8);
+      // Hot specular windows — extreme beads for mercury chrome
+      const winA = Math.pow(Math.max(0, 1 - Math.hypot(u - 0.22, v - 0.62) * 9), 4.5) * 4.2;
+      const winB = Math.pow(Math.max(0, 1 - Math.hypot(u - 0.78, v - 0.58) * 11), 5.0) * 3.6;
+      const winC = Math.pow(Math.max(0, 1 - Math.hypot(u - 0.5, v - 0.78) * 7), 3.8) * 3.0;
+      const i = (y * size + x) * 4;
+      let r, g, b;
+      if (variant === 2) {
+        r = 0.18 + gold * 4.4 + gold2 * 2.6 + magenta * 0.55 + vault * 0.55 + winA * 1.2 + winC;
+        g = 0.08 + gold * 3.0 + gold2 * 1.7 + magenta * 0.08 + vault * 0.2 + winA * 0.85 + winC * 0.7;
+        b = 0.06 + magenta * 1.4 + vault * 0.9 + gold * 0.25 + winB * 0.35;
+      } else if (variant === 3) {
+        r = 0.10 + gold * 1.4 + gold2 * 0.6 + magenta * 2.0 + coolBand * 1.2 + vault * 0.5 + winA * 0.6 + winB * 0.9;
+        g = 0.03 + gold * 0.7 + magenta * 0.25 + coolBand * 0.35;
+        b = 0.22 + magenta * 3.8 + coolBand * 2.8 + vault * 2.2 + gold * 0.15 + winB * 1.4 + winC * 0.5;
+      } else {
+        // Dark cathedral vault + hot gold/magenta specular windows (mercury beads)
+        r = 0.03 + gold * 2.2 + gold2 * 1.1 + magenta * 0.35 + vault * 0.15 + winA * 3.8 + winC * 2.8;
+        g = 0.015 + gold * 1.4 + gold2 * 0.7 + winA * 2.4 + winC * 1.8;
+        b = 0.04 + magenta * 1.1 + vault * 0.7 + gold * 0.15 + winB * 2.6 + winC * 0.5;
+      }
+      data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 1;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.LinearSRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Lift + tint Poly Haven HDR toward Sketch C magenta/gold (preserve luminance). */
+function tintHdrTowardMagentaGold(tex, variant = chromeVariant) {
+  const img = tex.image;
+  if (!img || !img.data) return tex;
+  const data = img.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const goldW = Math.min(4.5, Math.pow(Math.max(0.02, lum), 0.85) * 1.35);
+    const magW = Math.min(3.8, Math.pow(Math.max(0.05, 1.25 - Math.abs(lum - 0.45)), 1.2) * 1.25);
+    if (variant === 2) {
+      data[i]     = r * 1.05 + goldW * 2.8 + magW * 0.4 + 0.06;
+      data[i + 1] = g * 0.95 + goldW * 2.0 + magW * 0.1 + 0.03;
+      data[i + 2] = b * 0.75 + goldW * 0.45 + magW * 0.85 + 0.04;
+    } else if (variant === 3) {
+      data[i]     = r * 0.95 + goldW * 0.9 + magW * 1.8 + 0.05;
+      data[i + 1] = g * 0.7 + goldW * 0.4 + magW * 0.25 + 0.02;
+      data[i + 2] = b * 1.15 + goldW * 0.25 + magW * 2.6 + 0.08;
+    } else {
+      data[i]     = r * 1.0 + goldW * 2.5 + magW * 1.55 + 0.07;
+      data[i + 1] = g * 0.85 + goldW * 1.55 + magW * 0.15 + 0.03;
+      data[i + 2] = b * 1.05 + goldW * 0.35 + magW * 2.15 + 0.06;
+    }
+  }
+  tex.needsUpdate = true;
+  return tex;
+}
+
+async function setupCathedralEnvAndBloom() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  try { pmrem.compileEquirectangularShader(); } catch (_) {}
+
+  let usedLocalHdrBg = false;
+  // Fast path: pre-baked soft cathedral equirect (WebP) — skips RGBE decode + PMREM of 1.6MB HDR on first paint.
+  // Visual match for backgroundBlurriness≈0.68; envMap still uses punchy synth below.
+  try {
+    const prebakedUrl = './demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp';
+    const prebaked = await new THREE.TextureLoader().loadAsync(prebakedUrl);
+    prebaked.mapping = THREE.EquirectangularReflectionMapping;
+    prebaked.colorSpace = THREE.SRGBColorSpace;
+    scene.background = prebaked;
+    scene.backgroundBlurriness = 0.12; // already soft-baked
+    scene.backgroundIntensity = chromeVariant === 2 ? 0.42 : 0.36;
+    window.__sketchCHdrEnv = prebaked;
+    usedLocalHdrBg = true;
+    console.info('[cubicles] prebaked PMREM-style bg (skip HDR decode)', prebakedUrl, 'chrome=' + chromeVariant);
+  } catch (preErr) {
+    console.warn('[cubicles] prebaked bg missing — HDR fallback', preErr);
+  }
+  // Optional: full HDR upgrade only when ?hdr=1 (quality A/B), otherwise skip decode cost.
+  if (!usedLocalHdrBg || params.has('hdr')) {
+    try {
+      const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
+      const localCandidates = [
+        './demo-assets/hdr/small_cathedral_02_1k.hdr',
+        './demo-assets/hdr/neon_photostudio_1k.hdr',
+      ];
+      let hdr = null;
+      let hdrSrc = null;
+      for (const url of localCandidates) {
+        try {
+          hdr = await new RGBELoader().loadAsync(url);
+          hdrSrc = url;
+          break;
+        } catch (_) { /* try next */ }
+      }
+      if (!hdr) {
+        try {
+          hdr = await new RGBELoader().loadAsync(
+            'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
+          );
+          hdrSrc = 'cdn:venice_sunset';
+        } catch (_) {}
+      }
+      if (hdr) {
+        tintHdrTowardMagentaGold(hdr, chromeVariant);
+        const bgRT = pmrem.fromEquirectangular(hdr);
+        scene.background = bgRT.texture;
+        scene.backgroundBlurriness = 0.68;
+        scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
+        window.__sketchCHdrEnv = bgRT.texture;
+        hdr.dispose();
+        usedLocalHdrBg = true;
+        console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
+      }
+    } catch (loaderErr) {
+      console.warn('[cubicles] RGBELoader unavailable', loaderErr);
+    }
+  }
+
+  // Sketch C chrome reflections: punchy magenta/gold synth with hot specular windows (mercury beads)
+  try {
+    const synth = makeMagentaGoldEquirect(mobileLike ? 256 : 512, chromeVariant);
+    const env = pmrem.fromEquirectangular(synth).texture;
+    scene.environment = env;
+    scene.environmentIntensity = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 1.25 : 1.2;
+    if (!scene.background || scene.background.isColor) {
+      scene.background = env;
+      scene.backgroundBlurriness = 0.48;
+      scene.backgroundIntensity = 0.34;
+    }
+    synth.dispose();
+    // Explicit envMap bind — helps InstancedMesh / delayed chrome mats under SwiftShader
+    window.__sketchCEnvTex = env;
+    const bindChromeEnv = () => {
+      const mats = window.__sketchCChromeMats || [];
+      for (const m of mats) {
+        if (!m) continue;
+        m.envMap = env;
+        m.needsUpdate = true;
+      }
+    };
+    bindChromeEnv();
+    // Re-bind once trees finish chromeify/clone (async GLB)
+    setTimeout(bindChromeEnv, 800);
+    setTimeout(bindChromeEnv, 2200);
+    console.info('[cubicles] magenta/gold synth envMap (mercury)', 'chrome=' + chromeVariant, CHROME_LOOK,
+      usedLocalHdrBg ? '+HDR bg' : 'synth-only');
+  } catch (pmErr) {
+    console.warn('[cubicles] equirect PMREM failed — fromScene / HDR fallback', pmErr);
+    if (window.__sketchCHdrEnv) {
+      scene.environment = window.__sketchCHdrEnv;
+      scene.environmentIntensity = 1.85;
+    } else {
+      try {
+        const probe = new THREE.Scene();
+        probe.add(new THREE.Mesh(
+          new THREE.SphereGeometry(2, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xffc050 })
+        ).translateX(4).translateY(3).translateZ(-2));
+        probe.add(new THREE.Mesh(
+          new THREE.SphereGeometry(2.4, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xc028ff })
+        ).translateX(-5).translateY(2.5).translateZ(3));
+        scene.environment = pmrem.fromScene(probe, 0.04).texture;
+        scene.environmentIntensity = 1.85;
+      } catch (probeErr) {
+        console.warn('[cubicles] PMREM fromScene failed — colored lights only', probeErr);
+      }
+    }
+  }
+
+  try { pmrem.dispose(); } catch (_) {}
+
+  if (mobileLike) {
+    console.info('[cubicles] bloom skipped on mobile-like');
+    return;
+  }
+  try {
+    const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+    const { RenderPass } = await import('three/addons/postprocessing/RenderPass.js');
+    const { UnrealBloomPass } = await import('three/addons/postprocessing/UnrealBloomPass.js');
+    const { OutputPass } = await import('three/addons/postprocessing/OutputPass.js');
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    // Mercury bloom: moderate strength, tight radius, mid-high threshold → specular beads not trunk wash
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(innerWidth, innerHeight),
+      wantAisle ? 0.08 : 0.11,
+      wantAisle ? 0.12 : 0.15,
+      wantAisle ? 0.95 : 0.92
+    );
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+    composer.setSize(innerWidth, innerHeight);
+    console.info('[cubicles] UnrealBloomPass mercury bloom enabled');
+  } catch (bloomErr) {
+    composer = null;
+    bloomPass = null;
+    console.warn('[cubicles] bloom skipped', bloomErr);
+  }
+}
+
+setupCathedralEnvAndBloom().then(() => {
+  window.__sketchCEnvReady = true;
+}).catch((e) => {
+  console.warn('[cubicles] cathedral env/bloom setup failed', e);
+  window.__sketchCEnvReady = true; // still allow capture
+});
+
+
+const outerShell = new THREE.Mesh(
+  new THREE.SphereGeometry(SHELL_R, mobileLike ? 48 : 80, mobileLike ? 32 : 56),
+  shellMat
+);
+outerShell.position.set(0, SHELL_CENTER_Y, 0);
+outerShell.receiveShadow = true;
+outerShell.raycast = () => {};
+scene.add(outerShell);
+window.__outerShell = { mesh: outerShell, radius: SHELL_R, centerY: SHELL_CENTER_Y, floorChordR: FLOOR_CHORD_R };
+console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', SHELL_CENTER_Y.toFixed(2), 'waterR', WATER_R.toFixed(2));
+
+// —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
+// Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
+// Mobile: cheap Basic material, low count, no extra PointLight; animation from base euler only.
+const WALL_Z = -OUTER_D / 2 + 0.12; // flush just in front of far wall plane
+const WALLPAPER_COUNT = mobileLike ? 160 : 1400;
+const WALLPAPER_STRIDE = mobileLike ? 8 : 5;
+const WALLPAPER_FRAME_N = mobileLike ? 2 : 1; // mobile: animate every N frames
+let wallpaper = null;
+let wallpaperDummy = null;
+let wallpaperBase = null;
+let wallpaperPhase = null;
+let wallpaperScale = null;
+let wallpaperEuler = null; // base rx,ry,rz — never mix decompose(quaternion) + Euler
+let wallpaperFrame = 0;
+let wallpaperOk = false;
+
+function disposeWallpaper() {
+  if (!wallpaper) return;
+  try {
+    scene.remove(wallpaper);
+    wallpaper.geometry?.dispose?.();
+    wallpaper.material?.dispose?.();
+  } catch {}
+  wallpaper = null;
+  wallpaperOk = false;
+}
+
+function createWallpaper() {
+  const wallpaperGeo = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+  const wallpaperMat = mobileLike
+    ? new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.88 })
+    : new THREE.MeshStandardMaterial({
+        roughness: 0.48,
+        metalness: 0.22,
+        transparent: true,
+        opacity: 0.88,
+      });
+  const mesh = new THREE.InstancedMesh(wallpaperGeo, wallpaperMat, WALLPAPER_COUNT);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.matrixAutoUpdate = false;
+  mesh.raycast = () => {}; // never steal clicks / navigation
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  const base = new Float32Array(WALLPAPER_COUNT * 3);
+  const phase = new Float32Array(WALLPAPER_COUNT);
+  const scale = new Float32Array(WALLPAPER_COUNT);
+  const euler = new Float32Array(WALLPAPER_COUNT * 3);
+  for (let i = 0; i < WALLPAPER_COUNT; i++) {
+    const x = (Math.random() - 0.5) * (OUTER_W - 0.6);
+    const y = 0.25 + Math.random() * (OUTER_H - 0.5);
+    const z = WALL_Z + (Math.random() - 0.5) * 0.55;
+    base[i * 3] = x;
+    base[i * 3 + 1] = y;
+    base[i * 3 + 2] = z;
+    phase[i] = Math.random() * Math.PI * 2;
+    const s = 0.35 + Math.random() * 1.35;
+    scale[i] = s;
+    const rx = Math.random() * Math.PI;
+    const ry = Math.random() * Math.PI;
+    const rz = Math.random() * 0.4;
+    euler[i * 3] = rx;
+    euler[i * 3 + 1] = ry;
+    euler[i * 3 + 2] = rz;
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(rx, ry, rz);
+    dummy.scale.setScalar(s);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    // Warm amber/bronze, dialed so hung panels stay readable
+    color.setHSL(0.07 + Math.random() * 0.1, 0.55 + Math.random() * 0.2, 0.32 + Math.random() * 0.22);
+    mesh.setColorAt(i, color);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  scene.add(mesh);
+  if (!mobileLike) {
+    scene.add(new THREE.PointLight(0xffe0b0, 18, 22).translateX(0).translateY(OUTER_H * 0.55).translateZ(WALL_Z + 2.2));
+  }
+  wallpaper = mesh;
+  wallpaperDummy = dummy;
+  wallpaperBase = base;
+  wallpaperPhase = phase;
+  wallpaperScale = scale;
+  wallpaperEuler = euler;
+  wallpaperOk = true;
+}
+
+// Floating-labs sketch: skip far-wall InstancedMesh cube plate (read as hung black backing).
+window.__disposeWallpaper = disposeWallpaper;
+console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
+
+// —— Stargazer full-dome: VideoTexture on inward sphere (aspect-correct, nadir fade) ——
+// Portrait clip projected with correct aspect toward −Z; sky edge-extends across the dome;
+// nadir soft-masks to shell dark so the floor join never stretches the subject.
+(function installStargazingDome() {
+  try {
+    const vid = document.createElement('video');
+    vid.src = './demo-assets/backwall/stargazing.mp4';
+    vid.crossOrigin = 'anonymous';
+    vid.loop = true;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('muted', '');
+    vid.preload = 'auto';
+    vid.setAttribute('aria-hidden', 'true');
+    const tex = new THREE.VideoTexture(vid);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    let domeMat = null; // assigned below
+    // Poster is the initial dome map (updates in place); swap to VideoTexture when ready.
+    const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
+    poster.colorSpace = THREE.SRGBColorSpace;
+    poster.minFilter = THREE.LinearFilter;
+    poster.magFilter = THREE.LinearFilter;
+    poster.generateMipmaps = false;
+    poster.wrapS = THREE.ClampToEdgeWrapping;
+    poster.wrapT = THREE.ClampToEdgeWrapping;
+    const promoteVideoMap = () => {
+      if (!domeMat?.uniforms?.map || vid.readyState < 2) return;
+      domeMat.uniforms.map.value = tex;
+      tex.needsUpdate = true;
+    };
+    vid.addEventListener('loadeddata', promoteVideoMap);
+    vid.addEventListener('playing', promoteVideoMap);
+
+    const videoAspect = 720 / 974;
+    // Equirect-style full-sphere wrap. Portrait cover into 2:1 equirect UV,
+    // biased toward face/sky (upper video). Nadir faded to shell dark.
+    const EQ_ASPECT = 2.0;
+    let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
+    if (videoAspect > EQ_ASPECT) {
+      repX = EQ_ASPECT / videoAspect;
+      repY = 1.0;
+      offX = (1.0 - repX) * 0.5;
+      offY = 0.0;
+    } else {
+      repX = 1.0;
+      repY = videoAspect / EQ_ASPECT;
+      offX = 0.0;
+      // Pin cover to TOP of portrait (face + stars). Lower landscape stays off-dome
+      // so it cannot fake a floor–wall horizon on the sphere.
+      offY = 1.0 - repY;
+    }
+
+    domeMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      fog: false, // keep stargazer readable; scene fog was washing the dome black
+      toneMapped: false,
+      uniforms: {
+        map: { value: poster },
+        shellDark: { value: new THREE.Color(0x10060e) },
+        rep: { value: new THREE.Vector2(repX, repY) },
+        off: { value: new THREE.Vector2(offX, offY) },
+      },
+      vertexShader: /* glsl */`
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform sampler2D map;
+        uniform vec3 shellDark;
+        uniform vec2 rep;
+        uniform vec2 off;
+        varying vec3 vDir;
+        void main() {
+          vec3 d = normalize(vDir);
+          float u = atan(d.x, -d.z) / (2.0 * 3.14159265) + 0.5;
+          float vEq = asin(clamp(d.y, -1.0, 1.0)) / 3.14159265 + 0.5;
+          vec2 uv = off + vec2(u, vEq) * rep;
+          uv = clamp(uv, 0.0, 1.0);
+          vec3 col = texture2D(map, uv).rgb;
+          float nadir = 1.0 - smoothstep(-0.55, 0.18, d.y);
+          col = mix(col, shellDark, nadir * 0.985);
+          float zen = smoothstep(0.85, 0.995, d.y);
+          col = mix(col, mix(shellDark, col, 0.75), zen * 0.35);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+// Swap shell onto full-dome video material (continuous sphere — no planar mural)
+    if (outerShell.material && outerShell.material !== domeMat) {
+      try { outerShell.material.dispose?.(); } catch {}
+    }
+    outerShell.material = domeMat;
+    shellMat = domeMat;
+
+    const tryPlay = () => {
+      const p = vid.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    };
+    vid.addEventListener('canplay', tryPlay, { once: true });
+    vid.addEventListener('loadeddata', tryPlay, { once: true });
+    tryPlay();
+    const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+
+    window.__stargazingWall = {
+      mesh: outerShell, vid, tex, dome: true, equirect: true,
+      cover: { repX, repY, offX, offY }, videoAspect,
+    };
+    console.info(
+      '[cubicles] stargazer full-dome equirect',
+      'cover', repX.toFixed(3), repY.toFixed(3),
+      'offY', offY.toFixed(3),
+      'aspect', videoAspect.toFixed(3)
+    );
+  } catch (err) {
+    console.warn('[cubicles] stargazing dome failed', err);
+  }
+})();
+
+function updateWallpaper(t) {
+  if (!wallpaperOk || !wallpaper || reduceMotion) return;
+  wallpaperFrame++;
+  if (WALLPAPER_FRAME_N > 1 && (wallpaperFrame % WALLPAPER_FRAME_N) !== 0) return;
+  try {
+    // Rewrite matrix from stored base pos / euler / phase — no getMatrixAt→decompose→Euler mix
+    for (let i = 0; i < WALLPAPER_COUNT; i += WALLPAPER_STRIDE) {
+      const bx = wallpaperBase[i * 3];
+      const by = wallpaperBase[i * 3 + 1];
+      const bz = wallpaperBase[i * 3 + 2];
+      const ph = wallpaperPhase[i];
+      wallpaperDummy.position.set(
+        bx + Math.sin(t * 0.55 + ph) * 0.06,
+        by + Math.sin(t + ph) * 0.09,
+        bz
+      );
+      wallpaperDummy.rotation.set(
+        wallpaperEuler[i * 3] + t * 0.35,
+        wallpaperEuler[i * 3 + 1] + t * 0.55,
+        wallpaperEuler[i * 3 + 2]
+      );
+      wallpaperDummy.scale.setScalar(wallpaperScale[i]);
+      wallpaperDummy.updateMatrix();
+      wallpaper.setMatrixAt(i, wallpaperDummy.matrix);
+    }
+    wallpaper.instanceMatrix.needsUpdate = true;
+  } catch (err) {
+    console.warn('[cubicles] wallpaper update failed; removing', err);
+    disposeWallpaper();
+  }
+}
+
+
+// —— Ceiling pendant fixtures (far-wall wallpaper unchanged; floor is Water ocean) ——
+const SPARK_CEIL_N = mobileLike ? 14 : 28; // ~1 per cell + foyer accents
+const SPARK_STRIDE = mobileLike ? 4 : 2;
+const SPARK_FRAME_N = mobileLike ? 2 : 1;
+let sparkStem = null;
+let sparkGlow = null;
+let sparkDummy = null;
+let sparkCeilBase = null;
+let sparkCeilPhase = null;
+let sparkCeilScale = null;
+let sparkLights = [];
+let sparkFrame = 0;
+let sparkOk = false;
+
+function disposeSparklines() {
+  for (const mesh of [sparkStem, sparkGlow]) {
+    if (!mesh) continue;
+    try {
+      scene.remove(mesh);
+      mesh.geometry?.dispose?.();
+      mesh.material?.dispose?.();
+    } catch {}
+  }
+  for (const L of sparkLights) {
+    try { scene.remove(L); } catch {}
+  }
+  sparkLights = [];
+  sparkStem = sparkGlow = null;
+  sparkOk = false;
+}
+
+function makeSparkMesh(count, geo, mat) {
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.matrixAutoUpdate = false;
+  mesh.raycast = () => {};
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
+function createSparklines() {
+  sparkDummy = new THREE.Object3D();
+  const color = new THREE.Color();
+
+  // Ceiling: pendant stems + glowing heads (lighting fixtures)
+  const stemGeo = new THREE.CylinderGeometry(0.018, 0.018, 1, 8);
+  const glowGeo = new THREE.SphereGeometry(0.14, 12, 10);
+  const stemMat = mobileLike
+    ? new THREE.MeshBasicMaterial({ color: 0x4a453c })
+    : new THREE.MeshStandardMaterial({ color: 0x3a352e, roughness: 0.55, metalness: 0.35 });
+  const glowMat = mobileLike
+    ? new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: 0.9 })
+    : new THREE.MeshStandardMaterial({
+        color: 0xfff0d0,
+        emissive: 0xffc878,
+        emissiveIntensity: 1.35,
+        roughness: 0.35,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.95,
+      });
+  const stems = makeSparkMesh(SPARK_CEIL_N, stemGeo, stemMat);
+  const glows = makeSparkMesh(SPARK_CEIL_N, glowGeo, glowMat);
+  const cBase = new Float32Array(SPARK_CEIL_N * 3);
+  const cPhase = new Float32Array(SPARK_CEIL_N);
+  const cScale = new Float32Array(SPARK_CEIL_N); // stem length
+
+  // Prefer cell centers so each hang gets a fixture, then fill foyer
+  const fixtureSlots = [];
+  for (let i = 0; i < CELLS.length; i++) {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const cx = -OUTER_W / 2 + (col + 0.5) * CELL_W;
+    const cz = GRID_Z_MAX - (row + 0.5) * CELL_D;
+    fixtureSlots.push([cx + (Math.random() - 0.5) * CELL_W * 0.2, cz - CELL_D * 0.08]);
+  }
+  while (fixtureSlots.length < SPARK_CEIL_N) {
+    fixtureSlots.push([
+      (Math.random() - 0.5) * (OUTER_W - 3),
+      GRID_Z_MAX + 1.2 + Math.random() * (FOYER_DEPTH - 2.2),
+    ]);
+  }
+
+  const lightBudget = mobileLike ? 4 : 10;
+  for (let i = 0; i < SPARK_CEIL_N; i++) {
+    const [x, z] = fixtureSlots[i];
+    const stemLen = 1.8 + Math.random() * 2.4; // hang into vault volume
+    const headY = OUTER_H - stemLen;
+    cBase[i * 3] = x;
+    cBase[i * 3 + 1] = headY;
+    cBase[i * 3 + 2] = z;
+    cPhase[i] = Math.random() * Math.PI * 2;
+    cScale[i] = stemLen;
+
+    sparkDummy.position.set(x, OUTER_H - stemLen * 0.5, z);
+    sparkDummy.rotation.set(0, 0, 0);
+    sparkDummy.scale.set(1, stemLen, 1);
+    sparkDummy.updateMatrix();
+    stems.setMatrixAt(i, sparkDummy.matrix);
+
+    const glowR = 0.85 + Math.random() * 0.45;
+    sparkDummy.position.set(x, headY, z);
+    sparkDummy.scale.setScalar(glowR);
+    sparkDummy.updateMatrix();
+    glows.setMatrixAt(i, sparkDummy.matrix);
+    color.setHSL(0.09 + Math.random() * 0.04, 0.55, 0.72);
+    glows.setColorAt(i, color);
+
+    if (i < lightBudget && !mobileLike) {
+      const pl = new THREE.PointLight(0xffd090, 5.5 + Math.random() * 3.0, 14, 1.55);
+      pl.position.set(x, headY - 0.05, z);
+      scene.add(pl);
+      sparkLights.push(pl);
+    }
+  }
+  stems.instanceMatrix.needsUpdate = true;
+  glows.instanceMatrix.needsUpdate = true;
+  if (glows.instanceColor) glows.instanceColor.needsUpdate = true;
+  scene.add(stems);
+  scene.add(glows);
+
+  sparkStem = stems;
+  sparkGlow = glows;
+  sparkCeilBase = cBase;
+  sparkCeilPhase = cPhase;
+  sparkCeilScale = cScale;
+  sparkOk = true;
+}
+
+try {
+  createSparklines();
+} catch (err) {
+  console.warn('[cubicles] sparklines create failed; room stays usable', err);
+  disposeSparklines();
+}
+
+function updateSparklines(t) {
+  if (!sparkOk || reduceMotion) return;
+  sparkFrame++;
+  if (SPARK_FRAME_N > 1 && (sparkFrame % SPARK_FRAME_N) !== 0) return;
+  try {
+    // Pendants: subtle sway + glow bob
+    for (let i = 0; i < SPARK_CEIL_N; i += SPARK_STRIDE) {
+      const bx = sparkCeilBase[i * 3];
+      const headY = sparkCeilBase[i * 3 + 1];
+      const bz = sparkCeilBase[i * 3 + 2];
+      const ph = sparkCeilPhase[i];
+      const stemLen = sparkCeilScale[i];
+      const sway = Math.sin(t * 0.55 + ph) * 0.035;
+      const bob = Math.sin(t * 0.7 + ph) * 0.04;
+
+      sparkDummy.position.set(bx + sway, OUTER_H - stemLen * 0.5, bz);
+      sparkDummy.rotation.set(sway * 0.4, 0, -sway * 0.3);
+      sparkDummy.scale.set(1, stemLen, 1);
+      sparkDummy.updateMatrix();
+      sparkStem.setMatrixAt(i, sparkDummy.matrix);
+
+      const glowR = 0.9 + Math.sin(t * 1.1 + ph) * 0.08;
+      sparkDummy.position.set(bx + sway, headY + bob, bz);
+      sparkDummy.rotation.set(0, 0, 0);
+      sparkDummy.scale.setScalar(glowR);
+      sparkDummy.updateMatrix();
+      sparkGlow.setMatrixAt(i, sparkDummy.matrix);
+    }
+    sparkStem.instanceMatrix.needsUpdate = true;
+    sparkGlow.instanceMatrix.needsUpdate = true;
+
+    for (let i = 0; i < sparkLights.length; i++) {
+      const ph = sparkCeilPhase[i] || 0;
+      sparkLights[i].intensity = 4.2 + Math.sin(t * 1.05 + ph) * 0.85;
+    }
+  } catch (err) {
+    console.warn('[cubicles] sparklines update failed; removing', err);
+    disposeSparklines();
+  }
+}
+
+// Flat box walls/ceiling removed — continuous inward sphere; stargazer is full-dome VideoTexture; water disc soft-meets shell.
+
+// —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
+// Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
+// Iframe carries each lab's own opaque scene (readable WebGL sketch), not a hung plate mesh.
+const hung = [];
+const debugGroup = new THREE.Group();
+debugGroup.visible = false;
+scene.add(debugGroup);
+const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
+
+const PANEL_W = Math.min(3.35, CELL_W * 0.62);
+// Human-scale floating scenes under cathedral vault — readable from foyer
+const PANEL_H = Math.min(3.05, CELL_D * 0.66);
+const PANEL_Y = EYE + 0.15; // float near eye height inside each cell
+
+for (let i = 0; i < CELLS.length; i++) {
+  const meta = CELLS[i];
+  const col = i % COLS;
+  const row = Math.floor(i / COLS); // 0 = near (foyer side), 3 = far (−Z)
+  const minX = -OUTER_W / 2 + col * CELL_W;
+  const maxX = minX + CELL_W;
+  // Near row sits just −Z of foyer; far row against far wall
+  const maxZ = GRID_Z_MAX - row * CELL_D;
+  const minZ = maxZ - CELL_D;
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+
+  // Debug wireframe for this cell volume (full height)
+  const boxGeo = new THREE.BoxGeometry(CELL_W * 0.998, OUTER_H * 0.998, CELL_D * 0.998);
+  const wire = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), wireMat);
+  wire.position.set(cx, OUTER_H / 2, cz);
+  debugGroup.add(wire);
+
+  // Free-float near cell center, slight +Z bias so foyer walk sees faces clearly
+  const panelZ = cz + CELL_D * 0.06;
+
+  const group = new THREE.Group();
+  group.position.set(cx, PANEL_Y, panelZ);
+  group.rotation.y = 0; // face +Z / foyer
+
+  // No wooden frame, ghost plate, or floor contact disk — only the lab iframe floats.
+  // Invisible hit plane for raycasting / click (does not draw).
+
+  const hit = new THREE.Mesh(
+    new THREE.PlaneGeometry(PANEL_W, PANEL_H),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })
+  );
+  hit.position.z = 0.04;
+  hit.userData.cellIndex = i;
+  hit.userData.clickable = true;
+  group.add(hit);
+  scene.add(group);
+
+  const cssW = Math.round(PANEL_W * 100);
+  const cssH = Math.round(PANEL_H * 100);
+  const scale = PANEL_W / cssW;
+  const iframe = document.createElement('iframe');
+  iframe.src = 'about:blank';
+  iframe.setAttribute('loading', 'lazy');
+  iframe.title = meta.name;
+  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.allow = 'autoplay';
+  iframe.style.width = cssW + 'px';
+  iframe.style.height = cssH + 'px';
+  iframe.style.border = '0';
+  // Transparent host — lab's own scene.background is the sketch (no hung black plate mesh).
+  // Stay opacity 0 until embed canvas paints so empty iframes never read as black plates.
+  iframe.style.background = 'transparent';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.borderRadius = '0'; // no CSS bezel chrome
+  iframe.style.boxShadow = 'none';
+  iframe.style.opacity = '0';
+  iframe.style.transition = 'opacity 0.45s ease';
+
+  const cssObj = new CSS3DObject(iframe);
+  cssObj.scale.set(scale, scale, scale);
+  cssObj.position.set(cx, PANEL_Y, panelZ + 0.02);
+  cssObj.rotation.y = 0;
+  cssScene.add(cssObj);
+
+  const spot = new THREE.PointLight(0xfff6e8, 4.0, CELL_W * 1.3);
+  spot.position.set(cx, PANEL_Y + PANEL_H * 0.55, panelZ + 0.9);
+  scene.add(spot);
+
+  hung.push({
+    meta, col, row, cx, cz, panelZ,
+    aabb: { minX, maxX, minZ, maxZ },
+    group, frame: null, ghost: null, hit, cssObj, iframe, spot,
+    embedArmed: false,
+    canInteract: false,
+    embedUrl: meta.src,
+    // Rest pose for beat-reactive float (AnalyserNode → scale/bob/yaw)
+    cssBaseScale: scale,
+    baseY: PANEL_Y,
+    beatPhase: i * 1.618 + col * 0.37 + row * 0.21,
+  });
+}
+window.__hungLabs = hung;
+window.__floatingLabsSketch = true;
+/** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
+function revealLabWhenReady(panel) {
+  if (!panel || panel._revealWatch) return;
+  panel._revealWatch = true;
+  let tries = 0;
+  const tick = () => {
+    tries++;
+    try {
+      const doc = panel.iframe.contentDocument;
+      const canvas = doc && doc.querySelector('canvas');
+      if (canvas && canvas.width > 0) {
+        panel.iframe.style.opacity = '1';
+        panel._revealWatch = false;
+        return;
+      }
+    } catch {}
+    if (tries < 180) requestAnimationFrame(tick);
+    else { panel._revealWatch = false; } // stay hidden if canvas never arrives (no empty plate)
+  };
+  panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
+  requestAnimationFrame(tick);
+}
+
+function armLab(panel) {
+  if (!panel) return;
+  if (!panel.embedArmed) {
+    panel.iframe.src = panel.embedUrl;
+    panel.embedArmed = true;
+    revealLabWhenReady(panel);
+  } else if (panel.iframe.style.opacity !== '1') {
+    revealLabWhenReady(panel);
+  }
+}
+
+/** Pre-arm a few near-foyer labs (WebGL context budget) so walk shows floating sketches. */
+function armFoyerVisibleLabs() {
+  const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
+    .sort((a, b) => a.dist - b.dist);
+  const FOYER_ARM = Math.min(3, MAX_ARMED);
+  let n = 0;
+  for (const { h } of scored) {
+    if (n >= FOYER_ARM) break;
+    if (h.row > 1) continue;
+    armLab(h);
+    n++;
+  }
+  console.info('[cubicles] foyer-armed floating labs', n);
+}
+// Defer foyer lab iframes one frame so room (walls/water/trees/HDR bg) paints first.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    armFoyerVisibleLabs();
+    console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
+  });
+});
+
+// —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
+// True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
+// dense Spanish-moss filaments under MeshPhysical mercury chrome + magenta/gold HDR.
+// Low-poly OpenGameArt GLB kept as ?glb=1 opt-in (billboard canopy chrome-washes).
+const cypressGroup = new THREE.Group();
+cypressGroup.name = 'cypresses';
+scene.add(cypressGroup);
+
+/** Three temporary chrome HDR looks (?chrome=1|2|3) — liquid mercury + magenta/gold family. */
+const CHROME_PRESETS = {
+  // 1 — sketch C default: liquid mercury trunk, gold canopy, magenta filament moss
+  1: {
+    trunk:  { color: 0x2e3540, metalness: 1.0, roughness: 0.1, envMapIntensity: 2.35, clearcoat: 0.85, clearcoatRoughness: 0.08, reflectivity: 1.0, ior: 1.35, specularIntensity: 1.0, specularColor: 0xffffff },
+    foliage:{ color: 0xb07818, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.45, clearcoat: 0.4, clearcoatRoughness: 0.18, emissive: 0x181004, emissiveIntensity: 0.025, reflectivity: 1.0, specularColor: 0xffd080 },
+    knee:   { color: 0x343c48, metalness: 1.0, roughness: 0.14, envMapIntensity: 2.0, clearcoat: 0.8, clearcoatRoughness: 0.07, specularColor: 0xe8eef6 },
+    moss:   { color: 0xd060b8, metalness: 1.0, roughness: 0.2, envMapIntensity: 1.4, transparent: true, opacity: 0.85, depthWrite: false, emissive: 0x180610, emissiveIntensity: 0.04, clearcoat: 0.4, clearcoatRoughness: 0.14 },
+  },
+  // 2 — brushed gold canopy: warmer metals, higher roughness = brushed specular, gold-heavy
+  2: {
+    trunk:  { color: 0xc9a46a, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.35, clearcoat: 0.28, clearcoatRoughness: 0.35, reflectivity: 0.9 },
+    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.32, envMapIntensity: 1.25, clearcoat: 0.2, clearcoatRoughness: 0.4, emissive: 0x503010, emissiveIntensity: 0.08 },
+    knee:   { color: 0xb8893c, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.2, clearcoat: 0.22, clearcoatRoughness: 0.35 },
+    moss:   { color: 0xc45a20, metalness: 0.95, roughness: 0.32, envMapIntensity: 1.1, transparent: true, opacity: 0.72, depthWrite: false },
+  },
+  // 3 — cooler purple chrome: violet-silver mirrors, magenta canopy, less gold
+  3: {
+    trunk:  { color: 0xd8c8f4, metalness: 1.0, roughness: 0.035, envMapIntensity: 2.1, clearcoat: 0.9, clearcoatRoughness: 0.04, reflectivity: 1.0, ior: 1.8 },
+    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.1, envMapIntensity: 1.85, clearcoat: 0.6, clearcoatRoughness: 0.08, emissive: 0x280850, emissiveIntensity: 0.1 },
+    knee:   { color: 0xc8b8e8, metalness: 1.0, roughness: 0.05, envMapIntensity: 1.9, clearcoat: 0.7, clearcoatRoughness: 0.06 },
+    moss:   { color: 0x8a30ff, metalness: 1.0, roughness: 0.12, envMapIntensity: 1.7, transparent: true, opacity: 0.82, depthWrite: false, clearcoat: 0.55, clearcoatRoughness: 0.08 },
+  },
+};
+const _cp = CHROME_PRESETS[chromeVariant] || CHROME_PRESETS[1];
+const cypressTrunkMat = new THREE.MeshPhysicalMaterial(_cp.trunk);
+const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage); // solid gold chrome canopy mass
+const cypressKneeMat = new THREE.MeshPhysicalMaterial(_cp.knee);
+const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
+// Alpha cards ONLY — do NOT put alphaMap on solid foliage (would punch crown/needles invisible)
+const cypressCardMat = new THREE.MeshPhysicalMaterial({
+  ..._cp.foliage,
+  color: 0xe8a030,
+  roughness: 0.28,
+  envMapIntensity: 1.55,
+  side: THREE.DoubleSide,
+  transparent: false,
+  alphaTest: 0.22,
+  depthWrite: true,
+});
+const cypressChromeMats = [cypressTrunkMat, cypressFoliageMat, cypressKneeMat, cypressMossMat, cypressCardMat];
+window.__sketchCChromeMats = cypressChromeMats;
+
+// Bark normals + canopy alpha cards — break mercury into specular beads (not plastic wash)
+(() => {
+  const loader = new THREE.TextureLoader();
+  const barkN = loader.load('./demo-assets/cypress/bark_normal.webp', (t) => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2.2, 4.5);
+    t.colorSpace = THREE.NoColorSpace;
+    cypressTrunkMat.normalMap = t;
+    cypressTrunkMat.normalScale = new THREE.Vector2(1.55, 1.55);
+    cypressTrunkMat.needsUpdate = true;
+    cypressKneeMat.normalMap = t;
+    cypressKneeMat.normalScale = new THREE.Vector2(1.25, 1.25);
+    cypressKneeMat.needsUpdate = true;
+  });
+  const barkR = loader.load('./demo-assets/cypress/bark_roughness.webp', (t) => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3.2, 6.5);
+    t.colorSpace = THREE.NoColorSpace;
+    cypressTrunkMat.roughnessMap = t;
+    cypressTrunkMat.needsUpdate = true;
+    cypressKneeMat.roughnessMap = t;
+    cypressKneeMat.needsUpdate = true;
+  });
+  window.__sketchCBark = { barkN, barkR };
+  const leaf = loader.load('./demo-assets/cypress/needle_spray.webp', (t) => {
+    // Alpha silhouette only — do NOT bind as color map (albedo is dark green, kills gold chrome)
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    cypressCardMat.alphaMap = t;
+    cypressCardMat.map = null;
+    cypressCardMat.alphaTest = 0.12;
+    cypressCardMat.needsUpdate = true;
+  });
+  window.__sketchCLeaf = leaf;
+})();
+
+/** Replace GLTF mesh mats with cathedral chrome / gold; keep normal maps for mercurial bark. */
+function chromeifyCypressRoot(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const oldMat = o.material;
+    const mats = Array.isArray(oldMat) ? oldMat : [oldMat];
+    const name = ((o.name || '') + ' ' + mats.map((m) => m?.name || '').join(' ')).toLowerCase();
+    const isFoliage =
+      mats.some((m) => m && (m.transparent || m.alphaMode === 'BLEND' || (m.opacity != null && m.opacity < 0.99))) ||
+      /leaf|foliage|canopy|needle|crown|twig|plane/i.test(name);
+    const isKnee = /knee|pneumatophore|buttress/i.test(name);
+    const base = isFoliage ? cypressFoliageMat : (isKnee ? cypressKneeMat : cypressTrunkMat);
+    const mat = base.clone();
+    for (const src of mats) {
+      if (!src) continue;
+      if (src.normalMap && !mat.normalMap) {
+        mat.normalMap = src.normalMap;
+        mat.normalScale = src.normalScale ? src.normalScale.clone() : new THREE.Vector2(0.55, 0.55);
+      }
+      if (src.aoMap && !mat.aoMap) {
+        mat.aoMap = src.aoMap;
+        mat.aoMapIntensity = 0.18;
+      }
+    }
+    if (mat.normalMap) mat.normalScale = new THREE.Vector2(0.35, 0.35);
+    if (isFoliage) {
+      mat.side = THREE.DoubleSide;
+      mat.transparent = false;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.alphaTest = 0.35;
+    }
+    o.material = mat;
+    cypressChromeMats.push(mat);
+    o.castShadow = !mobileLike;
+    o.receiveShadow = true;
+    o.raycast = () => {};
+  });
+}
+
+function disableRaycast(root) {
+  root.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
+}
+
+/** Deterministic 0–1 RNG from integer seed. */
+function cypressRand(seed) {
+  let t = (seed >>> 0) + 0x6d2b79f5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Shared Taxodium geos — InstancedMesh grove (SwiftShader-safe draw count)
+const _taxTrunkProfiles = (() => {
+  const pts = [];
+  // Closed root tip BELOW y=0 — kills hollow lathe ring that read as a severed flat cut
+  pts.push(new THREE.Vector2(0.001, -0.06));
+  pts.push(new THREE.Vector2(0.09, -0.03));
+  pts.push(new THREE.Vector2(0.17, 0.0)); // waterline flare max
+  for (let i = 1; i <= 28; i++) {
+    const t = i / 28;
+    let r;
+    if (t < 0.12) {
+      const u = t / 0.12;
+      // Wide buttress flare (Taxodium)
+      r = 0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38);
+    } else if (t < 0.52) {
+      const u = (t - 0.12) / 0.4;
+      r = THREE.MathUtils.lerp(0.058, 0.034, u);
+    } else {
+      const u = (t - 0.52) / 0.48;
+      // Keep upper stem thicker — crown shelf sits on this, not a quiver spike
+      r = THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+    }
+    pts.push(new THREE.Vector2(r, t));
+  }
+  // Soft closed tip at crown (no open ring)
+  pts.push(new THREE.Vector2(0.012, 1.01));
+  pts.push(new THREE.Vector2(0.001, 1.03));
+  return pts;
+})();
+const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 : 20);
+// Flute the bark in vertex space so chrome beads on ridges
+(() => {
+  const pos = taxTrunkGeo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const ang = Math.atan2(v.x, v.z);
+    const flut = 1 + 0.045 * Math.sin(ang * 7) + 0.025 * Math.sin(ang * 13 + v.y * 8);
+    v.x *= flut;
+    v.z *= flut;
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  taxTrunkGeo.computeVertexNormals();
+})();
+// Blunt pneumatophore knees (not ice-cream cones)
+// Cypress knee mound — hemisphere (blunt dome, never a cone tip)
+const taxKneeGeo = new THREE.SphereGeometry(1, mobileLike ? 8 : 12, mobileLike ? 6 : 8, 0, Math.PI * 2, 0, Math.PI * 0.55);
+// Open-ended limbs — closed caps read as severed floating trunk chops
+const taxBranchGeo = new THREE.CylinderGeometry(0.22, 1, 1, mobileLike ? 5 : 6, 1, true);
+// Thin needle shafts for feathery sprays (NOT fat cones); open-ended = no mid-air discs
+const taxNeedleGeo = new THREE.CylinderGeometry(0.05, 0.18, 1, 3, 1, true);
+// Soft oval tuft
+const taxTuftGeo = new THREE.SphereGeometry(1, mobileLike ? 4 : 6, mobileLike ? 3 : 4);
+taxTuftGeo.scale(0.7, 1.6, 0.28);
+// Alpha card for feathery canopy planes
+const taxCardGeo = new THREE.PlaneGeometry(1.1, 1.55);
+// Feathery crown spray — elongated oval (NOT flat gold disc / mushroom)
+const taxCrownGeo = new THREE.SphereGeometry(1, mobileLike ? 5 : 7, mobileLike ? 4 : 5);
+taxCrownGeo.scale(0.45, 1.55, 0.35); // hanging spray, vertical bias
+
+function taxHash(i) {
+  let t = (i >>> 0) + 0x6d2b79f5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/**
+ * Instanced Taxodium grove — flared fluted buttress, blunt knees,
+ * ascending scaffold, feathery needle fans + alpha cards, Spanish moss separate.
+ */
+function placeBaldCypresses() {
+  const trees = cypressPositions;
+  const n = trees.length;
+  const kneesPer = mobileLike ? 8 : 12;
+  const branchPer = mobileLike ? 8 : 11;
+  const needlePer = mobileLike ? 60 : 110;
+  const tuftPer = mobileLike ? 3 : 5;
+  const cardPer = mobileLike ? 60 : 110;
+  const crownPer = mobileLike ? 0 : 0; // disable disc sprays entirely
+  const flutePer = mobileLike ? 2 : 3; // subtle bark ribs, not pipe-bundle
+
+  const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
+  const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
+  const branchInst = new THREE.InstancedMesh(taxBranchGeo, cypressTrunkMat, n * (branchPer + flutePer));
+  const needleInst = new THREE.InstancedMesh(taxNeedleGeo, cypressFoliageMat, n * needlePer);
+  const tuftInst = new THREE.InstancedMesh(taxTuftGeo, cypressFoliageMat, n * tuftPer);
+  const cardInst = new THREE.InstancedMesh(taxCardGeo, cypressCardMat, n * cardPer);
+  const crownInst = new THREE.InstancedMesh(taxCrownGeo, cypressFoliageMat, Math.max(1, n * crownPer));
+  for (const inst of [trunkInst, kneeInst, branchInst, needleInst, tuftInst, cardInst, crownInst]) {
+    inst.castShadow = !mobileLike;
+    inst.receiveShadow = true;
+    inst.frustumCulled = true;
+    inst.raycast = () => {};
+  }
+
+  const dummy = new THREE.Object3D();
+  const _yUp = new THREE.Vector3(0, 1, 0);
+  const _dir = new THREE.Vector3();
+  const WATER_Y = 0.02;
+  // Plant so max flare (local y=0) sits under water; closed root tip continues below
+  const TRUNK_SINK = 0.22;
+  let ki = 0, bi = 0, ni = 0, ti = 0, ci = 0, cri = 0;
+
+  for (let i = 0; i < n; i++) {
+    const p = trees[i];
+    const h = p.h;
+    const yaw = (p.yaw != null) ? p.yaw : ((p.x * 0.3 + p.z * 0.17) % (Math.PI * 2));
+    const base = i * 97 + 11;
+    const trunkY = WATER_Y - TRUNK_SINK;
+
+    dummy.position.set(p.x, trunkY, p.z);
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.set(h, h, h);
+    dummy.updateMatrix();
+    trunkInst.setMatrixAt(i, dummy.matrix);
+
+    // Vertical bark ridges — glued to trunk surface (open-ended, no floating chops)
+    for (let f = 0; f < flutePer; f++) {
+      const ang = yaw + (f / flutePer) * Math.PI * 2 + taxHash(base + f) * 0.1;
+      const rh = h * (0.42 + taxHash(base + 20 + f) * 0.22);
+      const midY = trunkY + rh * 0.52;
+      dummy.position.set(p.x + Math.cos(ang) * h * 0.048, midY, p.z + Math.sin(ang) * h * 0.048);
+      dummy.rotation.set(0, ang, 0);
+      dummy.scale.set(h * 0.0055, rh, h * 0.008);
+      dummy.updateMatrix();
+      branchInst.setMatrixAt(bi++, dummy.matrix);
+    }
+
+    // Woody cypress knees — dome mounds emerging FROM water (not hovering above)
+    for (let k = 0; k < kneesPer; k++) {
+      const ang = yaw + (k / kneesPer) * Math.PI * 2 + taxHash(base + 40 + k) * 0.45;
+      const rad = h * (0.11 + taxHash(base + 50 + k) * 0.13);
+      const rKnee = h * (0.032 + taxHash(base + 60 + k) * 0.028); // dome radius
+      const sx = rKnee * (0.9 + taxHash(base + 70 + k) * 0.35);
+      const sy = rKnee * (0.7 + taxHash(base + 75 + k) * 0.35);
+      const sz = rKnee * (0.85 + taxHash(base + 77 + k) * 0.3);
+      // Sink ~55% of dome height so the mound emerges from water (not hovering)
+      dummy.position.set(
+        p.x + Math.cos(ang) * rad,
+        WATER_Y - sy * 0.55,
+        p.z + Math.sin(ang) * rad
+      );
+      dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.18, ang, (taxHash(base + 90 + k) - 0.5) * 0.18);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      kneeInst.setMatrixAt(ki++, dummy.matrix);
+    }
+
+    const tips = [];
+    for (let b = 0; b < branchPer; b++) {
+      const tAttach = 0.38 + (b / Math.max(1, branchPer - 1)) * 0.48;
+      const ang = yaw + b * 2.399 + taxHash(base + 100 + b) * 0.65;
+      const len = h * (0.16 + (1 - tAttach) * 0.24 + taxHash(base + 110 + b) * 0.08);
+      // Slim limbs — thick cylinders looked like severed floating trunk chunks
+      const thick = h * (0.0055 + (1 - tAttach) * 0.006);
+      const up = 0.48 + taxHash(base + 120 + b) * 0.32;
+      // Local trunk radius at attach height (flare → stem profile)
+      let trunkR;
+      if (tAttach < 0.12) {
+        const u = tAttach / 0.12;
+        trunkR = h * (0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38));
+      } else if (tAttach < 0.52) {
+        const u = (tAttach - 0.12) / 0.4;
+        trunkR = h * THREE.MathUtils.lerp(0.058, 0.034, u);
+      } else {
+        const u = (tAttach - 0.52) / 0.48;
+        trunkR = h * THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+      }
+      const attachY = trunkY + h * tAttach;
+      const ax = p.x + Math.cos(ang) * trunkR * 0.92;
+      const az = p.z + Math.sin(ang) * trunkR * 0.92;
+      const tipX = ax + Math.cos(ang) * len * 0.92;
+      const tipY = attachY + len * up;
+      const tipZ = az + Math.sin(ang) * len * 0.92;
+      // Center cylinder on the limb span; aim Y-axis along attach→tip (no floating chop ends)
+      dummy.position.set((ax + tipX) * 0.5, (attachY + tipY) * 0.5, (az + tipZ) * 0.5);
+      _dir.set(tipX - ax, tipY - attachY, tipZ - az);
+      if (_dir.lengthSq() < 1e-8) _dir.set(0, 1, 0);
+      else _dir.normalize();
+      dummy.quaternion.setFromUnitVectors(_yUp, _dir);
+      dummy.scale.set(thick, len, thick);
+      dummy.updateMatrix();
+      branchInst.setMatrixAt(bi++, dummy.matrix);
+      tips.push({
+        x: tipX,
+        y: tipY,
+        z: tipZ,
+        ang,
+      });
+    }
+
+    // Feathery needle fans — thin shafts clustered at tips + crown envelope
+    for (let s = 0; s < needlePer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 200 + s);
+      const hh2 = taxHash(base + 300 + s);
+      let cx, cy, cz, ang;
+      if (s % 5 !== 4) {
+        // Fan around branch tip
+        const fan = (s % 7) / 7 * Math.PI * 1.4 - 0.7;
+        ang = tip.ang + fan;
+        const spread = h * (0.02 + hh * 0.06);
+        cx = tip.x + Math.cos(ang) * spread;
+        cy = tip.y + (hh2 - 0.35) * h * 0.05;
+        cz = tip.z + Math.sin(ang) * spread;
+      } else {
+        ang = hh * Math.PI * 2 + yaw;
+        // Mid canopy shelf — flat-topped mature Taxodium, not a spike tip
+        const yNorm = 0.5 + hh2 * 0.38;
+        const crownFlat = yNorm > 0.78 ? 0.75 : 1.05;
+        const rad = h * (0.3 * (1 - yNorm * 0.55) + 0.05) * crownFlat * (0.65 + hh * 0.4);
+        cx = p.x + Math.cos(ang) * rad;
+        cy = trunkY + h * yNorm;
+        cz = p.z + Math.sin(ang) * rad;
+      }
+      const nh = h * (0.09 + hh * 0.12);
+      const nr = h * (0.0028 + hh2 * 0.0035); // hair-thin feather shaft
+      dummy.position.set(cx, cy, cz);
+      const droop = 1.15 + hh * 0.5;
+      dummy.rotation.set(droop, ang, (hh2 - 0.5) * 0.45);
+      dummy.scale.set(nr, nh, nr);
+      dummy.updateMatrix();
+      needleInst.setMatrixAt(ni++, dummy.matrix);
+    }
+
+    // Soft tufts
+    for (let s = 0; s < tuftPer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 500 + s);
+      const hh2 = taxHash(base + 600 + s);
+      const ang = hh * Math.PI * 2 + yaw;
+      const yNorm = 0.5 + hh2 * 0.42;
+      const rad = h * (0.16 * (1 - yNorm * 0.6) + 0.025) * (0.55 + hh * 0.5);
+      const ts = h * (0.028 + hh * 0.032);
+      dummy.position.set(
+        (s % 2 ? tip.x : p.x + Math.cos(ang) * rad),
+        s % 2 ? tip.y : trunkY + h * yNorm,
+        s % 2 ? tip.z : p.z + Math.sin(ang) * rad
+      );
+      dummy.rotation.set((hh - 0.5) * 0.4, hh * Math.PI, (hh2 - 0.5) * 0.4);
+      dummy.scale.set(ts * (0.7 + hh * 0.5), ts * (1.1 + hh2 * 0.5), ts * (0.45 + hh * 0.35));
+      dummy.updateMatrix();
+      tuftInst.setMatrixAt(ti++, dummy.matrix);
+    }
+
+    // Alpha canopy cards — feathery Taxodium leaf planes (branch_cypress.png)
+    for (let s = 0; s < cardPer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 700 + s);
+      const hh2 = taxHash(base + 800 + s);
+      const ang = tip.ang + (hh - 0.5) * 1.4;
+      const yNorm = 0.48 + hh2 * 0.38;
+      const useTip = s % 3 !== 2;
+      const rad = h * (0.16 + hh * 0.18) * (1.05 - yNorm * 0.4);
+      const cx = useTip ? tip.x + Math.cos(ang) * h * 0.06 : p.x + Math.cos(ang) * rad;
+      const cy = useTip ? tip.y + (hh - 0.4) * h * 0.05 : trunkY + h * yNorm;
+      const cz = useTip ? tip.z + Math.sin(ang) * h * 0.06 : p.z + Math.sin(ang) * rad;
+      const cs = h * (0.05 + hh * 0.045);
+      dummy.position.set(cx, cy, cz);
+      dummy.rotation.set(0.65 + hh * 0.85, ang + Math.PI * (0.25 + hh2 * 0.8), (hh2 - 0.5) * 1.2);
+      dummy.scale.set(cs * (0.8 + hh * 0.5), cs * (1.35 + hh2 * 0.55), 1);
+      dummy.updateMatrix();
+      cardInst.setMatrixAt(ci++, dummy.matrix);
+    }
+
+    // Feathery Taxodium crown — drooping gold sprays (NOT plate discs / mushrooms)
+    for (let s = 0; s < crownPer; s++) {
+      const hh = taxHash(base + 900 + s);
+      const hh2 = taxHash(base + 950 + s);
+      const ang = yaw + (s / crownPer) * Math.PI * 2 + hh * 0.5;
+      // Irregular flat-topped envelope: wider mid-canopy, soft top
+      const yNorm = 0.55 + hh2 * 0.28;
+      const widen = yNorm > 0.78 ? 0.7 : 1.15;
+      const rad = h * (0.14 + hh * 0.22) * widen;
+      const cs = h * (0.07 + hh * 0.05);
+      dummy.position.set(
+        p.x + Math.cos(ang) * rad,
+        trunkY + h * yNorm,
+        p.z + Math.sin(ang) * rad
+      );
+      // Hang outward-down like Taxodium needle sprays
+      dummy.rotation.set(0.85 + hh * 0.55, ang, (hh2 - 0.5) * 0.4);
+      dummy.scale.set(cs * (0.55 + hh * 0.35), cs * (1.4 + hh2 * 0.6), cs * (0.4 + hh * 0.3));
+      dummy.updateMatrix();
+      crownInst.setMatrixAt(cri++, dummy.matrix);
+    }
+  }
+
+  const zero = new THREE.Object3D();
+  zero.scale.set(0, 0, 0);
+  zero.updateMatrix();
+  for (let i = ki; i < kneeInst.count; i++) kneeInst.setMatrixAt(i, zero.matrix);
+  for (let i = bi; i < branchInst.count; i++) branchInst.setMatrixAt(i, zero.matrix);
+  for (let i = ni; i < needleInst.count; i++) needleInst.setMatrixAt(i, zero.matrix);
+  for (let i = ti; i < tuftInst.count; i++) tuftInst.setMatrixAt(i, zero.matrix);
+  for (let i = ci; i < cardInst.count; i++) cardInst.setMatrixAt(i, zero.matrix);
+  for (let i = cri; i < crownInst.count; i++) crownInst.setMatrixAt(i, zero.matrix);
+  kneeInst.count = ki;
+  branchInst.count = bi;
+  needleInst.count = ni;
+  tuftInst.count = ti;
+  cardInst.count = ci;
+  crownInst.count = cri;
+  for (const inst of [trunkInst, kneeInst, branchInst, needleInst, tuftInst, cardInst, crownInst]) {
+    inst.instanceMatrix.needsUpdate = true;
+    cypressGroup.add(inst);
+  }
+
+  console.info('[cubicles] cathedral chrome Taxodium instanced', n, 'trees',
+    { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri }, 'sketch-C bald-cypress');
+  window.__sketchCTrees = {
+    n,
+    modelH: 1,
+    parts: 7,
+    meshes: { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri },
+    instanced: true,
+    source: 'procedural-bald-cypress-taxodium',
+  };
+  try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
+  return n;
+}
+
+function makeBaldCypress(height, seed = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(taxTrunkGeo, cypressTrunkMat);
+  trunk.scale.set(height, height, height);
+  g.add(trunk);
+  disableRaycast(g);
+  return g;
+}
+
+function makeCathedralCypress(height) {
+  return makeBaldCypress(height, Math.floor(height * 100));
+}
+
+function placeProceduralCypresses() {
+  return placeBaldCypresses();
+}
+
+/**
+ * Natural irregular Taxodium grove — jittered positions / scales / yaws.
+ * Prefer aisle & margin seeds so floating lab faces stay readable from foyer;
+ * no straight grid rows.
+ */
+const cypressPositions = [];
+(function buildIrregularGrove() {
+  const seeds = [];
+  // Loose aisle seeds (between columns) — then heavily jitter off the lattice
+  for (let c = 1; c < COLS; c++) {
+    const xAisle = -OUTER_W / 2 + c * CELL_W;
+    for (let b = 0; b < ROWS; b++) {
+      if (c % 2 === 0 && b === 2) continue; // spare one mid bay for sightline
+      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.15 + ((c * 5 + b * 9) % 7) * 0.04);
+      seeds.push({ x: xAisle, z: zBay, role: 'grove', hBias: (b === 0 || b === ROWS - 1) ? 0.7 : 0 });
+    }
+  }
+  // Side-margin clumps (not wall-aligned piers)
+  for (const side of [-1, 1]) {
+    for (let b = 0; b < ROWS; b++) {
+      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.2 + (b % 3) * 0.08);
+      seeds.push({
+        x: side * (OUTER_W / 2 - 2.4),
+        z: zBay,
+        role: 'margin',
+        hBias: 0.4,
+      });
+    }
+  }
+  // Foyer grove pair — offset, not symmetric gateposts
+  seeds.push({ x: -CELL_W * 1.15, z: GRID_Z_MAX + 1.85, role: 'foyer', hBias: 0.9 });
+  seeds.push({ x: CELL_W * 0.92, z: GRID_Z_MAX + 1.35, role: 'foyer', hBias: 0.55 });
+  // Extra mid-grove fillers (natural clumps, avoid cell centers)
+  for (let k = 0; k < 6; k++) {
+    const col = 0.5 + (k % 4) + ((k * 3) % 5) * 0.07;
+    const row = 0.4 + Math.floor(k / 2) * 0.85 + ((k * 7) % 5) * 0.05;
+    seeds.push({
+      x: -OUTER_W / 2 + col * CELL_W,
+      z: GRID_Z_MAX - row * CELL_D,
+      role: 'clump',
+      hBias: -0.35,
+    });
+  }
+
+  function nearLabFace(x, z) {
+    for (const h of hung) {
+      // Keep clear of floating lab face AABB (panel footprint + margin)
+      const dx = Math.abs(x - h.cx);
+      const dz = Math.abs(z - h.panelZ);
+      if (dx < PANEL_W * 0.72 && dz < PANEL_H * 0.22 + 0.55) return true;
+    }
+    return false;
+  }
+
+  for (let i = 0; i < seeds.length; i++) {
+    const s = seeds[i];
+    const h1 = taxHash(i * 17 + 3);
+    const h2 = taxHash(i * 29 + 11);
+    const h3 = taxHash(i * 41 + 7);
+    const h4 = taxHash(i * 53 + 19);
+    // Strong planar jitter — natural grove, not lattice rows
+    const jx = (h1 - 0.5) * CELL_W * (s.role === 'margin' ? 0.85 : 1.15);
+    const jz = (h2 - 0.5) * CELL_D * (s.role === 'foyer' ? 0.55 : 1.05);
+    let x = s.x + jx;
+    let z = s.z + jz;
+    // Nudge away from lab faces if we landed on one
+    if (nearLabFace(x, z)) {
+      x += (h3 > 0.5 ? 1 : -1) * (PANEL_W * 0.55 + h4 * 0.4);
+      z += (h1 > 0.5 ? 1 : -1) * (0.7 + h2 * 0.5);
+    }
+    // Keep inside walkable footprint with buttress clearance
+    const marginX = 1.9;
+    const marginZ = 1.35;
+    x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
+    z = Math.max(GRID_Z_MIN + marginZ, Math.min(OUTER_D / 2 - 1.2, z));
+    if (nearLabFace(x, z)) continue; // drop rather than bury a lab
+
+    // Density gaps — skip some seeds so grove reads clumpy, not regimented
+    if (s.role === 'grove' && h4 < 0.22) continue;
+    if (s.role === 'clump' && h1 < 0.28) continue;
+    const hBase = 7.6 + h3 * 3.2 + (s.hBias || 0);
+    const h = Math.max(6.8, Math.min(11.6, hBase + (h4 - 0.5) * 1.4));
+    const yaw = h1 * Math.PI * 2 + h2 * 2.3 + h3 * 0.9;
+    const scale = 0.72 + h3 * 0.52; // wider per-tree scale jitter
+    cypressPositions.push({
+      x, z,
+      h: h * scale,
+      yaw,
+      role: s.role,
+    });
+  }
+  console.info('[cubicles] irregular Taxodium grove', cypressPositions.length, 'trees (jittered pos/scale/yaw)');
+})();
+
+/**
+ * Spanish-moss chrome filaments — hanging mercury/magenta fiber strands from canopy.
+ * Dense enough to read as Tillandsia under HDR without burying hung panels.
+ */
+function placeSpanishMossFilaments() {
+  if (mobileLike && cypressPositions.length > 18) {
+    console.info('[cubicles] moss filaments thinned for mobile');
+  }
+  const strandGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+  const fiberChrome = new THREE.MeshPhysicalMaterial({
+    color: chromeVariant === 2 ? 0xe8c090 : chromeVariant === 3 ? 0xd0b8f0 : 0xf0f4fa,
+    metalness: 1.0,
+    roughness: chromeVariant === 2 ? 0.22 : 0.055,
+    envMapIntensity: chromeVariant === 2 ? 1.35 : 2.35,
+    clearcoat: chromeVariant === 2 ? 0.25 : 0.95,
+    clearcoatRoughness: chromeVariant === 2 ? 0.35 : 0.04,
+    side: THREE.DoubleSide,
+  });
+  const fiberMagenta = new THREE.MeshPhysicalMaterial({
+    color: chromeVariant === 2 ? 0xc45a28 : chromeVariant === 3 ? 0x8a30ff : 0xff48c8,
+    metalness: 1.0,
+    roughness: chromeVariant === 2 ? 0.28 : 0.1,
+    envMapIntensity: chromeVariant === 2 ? 1.15 : 1.85,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.08,
+    emissive: chromeVariant === 3 ? 0x280850 : 0x601838,
+    emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.22,
+    side: THREE.DoubleSide,
+  });
+  const perTree = mobileLike ? 18 : 48;
+  const count = cypressPositions.length * perTree;
+  const chromeInst = new THREE.InstancedMesh(strandGeo, fiberChrome, count);
+  const magentaInst = new THREE.InstancedMesh(strandGeo, fiberMagenta, count);
+  chromeInst.castShadow = false;
+  magentaInst.castShadow = false;
+  chromeInst.frustumCulled = true;
+  magentaInst.frustumCulled = true;
+  chromeInst.raycast = () => {};
+  magentaInst.raycast = () => {};
+  const dummy = new THREE.Object3D();
+  let ci = 0, mi = 0;
+  for (let t = 0; t < cypressPositions.length; t++) {
+    const p = cypressPositions[t];
+    for (let s = 0; s < perTree; s++) {
+      const seed = (t * 97 + s * 53) % 1000;
+      const ang = (seed / 1000) * Math.PI * 2 + t * 0.37 + s * 0.19;
+      // Hang from mid→upper feathery canopy (Taxodium moss zone)
+      const attachT = 0.62 + (seed % 18) * 0.012;
+      const trunkBaseY = 0.02 - 0.22; // match TRUNK_SINK in placeBaldCypresses
+      const canopyY = trunkBaseY + p.h * attachT;
+      // Keep moss ON this tree's crown — never span between trunks
+      const rad = 0.25 + (seed % 17) * 0.04 + (s % 4) * 0.03;
+      const len = 0.55 + (seed % 23) * 0.05 + (s % 4) * 0.12;
+      const thick = 0.011 + (seed % 7) * 0.0025;
+      const hangY = canopyY - len * 0.45;
+      const x = p.x + Math.cos(ang) * rad;
+      const z = p.z + Math.sin(ang) * rad * 0.85;
+      const lean = 0.75 + ((seed % 9) - 4) * 0.08;
+      dummy.position.set(x, Math.max(1.2, hangY), z);
+      dummy.rotation.set(lean, ang * 0.7, lean * 0.55 + ((seed % 5) - 2) * 0.06);
+      dummy.scale.set(thick, len, thick);
+      dummy.updateMatrix();
+      if ((s + t) % 2 === 0) {
+        magentaInst.setMatrixAt(mi++, dummy.matrix);
+      } else {
+        chromeInst.setMatrixAt(ci++, dummy.matrix);
+      }
+    }
+  }
+  const zero = new THREE.Object3D();
+  zero.scale.set(0, 0, 0);
+  zero.updateMatrix();
+  for (let i = ci; i < count; i++) chromeInst.setMatrixAt(i, zero.matrix);
+  for (let i = mi; i < count; i++) magentaInst.setMatrixAt(i, zero.matrix);
+  chromeInst.count = ci;
+  magentaInst.count = mi;
+  chromeInst.instanceMatrix.needsUpdate = true;
+  magentaInst.instanceMatrix.needsUpdate = true;
+  cypressChromeMats.push(fiberChrome, fiberMagenta);
+  if (window.__sketchCEnvTex) {
+    fiberChrome.envMap = window.__sketchCEnvTex;
+    fiberMagenta.envMap = window.__sketchCEnvTex;
+    fiberChrome.needsUpdate = true;
+    fiberMagenta.needsUpdate = true;
+  }
+  cypressGroup.add(chromeInst);
+  cypressGroup.add(magentaInst);
+  console.info('[cubicles] spanish-moss chrome filaments', ci + mi, 'strands on', cypressPositions.length, 'trees');
+  if (window.__sketchCTrees) {
+    window.__sketchCTrees.mossStrands = ci + mi;
+  } else {
+    window.__sketchCMoss = { strands: ci + mi };
+  }
+}
+
+/**
+ * Optional ?glb=1 — OpenGameArt bald cypress GLB (low-poly billboard canopy).
+ * Default path is procedural Taxodium (true silhouette under chrome HDR).
+ */
+async function placeGltfCypresses() {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const loader = new GLTFLoader();
+  try {
+    const { MeshoptDecoder } = await import('./vendor/meshopt/meshopt_decoder.mjs');
+    // meshopt package exports decoder ready for GLTFLoader
+    if (MeshoptDecoder) {
+      if (MeshoptDecoder.ready) await MeshoptDecoder.ready;
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+  } catch (meshOptErr) {
+    console.warn('[cubicles] MeshoptDecoder unavailable', meshOptErr);
+  }
+  const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
+  const proto = gltf.scene;
+  chromeifyCypressRoot(proto);
+  proto.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(proto);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const modelH = Math.max(size.y, 0.001);
+  const modelMinY = box.min.y;
+  let meshCount = 0;
+  proto.traverse((o) => { if (o.isMesh) meshCount++; });
+
+  const parts = [];
+  const seen = new Set();
+  proto.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    const key = o.geometry.uuid + '|' + (o.material && o.material.uuid);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const rootInv = new THREE.Matrix4().copy(proto.matrixWorld).invert();
+    const local = new THREE.Matrix4().multiplyMatrices(rootInv, o.matrixWorld);
+    parts.push({ geometry: o.geometry, material: o.material, local });
+  });
+
+  const count = cypressPositions.length;
+  const dummy = new THREE.Object3D();
+  const scratch = new THREE.Matrix4();
+  for (const part of parts) {
+    const inst = new THREE.InstancedMesh(part.geometry, part.material, count);
+    inst.castShadow = !mobileLike;
+    inst.receiveShadow = true;
+    inst.frustumCulled = true;
+    inst.raycast = () => {};
+    for (let i = 0; i < count; i++) {
+      const p = cypressPositions[i];
+      const s = p.h / modelH;
+      dummy.position.set(p.x, -modelMinY * s + 0.02, p.z);
+      dummy.rotation.set(0, (p.yaw != null) ? p.yaw : ((p.x * 0.3 + p.z * 0.17) % (Math.PI * 2)), 0);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      scratch.multiplyMatrices(dummy.matrix, part.local);
+      inst.setMatrixAt(i, scratch);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    cypressGroup.add(inst);
+  }
+  console.info('[cubicles] cathedral chrome GLB instanced', count, 'trees ×', parts.length, 'draw', 'sketch-C bald-cypress-glb');
+  window.__sketchCTrees = { n: count, modelH, parts: parts.length, meshes: meshCount, instanced: true, source: 'opengameart-bald-cypress' };
+  try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
+  return count;
+}
+
+(async function bootSketchCCypress() {
+  const wantGlb = params.has('glb') || hashParams.get('glb') === '1';
+  try {
+    if (wantGlb) {
+      await placeGltfCypresses();
+    } else {
+      placeBaldCypresses();
+    }
+  } catch (err) {
+    console.error('[cubicles] cypress place failed — Taxodium fallback', err);
+    try {
+      while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
+      placeBaldCypresses();
+    } catch (fallbackErr) {
+      console.error('[cubicles] Taxodium fallback failed', fallbackErr);
+    }
+  }
+})();
+
+function resetToFoyer() {
+  pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
+  yaw.value = SPAWN.yaw;
+  pitch.value = SPAWN.pitch;
+}
+
+function findCellAt(x, z) {
+  for (const h of hung) {
+    const a = h.aabb;
+    if (x >= a.minX && x <= a.maxX && z >= a.minZ && z <= a.maxZ) return h;
+  }
+  return null;
+}
+
+// —— Zone chip + lazy embeds ——
+let activeCell = null;
+const chip = document.getElementById('chip');
+const chipTag = document.getElementById('chip-tag');
+const chipTitle = document.getElementById('chip-title');
+const chipHint = document.getElementById('chip-hint');
+
+function showChip(h) {
+  chipTag.textContent = 'Cell ' + h.meta.num;
+  chipTitle.textContent = h.meta.name;
+  chipHint.textContent = h.meta.hint;
+  chip.classList.add('show');
+}
+
+function updateActiveCell() {
+  const next = findCellAt(pos.x, pos.z);
+  if (next === activeCell) return;
+  activeCell = next;
+  if (activeCell) showChip(activeCell);
+  else chip.classList.remove('show');
+}
+
+function panelDist(h) {
+  return Math.hypot(pos.x - h.cx, pos.z - h.panelZ);
+}
+
+// Raycaster lives above updateLazyEmbeds so facing/interact can use center-screen casts.
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const centerNDC = new THREE.Vector2(0, 0);
+
+/** First ray hit whose panel is within range (skip nearer out-of-range occluders). */
+function panelFromHits(hits, maxDistScale) {
+  const scale = maxDistScale == null ? 1 : maxDistScale;
+  for (const hit of hits) {
+    const panel = hung[hit.object.userData.cellIndex];
+    if (!panel) continue;
+    if (panelDist(panel) <= interactDistFor(panel) * scale) return panel;
+  }
+  return null;
+}
+
+function hungPickMeshes() {
+  const meshes = [];
+  for (const h of hung) {
+    if (h.hit) meshes.push(h.hit);
+    if (h.frame) meshes.push(h.frame);
+  }
+  return meshes;
+}
+
+function facingPanelWithin(maxDistScale) {
+  raycaster.setFromCamera(centerNDC, camera);
+  const hits = raycaster.intersectObjects(hungPickMeshes(), false);
+  const fromHits = panelFromHits(hits, maxDistScale == null ? 1 : maxDistScale / INTERACT_DIST);
+  if (fromHits) return fromHits;
+  // In-cell fallback: standing in a zone counts as facing that hang
+  if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) return activeCell;
+  return null;
+}
+
+function eventToNDC(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function raycastPanels(e) {
+  eventToNDC(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  return raycaster.intersectObjects(hungPickMeshes(), false);
+}
+
+function panelUnderPointer(e) {
+  eventToNDC(e);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(hungPickMeshes(), false);
+  return panelFromHits(hits, 1.25);
+}
+
+function setInteractTarget(panel) {
+  for (const h of hung) {
+    h.canInteract = false;
+    h.iframe.style.pointerEvents = 'none';
+    h.iframe.style.cursor = '';
+  }
+  if (!panel) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
+  armLab(panel);
+  panel.canInteract = true;
+  panel.iframe.style.pointerEvents = 'auto';
+  panel.iframe.style.cursor = 'pointer';
+  stage.classList.add('panel-hover');
+}
+
+function updateLazyEmbeds() {
+  if (overviewOn) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
+
+  const scored = hung.map((h) => ({ h, dist: panelDist(h) }))
+    .sort((a, b) => a.dist - b.dist);
+
+  // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
+  const armSet = new Set();
+  if (hoverPanel) armSet.add(hoverPanel);
+  const facing = facingPanelWithin(1);
+  if (facing) armSet.add(facing);
+  if (activeCell) armSet.add(activeCell);
+  for (const { h, dist } of scored) {
+    if (armSet.size >= MAX_ARMED) break;
+    if (dist < ARM_DIST) armSet.add(h);
+  }
+
+  for (const h of hung) {
+    const want = armSet.has(h);
+    if (want && !h.embedArmed) {
+      armLab(h);
+    } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
+      h.iframe.src = 'about:blank';
+      h.iframe.style.opacity = '0';
+      h.embedArmed = false;
+      h._revealWatch = false;
+    }
+    h.group.visible = true;
+  }
+
+  // Cursor-over-frame wins → center facing → activeCell → nearest.
+  // Arm hover immediately so pointer cursor is not lost on the far wall.
+  let best = null;
+  if (hoverPanel && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
+    best = hoverPanel;
+  } else if (facing) {
+    best = facing;
+  } else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
+    best = activeCell;
+  } else {
+    for (const { h, dist } of scored) {
+      if (dist <= interactDistFor(h)) { best = h; break; }
+    }
+  }
+  if (!panelPointerLock) setInteractTarget(best);
+}
+
+
+// —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
+// Web Audio AnalyserNode on the bed drives subtle bass-reactive CSS3D lab motion.
+(function installWormholeAmbient() {
+  try {
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3';
+    const VOL = 0.38; // soft bed after Enter/tap
+    const XFADE = 2.4; // seconds of overlap
+    const a = new Audio(SRC);
+    const b = new Audio(SRC);
+    for (const el of [a, b]) {
+      el.preload = 'auto';
+      el.loop = false; // crossfade handles looping — avoids MP3 gap click
+      el.volume = 0;
+      el.setAttribute('playsinline', '');
+      try { el.crossOrigin = 'anonymous'; } catch {}
+    }
+    let usingA = true;
+    let started = false;
+    let raf = 0;
+    let arming = false;
+    let audioCtx = null;
+    let analyser = null;
+    let freqData = null;
+    let graphWired = false;
+    let graphFailed = false;
+    let bassSmooth = 0;
+
+    const active = () => (usingA ? a : b);
+    const idle = () => (usingA ? b : a);
+
+    function wireAnalyser() {
+      if (graphWired || graphFailed) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { graphFailed = true; return; }
+      try {
+        audioCtx = audioCtx || new AC();
+        const srcA = audioCtx.createMediaElementSource(a);
+        const srcB = audioCtx.createMediaElementSource(b);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.72;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -28;
+        srcA.connect(analyser);
+        srcB.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        graphWired = true;
+        console.info('[cubicles] ambient AnalyserNode wired (bass → floating labs)');
+      } catch (err) {
+        console.warn('[cubicles] AnalyserNode wire failed', err);
+        graphFailed = true;
+        analyser = null;
+        freqData = null;
+      }
+    }
+
+    function sampleBass() {
+      if (!analyser || !freqData) return 0;
+      try {
+        analyser.getByteFrequencyData(freqData);
+      } catch { return 0; }
+      // Low bins ≈ sub/bass (~86–500 Hz @ 44.1 kHz, fft 256)
+      let sum = 0;
+      const n = Math.min(7, freqData.length - 1);
+      for (let i = 1; i <= n; i++) sum += freqData[i];
+      const avg = sum / n / 255;
+      // Soft knee so quiet beds still nudge, loud peaks don't slam
+      return Math.min(1, Math.pow(avg, 0.85) * 1.15);
+    }
+
+    function getBass() {
+      const raw = sampleBass();
+      // Fast attack / slower release — reads as beat without jitter
+      const k = raw > bassSmooth ? 0.38 : 0.09;
+      bassSmooth += (raw - bassSmooth) * k;
+      return bassSmooth;
+    }
+
+    function crossfadeTick() {
+      if (!started) return;
+      const cur = active();
+      const dur = cur.duration;
+      if (!Number.isFinite(dur) || dur < 1) {
+        raf = requestAnimationFrame(crossfadeTick);
+        return;
+      }
+      const remain = dur - cur.currentTime;
+      if (remain <= XFADE && !arming) {
+        arming = true;
+        const nxt = idle();
+        try {
+          nxt.currentTime = 0;
+          const p = nxt.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch {}
+      }
+      if (arming) {
+        const nxt = idle();
+        const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
+        cur.volume = VOL * (1 - t);
+        nxt.volume = VOL * t;
+        if (t >= 0.999 || cur.ended || cur.paused) {
+          try { cur.pause(); } catch {}
+          cur.volume = 0;
+          nxt.volume = VOL;
+          usingA = !usingA;
+          arming = false;
+        }
+      } else {
+        cur.volume = VOL;
+      }
+      raf = requestAnimationFrame(crossfadeTick);
+    }
+
+    const tryPlay = () => {
+      const cur = active();
+      if (started && !cur.paused && !arming) {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { audioCtx.resume(); } catch {}
+        }
+        return;
+      }
+      wireAnalyser();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { audioCtx.resume(); } catch {}
+      }
+      const p = cur.play();
+      const mark = () => {
+        started = true;
+        cur.volume = VOL;
+        if (!raf) raf = requestAnimationFrame(crossfadeTick);
+      };
+      if (p && typeof p.catch === 'function') {
+        p.then(mark).catch(() => {});
+      } else {
+        mark();
+      }
+    };
+
+    window.__wormholeAmbient = {
+      audio: a, audioB: b, tryPlay, vol: VOL,
+      getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
+    };
+    window.addEventListener('pointerdown', tryPlay, { once: false });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        try { a.pause(); b.pause(); } catch {}
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        if (audioCtx && audioCtx.state === 'running') {
+          try { audioCtx.suspend(); } catch {}
+        }
+      } else if (started || window.__cubiclesEntered) {
+        arming = false;
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { audioCtx.resume(); } catch {}
+        }
+        tryPlay();
+      }
+    });
+    console.info('[cubicles] wormhole ambient ready (dual crossfade + analyser)', XFADE + 's');
+  } catch (err) {
+    console.warn('[cubicles] wormhole ambient failed', err);
+  }
+})();
+
+/** Subtle bass-reactive scale / bob / yaw on floating CSS3D labs — small amplitude. */
+function updateBeatLabs(t) {
+  if (reduceMotion) return;
+  const bed = window.__wormholeAmbient;
+  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
+  if (bass < 0.002 && !bed?.analyser) {
+    // Rest pose when no audio graph yet
+    for (const h of hung) {
+      if (h._beatApplied) {
+        h.group.position.y = h.baseY;
+        h.group.rotation.y = 0;
+        h.group.scale.set(1, 1, 1);
+        h.cssObj.position.y = h.baseY;
+        h.cssObj.rotation.y = 0;
+        h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
+        if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55;
+        h._beatApplied = false;
+      }
+    }
+    return;
+  }
+  // Elegant caps — never fight walk/look
+  const AMP_Y = 0.055;      // ~5.5 cm bob
+  const AMP_SCALE = 0.022;  // ±2.2% scale
+  const AMP_YAW = 0.018;    // ~1° yaw
+  for (const h of hung) {
+    const ph = h.beatPhase || 0;
+    // Staggered micro-phase so the field breathes, not marches in lockstep
+    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
+    const bob = local * AMP_Y * (0.85 + 0.15 * Math.sin(t * 2.3 + ph * 1.3));
+    const yawOff = local * AMP_YAW * Math.sin(t * 1.1 + ph);
+    const s = 1 + local * AMP_SCALE;
+    h.group.position.y = h.baseY + bob;
+    h.group.rotation.y = yawOff;
+    h.group.scale.set(s, s, s);
+    h.cssObj.position.y = h.baseY + bob;
+    h.cssObj.rotation.y = yawOff;
+    const cs = h.cssBaseScale * s;
+    h.cssObj.scale.set(cs, cs, cs);
+    if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55 + bob * 0.6;
+    h._beatApplied = true;
+  }
+}
+
+// —— Controls ——
+const move = { f: false, b: false, l: false, r: false };
+const velocity = new THREE.Vector3();
+let dragging = false;
+let panelPointerLock = false;
+let lastX = 0, lastY = 0, downX = 0, downY = 0;
+
+const gate = document.getElementById('gate');
+const btnEnter = document.getElementById('btn-enter');
+let entered = reduceMotion || params.has('still');
+if (entered) gate.classList.add('hide');
+btnEnter.addEventListener('click', () => {
+  entered = true;
+  gate.classList.add('hide');
+  window.__cubiclesEntered = true;
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+  resetToFoyer();
+  velocity.set(0, 0, 0);
+  move.f = move.b = move.l = move.r = false;
+  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / Overview pill / ?overview=1.
+  if (overview.on) setOverview(false);
+  chip.classList.remove('show');
+  activeCell = null;
+  updateActiveCell();
+  updateLazyEmbeds();
+});
+
+let debugOn = params.has('debug');
+function setDebug(on) {
+  debugOn = on;
+  debugGroup.visible = debugOn;
+  document.getElementById('btn-debug').classList.toggle('on', debugOn);
+}
+setDebug(debugOn);
+document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
+
+// —— Overview / walk camera ——
+let overviewOn = false;
+const WALK_FOV = 48;
+const WALK_FOV_MIN = 28;
+const WALK_FOV_MAX = 70;
+let walkFov = WALK_FOV;
+const OVERVIEW_FOV = 58;
+const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.22, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
+const overview = {
+  on: false,
+  // spherical coords relative to box center (elevated front view of cathedral nave)
+  theta: 0.28,          // yaw around Y
+  phi: 1.05,            // polar from +Y (smaller = higher)
+  radius: Math.min(52, SHELL_R * 1.85),
+  minRadius: 16,
+  maxRadius: Math.min(64, SHELL_R * 2.35),
+};
+const walkSnapshot = {
+  pos: new THREE.Vector3(),
+  yaw: 0,
+  pitch: 0,
+};
+
+function applyOverviewCamera() {
+  const r = overview.radius;
+  const phi = THREE.MathUtils.clamp(overview.phi, 0.25, 1.35);
+  overview.phi = phi;
+  const sinP = Math.sin(phi);
+  const x = overviewTarget.x + r * sinP * Math.sin(overview.theta);
+  const y = overviewTarget.y + r * Math.cos(phi);
+  const z = overviewTarget.z + r * sinP * Math.cos(overview.theta);
+  camera.position.set(x, y, z);
+  camera.lookAt(overviewTarget);
+  camera.rotation.order = 'YXZ';
+}
+
+function applyCamera() {
+  if (overview.on) {
+    applyOverviewCamera();
+    return;
+  }
+  camera.position.copy(pos);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = yaw.value;
+  camera.rotation.x = pitch.value;
+}
+
+function setOverview(on) {
+  if (on === overview.on) {
+    document.getElementById('btn-overview').classList.toggle('on', overview.on);
+    return;
+  }
+  if (on) {
+    walkSnapshot.pos.copy(pos);
+    walkSnapshot.yaw = yaw.value;
+    walkSnapshot.pitch = pitch.value;
+    // disarm panel interaction / freeze walks
+    move.f = move.b = move.l = move.r = false;
+    velocity.set(0, 0, 0);
+    clearPadMove();
+    panelPointerLock = false;
+    for (const h of hung) {
+      h.iframe.style.pointerEvents = 'none';
+      if (h.embedArmed) {
+        h.iframe.src = 'about:blank';
+        h.iframe.style.opacity = '0';
+        h.embedArmed = false;
+        h.canInteract = false;
+      }
+    }
+    chip.classList.remove('show');
+    activeCell = null;
+    camera.fov = OVERVIEW_FOV;
+    camera.updateProjectionMatrix();
+    overview.on = true;
+    overviewOn = true;
+  } else {
+    overview.on = false;
+    overviewOn = false;
+    pos.copy(walkSnapshot.pos);
+    yaw.value = walkSnapshot.yaw;
+    pitch.value = walkSnapshot.pitch;
+    camera.fov = walkFov;
+    camera.updateProjectionMatrix();
+    updateActiveCell();
+    updateLazyEmbeds();
+  }
+  document.getElementById('btn-overview').classList.toggle('on', overview.on);
+  document.body.classList.toggle('overview', overview.on);
+}
+document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
+// Default: full-screen foyer walk (Sketch C) on mobile + desktop.
+// ?overview=1 forces dollhouse overview; Overview pill / O still toggles. ?walk=1 kept as no-op alias.
+if (params.has('overview') && !params.has('still') && !params.has('walk')) {
+  entered = true;
+  gate.classList.add('hide');
+  resetToFoyer();
+  setOverview(true);
+} else if (mobileLike && !params.has('still')) {
+  // Skip gate on mobile — land in walkable foyer immediately (pad + drag look).
+  entered = true;
+  gate.classList.add('hide');
+  resetToFoyer();
+}
+
+// Dev assert: foyer spawn must not sit in any cell
+{
+  const hit = findCellAt(SPAWN.x, SPAWN.z);
+  if (hit) console.error('[cubicles] SPAWN inside cell', hit.meta.num, hit.meta.name, SPAWN);
+  else console.info('[cubicles] foyer spawn OK', SPAWN.x, SPAWN.y, SPAWN.z, 'gridZ', GRID_Z_MIN, GRID_Z_MAX);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!entered && !reduceMotion) return;
+  if (e.code === 'KeyO') { setOverview(!overview.on); return; }
+  if (e.code === 'KeyB') setDebug(!debugOn);
+  if (overview.on) return; // walk keys idle in overview
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = true;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = true;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
+  if (e.code === 'KeyR') {
+    if (overview.on) setOverview(false);
+    resetToFoyer();
+    velocity.set(0, 0, 0);
+    move.f = move.b = move.l = move.r = false;
+    chip.classList.remove('show');
+    activeCell = null;
+    updateActiveCell();
+    updateLazyEmbeds();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = false;
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = false;
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = false;
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = false;
+});
+
+const mobilePad = document.getElementById('mobile-pad');
+const padKnob = document.getElementById('pad-knob');
+const PAD_MAX = 42;
+let padPointerId = null;
+function clearPadMove() {
+  move.f = move.b = move.l = move.r = false;
+  const k = document.getElementById('pad-knob');
+  if (k) k.style.transform = '';
+  const mp = document.getElementById('mobile-pad');
+  if (mp) mp.classList.remove('active');
+}
+function applyPadVector(dx, dy) {
+  const dist = Math.hypot(dx, dy);
+  let ux = dx, uy = dy;
+  if (dist > PAD_MAX) { ux = (dx / dist) * PAD_MAX; uy = (dy / dist) * PAD_MAX; }
+  if (padKnob) padKnob.style.transform = `translate(${ux}px, ${uy}px)`;
+  const dead = 14;
+  move.f = uy < -dead; move.b = uy > dead; move.l = ux < -dead; move.r = ux > dead;
+  mobilePad.classList.toggle('active', move.f || move.b || move.l || move.r);
+}
+mobilePad.addEventListener('pointerdown', (e) => {
+  if (!entered) return;
+  padPointerId = e.pointerId;
+  mobilePad.setPointerCapture(e.pointerId);
+  const r = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+});
+mobilePad.addEventListener('pointermove', (e) => {
+  if (padPointerId !== e.pointerId) return;
+  const r = mobilePad.getBoundingClientRect();
+  applyPadVector(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+});
+mobilePad.addEventListener('pointerup', (e) => {
+  if (padPointerId !== e.pointerId) return;
+  padPointerId = null; clearPadMove();
+});
+mobilePad.addEventListener('pointercancel', clearPadMove);
+
+stage.addEventListener('pointermove', (e) => {
+  if (overview.on || !entered || panelPointerLock || dragging) return;
+  // Don't fight look-drag; only refresh hover when idle
+  const next = panelUnderPointer(e);
+  if (next !== hoverPanel) {
+    hoverPanel = next;
+    if (next) stage.classList.add('panel-hover');
+    updateLazyEmbeds();
+  } else if (next) {
+    stage.classList.add('panel-hover');
+  }
+}, { passive: true });
+stage.addEventListener('pointerleave', (e) => {
+  // Moving onto the armed CSS3D iframe is not "leaving" the panel — keep pointer.
+  const to = e.relatedTarget;
+  if (to && hung.some((h) => h.canInteract && (to === h.iframe || (h.iframe && h.iframe.contains(to))))) {
+    return;
+  }
+  if (hoverPanel) {
+    hoverPanel = null;
+    if (!panelPointerLock) updateLazyEmbeds();
+  }
+});
+
+// Keep pointer cursor while the mouse is over an interacting iframe (CSS layer is outside #stage).
+document.addEventListener('pointermove', (e) => {
+  if (overview.on || !entered || panelPointerLock || dragging) return;
+  const t = e.target;
+  const over = hung.find((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
+  if (over) {
+    if (hoverPanel !== over) {
+      hoverPanel = over;
+      updateLazyEmbeds();
+    } else {
+      stage.classList.add('panel-hover');
+    }
+  }
+}, { passive: true, capture: true });
+
+// —— Walk look: full 360° ——
+// CSS3D iframes sit above #stage; stage-only pointermove stops when the drag
+// crosses a lab iframe. Use document-level move/up + pointer capture so look
+// continues across embeds. Optional Pointer Lock (desktop) for continuous look.
+let lookPointerId = null;
+// Pinch state (handlers installed after look-drag; decls here so guards can see them)
+const pinchPointers = new Map(); // pointerId -> {x,y}
+let pinching = false;
+let pinchStartDist = 0;
+let pinchStartFov = WALK_FOV;
+let pinchStartRadius = 56;
+const PITCH_MIN = -1.25;
+const PITCH_MAX = 1.15; // slightly wider than prior −1.0…0.8
+
+function wrapYaw(v) {
+  const twopi = Math.PI * 2;
+  v = v % twopi;
+  if (v < 0) v += twopi;
+  return v;
+}
+function applyLookDelta(dx, dy) {
+  if (overview.on) {
+    overview.theta -= dx * 0.005;
+    overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
+    return;
+  }
+  // Never clamp yaw — full 360° orbit; wrap keeps value bounded for logs.
+  yaw.value = wrapYaw(yaw.value - dx * 0.0025);
+  pitch.value = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch.value - dy * 0.002));
+}
+function endLookDrag(e) {
+  if (lookPointerId != null && e && e.pointerId !== lookPointerId) return;
+  if (dragging) {
+    dragging = false;
+    stage.classList.remove('dragging');
+    if (lookPointerId != null) {
+      try { stage.releasePointerCapture(lookPointerId); } catch {}
+    }
+    lookPointerId = null;
+  }
+  // Don't steal panel interact: only clear panel lock if release is outside an armed iframe
+  const t = e && e.target;
+  const inPanel = t && hung.some((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
+  if (!inPanel) panelPointerLock = false;
+}
+function syncLookLockPill() {
+  const btn = document.getElementById('btn-look-lock');
+  if (!btn) return;
+  const on = !!(document.pointerLockElement && (document.pointerLockElement === stage || stage.contains(document.pointerLockElement)));
+  btn.classList.toggle('on', on);
+  stage.classList.toggle('look-locked', on);
+}
+function requestWalkPointerLock() {
+  if (mobileLike || reduceMotion || !entered || overview.on) return;
+  const el = stage;
+  if (document.pointerLockElement) {
+    document.exitPointerLock();
+    return;
+  }
+  try { el.requestPointerLock(); } catch {}
+}
+
+stage.addEventListener('pointerdown', (e) => {
+  if (!entered) return;
+  // Two-finger pinch owns the gesture — don't start / continue look-drag
+  if (pinching || (e.pointerType !== 'mouse' && pinchPointers.size >= 2)) return;
+  if (!overview.on) {
+    const panel = panelUnderPointer(e);
+    if (panel) {
+      hoverPanel = panel;
+      setInteractTarget(panel);
+      panelPointerLock = true;
+      return;
+    }
+  }
+  // Don't start look-drag while Pointer Lock owns the mouse (mousemove handles it)
+  if (document.pointerLockElement) return;
+  panelPointerLock = false;
+  dragging = true;
+  lookPointerId = e.pointerId;
+  stage.classList.add('dragging');
+  lastX = downX = e.clientX; lastY = downY = e.clientY;
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+});
+// Document-level look while dragging — survives CSS3D iframe crossings
+document.addEventListener('pointermove', (e) => {
+  if (!dragging || reduceMotion || panelPointerLock || pinching) return;
+  if (lookPointerId != null && e.pointerId !== lookPointerId) return;
+  if (document.pointerLockElement) return; // mousemove + movementX path
+  const dx = e.clientX - lastX; const dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  applyLookDelta(dx, dy);
+}, { capture: true, passive: true });
+document.addEventListener('pointerup', endLookDrag, { capture: true });
+document.addEventListener('pointercancel', endLookDrag, { capture: true });
+
+// Desktop Pointer Lock — continuous mouse-look; Esc exits (browser). Double-click stage or pill.
+stage.addEventListener('dblclick', (e) => {
+  if (!entered || overview.on || mobileLike || reduceMotion) return;
+  if (panelUnderPointer(e)) return; // don't break panel interact
+  e.preventDefault();
+  requestWalkPointerLock();
+});
+document.getElementById('btn-look-lock')?.addEventListener('click', () => {
+  if (!entered) { entered = true; gate.classList.add('hide'); }
+  if (overview.on) setOverview(false);
+  requestWalkPointerLock();
+});
+document.addEventListener('pointerlockchange', syncLookLockPill);
+document.addEventListener('pointerlockerror', () => { console.warn('[cubicles] pointer lock failed'); syncLookLockPill(); });
+document.addEventListener('mousemove', (e) => {
+  if (!document.pointerLockElement || !entered || reduceMotion || panelPointerLock) return;
+  // movementX/Y work under lock even when cursor would cross iframes
+  applyLookDelta(e.movementX || 0, e.movementY || 0);
+});
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  cssRenderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+  if (bloomPass) bloomPass.resolution.set(w, h);
+}
+addEventListener('resize', resize);
+resize();
+
+// —— Pinch zoom: walk FOV / overview radius (ignores walk-pad fingers) ——
+pinchStartRadius = overview.radius;
+
+function pinchDist() {
+  const pts = [...pinchPointers.values()];
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+function endLookForPinch() {
+  if (!dragging) return;
+  dragging = false;
+  stage.classList.remove('dragging');
+  if (lookPointerId != null) {
+    try { stage.releasePointerCapture(lookPointerId); } catch {}
+  }
+  lookPointerId = null;
+}
+function applyPinchZoom() {
+  if (!pinching || pinchPointers.size < 2 || !entered || reduceMotion) return;
+  const d = pinchDist();
+  if (d < 1) return;
+  const scale = d / pinchStartDist;
+  if (overview.on) {
+    overview.radius = THREE.MathUtils.clamp(
+      pinchStartRadius / scale,
+      overview.minRadius,
+      overview.maxRadius
+    );
+  } else {
+    walkFov = THREE.MathUtils.clamp(pinchStartFov / scale, WALK_FOV_MIN, WALK_FOV_MAX);
+    camera.fov = walkFov;
+    camera.updateProjectionMatrix();
+  }
+}
+function pinchIgnoreTarget(t) {
+  if (!t || !t.closest) return false;
+  return !!(t.closest('#mobile-pad') || t.closest('.pills') || t.closest('.gate') || t.closest('.chip') || t.closest('button') || t.closest('a'));
+}
+document.addEventListener('pointerdown', (e) => {
+  if (!entered || reduceMotion) return;
+  if (e.pointerType === 'mouse') return;
+  if (pinchIgnoreTarget(e.target)) return;
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchPointers.size >= 2) {
+    endLookForPinch();
+    panelPointerLock = false;
+    if (!pinching) {
+      pinching = true;
+      pinchStartDist = Math.max(1, pinchDist());
+      pinchStartFov = walkFov;
+      pinchStartRadius = overview.radius;
+    }
+  }
+}, { capture: true });
+document.addEventListener('pointermove', (e) => {
+  if (!pinchPointers.has(e.pointerId)) return;
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching) applyPinchZoom();
+}, { capture: true, passive: true });
+function endPinchPointer(e) {
+  if (!pinchPointers.has(e.pointerId)) return;
+  pinchPointers.delete(e.pointerId);
+  if (pinchPointers.size < 2) pinching = false;
+}
+document.addEventListener('pointerup', endPinchPointer, { capture: true });
+document.addEventListener('pointercancel', endPinchPointer, { capture: true });
+
+stage.addEventListener('wheel', (e) => {
+  if (!entered || reduceMotion) return;
+  // Overview orbit zoom (legacy) OR ctrl/trackpad pinch → walk FOV
+  if (overview.on) {
+    e.preventDefault();
+    overview.radius = THREE.MathUtils.clamp(
+      overview.radius + e.deltaY * 0.02,
+      overview.minRadius,
+      overview.maxRadius
+    );
+    return;
+  }
+  if (e.ctrlKey) {
+    e.preventDefault();
+    const factor = Math.exp(e.deltaY * 0.01);
+    walkFov = THREE.MathUtils.clamp(walkFov * factor, WALK_FOV_MIN, WALK_FOV_MAX);
+    camera.fov = walkFov;
+    camera.updateProjectionMatrix();
+  }
+}, { passive: false });
+
+
+const clock = new THREE.Clock();
+const forward = new THREE.Vector3();
+const right = new THREE.Vector3();
+const walkMargin = 1.15;
+const walkHalfW = OUTER_W * 0.5 - walkMargin;
+const walkHalfD = OUTER_D * 0.5 - walkMargin;
+
+function clampWalkPos() {
+  // Elliptical clamp on the water footprint so you stay inside the sphere chord (no void).
+  const nx = pos.x / walkHalfW;
+  const nz = pos.z / walkHalfD;
+  const d2 = nx * nx + nz * nz;
+  if (d2 > 1) {
+    const inv = 1 / Math.sqrt(d2);
+    pos.x = nx * inv * walkHalfW;
+    pos.z = nz * inv * walkHalfD;
+  }
+  pos.y = EYE;
+}
+
+function frame() {
+  const dt = Math.min(0.05, clock.getDelta());
+  if (overview.on) {
+    // elevated orbit — no walk clamps / embeds
+    applyCamera();
+  } else if (!reduceMotion && entered) {
+    forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
+    right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
+    const wish = new THREE.Vector3();
+    if (move.f) wish.add(forward);
+    if (move.b) wish.sub(forward);
+    if (move.l) wish.sub(right);
+    if (move.r) wish.add(right);
+    if (wish.lengthSq() > 0) {
+      wish.normalize().multiplyScalar(7.2);
+      velocity.x += (wish.x - velocity.x) * Math.min(1, 8 * dt);
+      velocity.z += (wish.z - velocity.z) * Math.min(1, 8 * dt);
+    } else {
+      velocity.x *= Math.pow(0.88, dt * 60);
+      velocity.z *= Math.pow(0.88, dt * 60);
+    }
+    pos.x += velocity.x * dt;
+    pos.z += velocity.z * dt;
+    clampWalkPos();
+    updateActiveCell();
+    updateLazyEmbeds();
+    applyCamera();
+  } else if (reduceMotion || params.has('still')) {
+    pos.set(SPAWN.x, SPAWN.y + 0.15, SPAWN.z);
+    yaw.value = SPAWN.yaw;
+    pitch.value = SPAWN.pitch;
+    applyCamera();
+    // Still/foyer capture must arm CSS3D labs (reduceMotion otherwise skips walk branch)
+    updateLazyEmbeds();
+  } else {
+    applyCamera();
+  }
+  if (!glContextLost) {
+    const _tSpark = performance.now() * 0.001;
+    if (water?.material?.uniforms?.time) {
+      water.material.uniforms.time.value += dt * WATER_TIME_SCALE;
+      if (water.material.uniforms.sunDirection) {
+        water.material.uniforms.sunDirection.value.copy(waterSun);
+      }
+    }
+    updateWallpaper(_tSpark);
+    updateSparklines(_tSpark);
+    updateBeatLabs(_tSpark);
+    try {
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
+      cssRenderer.render(cssScene, camera);
+    } catch (err) {
+      console.warn('[cubicles] render failed', err);
+      glContextLost = true;
+      showGlTip('3D view paused — tap to reload');
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if (params.has('still')) {
+  entered = true;
+  gate.classList.add('hide');
+}
+</script>
+</body>
+</html>
