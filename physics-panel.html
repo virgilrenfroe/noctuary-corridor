@@ -156,7 +156,7 @@ const META = {
   cloth: {
     tag: 'Soft body',
     title: 'Cloth',
-    blurb: 'Verlet cloth with distance constraints — pin & tug.',
+    blurb: 'Velvet Verlet cloth — shear links, wind drape, pin & tug.',
     hint: 'drag fabric',
   },
   particles: {
@@ -681,19 +681,27 @@ function buildConstraints() {
 }
 
 function buildCloth() {
-  const cols = 14;
-  const rows = 12;
-  const rest = 0.16;
+  // Richer fabric: denser mesh, shear links, full-rail pin, velvet sheen, wind draping, warm rim light.
+  const cols = 22;
+  const rows = 18;
+  const rest = 0.105;
   const particles = [];
   const originX = -((cols - 1) * rest) / 2;
-  const originY = 2.55;
+  const originY = 2.62;
+  const railZ = 0.02;
 
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
+      // Soft initial drape so folds read immediately (not a flat sheet).
+      const fold = Math.sin(x * 0.55) * 0.04 * (y / Math.max(1, rows - 1));
+      const sag = (y / Math.max(1, rows - 1)) * (y / Math.max(1, rows - 1)) * 0.08;
+      const px = originX + x * rest;
+      const py = originY - y * rest - sag;
+      const pz = fold;
       particles.push({
-        pos: new THREE.Vector3(originX + x * rest, originY - y * rest, 0),
-        prev: new THREE.Vector3(originX + x * rest, originY - y * rest, 0),
-        pinned: y === 0 && (x === 0 || x === cols - 1 || x === Math.floor(cols / 2)),
+        pos: new THREE.Vector3(px, py, pz),
+        prev: new THREE.Vector3(px, py, pz),
+        pinned: y === 0, // hang from full top rail for heavier draping
       });
     }
   }
@@ -707,12 +715,55 @@ function buildCloth() {
       const i = y * cols + x;
       if (x < cols - 1) link(i, i + 1);
       if (y < rows - 1) link(i, i + cols);
+      // Shear (diagonal) — fabric resists diamond collapse, richer folds
+      if (x < cols - 1 && y < rows - 1) {
+        link(i, i + cols + 1);
+        link(i + 1, i + cols);
+      }
     }
   }
 
+  // Brass hanging rail
+  const railW = (cols - 1) * rest + 0.18;
+  const rail = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, railW, 16),
+    new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.32, metalness: 0.85 })
+  );
+  rail.rotation.z = Math.PI / 2;
+  rail.position.set(0, originY + 0.02, railZ);
+  scene.add(rail);
+  for (const side of [-1, 1]) {
+    const knob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.055, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xb8955a, roughness: 0.28, metalness: 0.9 })
+    );
+    knob.position.set(side * railW * 0.5, originY + 0.02, railZ);
+    scene.add(knob);
+  }
+
+  // Cloth-only warm key + cool rim so velvet sheen reads in embed (no floor/back plate).
+  const clothKey = new THREE.DirectionalLight(0xffe2c4, embed ? 1.55 : 1.15);
+  clothKey.position.set(2.2, 5.5, 3.2);
+  scene.add(clothKey);
+  const clothRim = new THREE.DirectionalLight(0x9bb6ff, embed ? 0.85 : 0.55);
+  clothRim.position.set(-3.2, 2.8, -2.4);
+  scene.add(clothRim);
+  const clothFill = new THREE.PointLight(0xff8a5c, embed ? 28 : 14, 12);
+  clothFill.position.set(-1.4, 2.0, 2.6);
+  scene.add(clothFill);
+
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(cols * rows * 3);
+  const uvs = new Float32Array(cols * rows * 2);
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = y * cols + x;
+      uvs[i * 2] = x / (cols - 1);
+      uvs[i * 2 + 1] = 1 - y / (rows - 1);
+    }
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   const indices = [];
   for (let y = 0; y < rows - 1; y++) {
     for (let x = 0; x < cols - 1; x++) {
@@ -722,23 +773,61 @@ function buildCloth() {
   }
   geo.setIndex(indices);
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({
-      // Embed/floating: coral reads against magenta/gold cathedral + dark swamp (violet blended in).
-      color: embed ? 0xff6b4a : VIOLET, roughness: 0.48, metalness: 0.08,
-      side: THREE.DoubleSide, flatShading: true,
-      emissive: embed ? 0x3a1008 : 0x000000, emissiveIntensity: embed ? 0.22 : 0,
-    })
-  );
+
+  // Procedural weave tint via canvas texture (subtle warp/weft)
+  const cnv = document.createElement('canvas');
+  cnv.width = 256; cnv.height = 256;
+  const ctx = cnv.getContext('2d');
+  const base = embed ? '#e8785a' : '#8a7bb8';
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 256; i += 4) {
+    ctx.fillStyle = i % 8 === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)';
+    ctx.fillRect(i, 0, 2, 256);
+    ctx.fillRect(0, i, 256, 2);
+  }
+  // Soft vignette folds cue
+  const grad = ctx.createRadialGradient(128, 40, 20, 128, 140, 180);
+  grad.addColorStop(0, 'rgba(255,220,180,0.18)');
+  grad.addColorStop(1, 'rgba(40,10,30,0.22)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+  const weave = new THREE.CanvasTexture(cnv);
+  weave.wrapS = weave.wrapT = THREE.RepeatWrapping;
+  weave.repeat.set(3.2, 2.6);
+  weave.colorSpace = THREE.SRGBColorSpace;
+
+  const mat = new THREE.MeshPhysicalMaterial({
+    map: weave,
+    color: embed ? 0xff8f6a : 0xb5a6d6,
+    roughness: 0.72,
+    metalness: 0.02,
+    sheen: 1.0,
+    sheenRoughness: 0.42,
+    sheenColor: new THREE.Color(embed ? 0xffd2a8 : 0xe8dff8),
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.7,
+    side: THREE.DoubleSide,
+    flatShading: false,
+    emissive: embed ? 0x2a0c08 : 0x0a0612,
+    emissiveIntensity: embed ? 0.16 : 0.06,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
   scene.add(mesh);
 
-  const pins = [0, Math.floor(cols / 2), cols - 1].map((i) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), makeMat(INK));
+  // Pin beads along the rail (every few verts)
+  const pinIdx = [];
+  for (let x = 0; x < cols; x += Math.max(1, Math.floor(cols / 6))) pinIdx.push(x);
+  if (pinIdx[pinIdx.length - 1] !== cols - 1) pinIdx.push(cols - 1);
+  for (const i of pinIdx) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.038, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0x1a1520, roughness: 0.45, metalness: 0.35 })
+    );
     m.position.copy(particles[i].pos);
+    m.position.y += 0.01;
     scene.add(m);
-    return m;
-  });
+  }
 
   let grab = -1;
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -746,7 +835,7 @@ function buildCloth() {
   onDown = () => {
     raycaster.setFromCamera(ndc, camera);
     if (!raycaster.ray.intersectPlane(plane, hit)) return;
-    let best = -1; let bestD = 0.35;
+    let best = -1; let bestD = 0.38;
     for (let i = 0; i < particles.length; i++) {
       const d = particles[i].pos.distanceTo(hit);
       if (d < bestD) { bestD = d; best = i; }
@@ -755,16 +844,27 @@ function buildCloth() {
   };
   onUp = () => { grab = -1; };
 
+  let tCloth = 0;
   tick = (dt) => {
+    tCloth += dt;
     if (!still) {
-      const g = 9.82 * 0.35;
-      for (const p of particles) {
+      const g = 9.82 * 0.38;
+      const windAmp = embed ? 0.55 : 0.4;
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
         if (p.pinned) continue;
+        const y = Math.floor(i / cols);
+        const x = i % cols;
         const vx = p.pos.x - p.prev.x;
         const vy = p.pos.y - p.prev.y;
+        const vz = p.pos.z - p.prev.z;
         p.prev.copy(p.pos);
-        p.pos.x += vx * 0.985;
-        p.pos.y += vy * 0.985 - g * dt * dt;
+        // Gentle cross-breeze + vertical ripple for living drape
+        const wind = Math.sin(tCloth * 1.15 + x * 0.35 + y * 0.12) * windAmp * (y / rows);
+        const lift = Math.sin(tCloth * 0.7 + x * 0.2) * 0.08 * (y / rows);
+        p.pos.x += vx * 0.978 + wind * dt * dt * 18;
+        p.pos.y += vy * 0.978 - g * dt * dt + lift * dt * dt * 6;
+        p.pos.z += vz * 0.978 + Math.sin(tCloth * 0.9 + x * 0.4) * 0.35 * (y / rows) * dt * dt * 14;
         if (p.pos.y < 0.05) { p.pos.y = 0.05; p.prev.y = p.pos.y; }
       }
       if (grab >= 0) {
@@ -774,18 +874,20 @@ function buildCloth() {
           particles[grab].prev.copy(hit);
         }
       }
-      for (let iter = 0; iter < 3; iter++) {
+      for (let iter = 0; iter < 5; iter++) {
         for (const c of constraints) {
           const pa = particles[c.a];
           const pb = particles[c.b];
           const dx = pb.pos.x - pa.pos.x;
           const dy = pb.pos.y - pa.pos.y;
-          const dist = Math.hypot(dx, dy) || 0.0001;
+          const dz = pb.pos.z - pa.pos.z;
+          const dist = Math.hypot(dx, dy, dz) || 0.0001;
           const diff = (dist - c.rest) / dist;
           const ox = dx * 0.5 * diff;
           const oy = dy * 0.5 * diff;
-          if (!pa.pinned) { pa.pos.x += ox; pa.pos.y += oy; }
-          if (!pb.pinned) { pb.pos.x -= ox; pb.pos.y -= oy; }
+          const oz = dz * 0.5 * diff;
+          if (!pa.pinned) { pa.pos.x += ox; pa.pos.y += oy; pa.pos.z += oz; }
+          if (!pb.pinned) { pb.pos.x -= ox; pb.pos.y -= oy; pb.pos.z -= oz; }
         }
       }
     }

@@ -573,7 +573,7 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 4; // Virgil LIVE: god-rays, hdr-ibl, instancing, cloth
+const MAX_ARMED = 6; // Virgil LIVE×6: god-rays, hdr-ibl, instancing, cloth, stencil, decals
 /** Unload distant labs sooner — only near-aisle cells stay armed. */
 const ARM_DIST = Math.max(16, GRID_D * 0.7); // all live labs stay reachable
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
@@ -616,35 +616,35 @@ if (wantAisle) {
 }
 
 const CELLS = [
-  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=noghost2' },
-  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=noghost2' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=noghost2' },
-  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=noghost2' },
-  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=noghost2' },
-  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=noghost2' },
-  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=noghost2' },
-  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=noghost2' },
-  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=noghost2' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=noghost2' },
-  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=noghost2' },
-  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=noghost2' },
-  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=noghost2' },
-  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=noghost2' },
-  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=noghost2' },
-  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=noghost2' },
-  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=noghost2' },
-  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=noghost2' },
-  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=noghost2' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=noghost2' },
+  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=live6' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=live6' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=live6' },
+  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=live6' },
+  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=live6' },
+  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=live6' },
+  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=live6' },
+  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=live6' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=live6' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=live6' },
+  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=live6' },
+  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=live6' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=live6' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=live6' },
+  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=live6' },
+  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=live6' },
+  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=live6' },
+  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=live6' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=live6' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=live6' },
 ];
 
-/** Virgil LIVE picks: god-rays, hdr-ibl (chrome), instancing (blocks), cloth.
- *  Cloth richer material/lighting = follow-up. Wall plates auto-fill the rest. */
-const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth']);
-/** Near-aisle slots for the 4 live labs (col,row). */
+/** Virgil LIVE×6: god-rays, hdr-ibl (chrome), instancing, cloth (richer), stencil, decals.
+ *  Rest → side/foyer wall stills+diagrams only. −Z stargazer untouched. */
+const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth', 'stencil', 'decals']);
+/** Near-aisle slots for the 6 live labs (col,row) — foyer-readable spread. */
 const LIVE_SLOTS = [
-  [1, 0], [3, 0],
-  [2, 1], [4, 1],
+  [0, 0], [2, 0], [4, 0],
+  [1, 1], [2, 1], [3, 1],
 ];
 /** Still snapshot paths (labeled gallery). */
 const STILL_BY_ID = {
@@ -671,28 +671,28 @@ const STILL_BY_ID = {
 };
 
 
-/** Plain-English diagram blurbs for wall plates (technique id → copy). */
+/** Plain-English diagram blurbs for wall plates (technique + under-the-hood physics/math). */
 const LAB_DIAGRAM = {
-  glass: { title: 'Transmission glass', blurb: 'Thick refractive glass bends the room behind it — orbit to feel the weight.' },
-  caustics: { title: 'Caustics', blurb: 'Light bends through glass and paints dancing bright patterns on the floor.' },
-  'god-rays': { title: 'God rays', blurb: 'Sunbeams cut through haze as volumetric shafts of light.' },
-  ssr: { title: 'SSR', blurb: 'Shiny floors mirror what is already on screen — cheap local reflections.' },
-  ssao: { title: 'SSAO', blurb: 'Creases and contact points go softly dark so objects feel grounded.' },
-  pcss: { title: 'PCSS shadows', blurb: 'Soft shadows that sharpen near contact — like a real sun.' },
-  outline: { title: 'Outline selection', blurb: 'Selected meshes get a glowing edge so picks read clearly.' },
-  stencil: { title: 'Stencil portals', blurb: 'Look through a frame into another room — classic stencil portal trick.' },
-  decals: { title: 'Decals', blurb: 'Stamp phrases onto surfaces with DecalGeometry — paint without remeshing.' },
-  'hdr-ibl': { title: 'HDR IBL / PMREM', blurb: 'Chrome picks up a real HDR sky so metal feels lit by the world.' },
-  matcap: { title: 'MatCap', blurb: 'A sphere-lookup paints lighting so materials look sculpted without lights.' },
-  anisotropic: { title: 'Anisotropic PBR', blurb: 'Brushed metal stretches highlights along the grain as you turn.' },
-  ocean: { title: 'Ocean / water', blurb: 'Animated water normals catch the sun — waves that always move.' },
-  instancing: { title: 'InstancedMesh', blurb: 'Thousands of meshes in one draw call — density without the cost.' },
-  lut: { title: 'LUT color grade', blurb: 'A color lookup remaps the whole frame — film looks in one pass.' },
-  morph: { title: 'Morph targets', blurb: 'Blend shapes reshape a mesh between sculpted targets.' },
-  ribbons: { title: 'Fat ribbons', blurb: 'Thick screen-space trails weave through space.' },
-  dolly: { title: 'Camera dolly', blurb: 'Scroll drives the camera along a path past floating props.' },
-  cloth: { title: 'Cloth', blurb: 'Soft fabric hangs and folds under Verlet physics.' },
-  particles: { title: 'Flow particles', blurb: 'Particles ride a curl noise field — fluid motion without a fluid sim.' },
+  glass: { title: 'Transmission glass', blurb: 'Snell refraction bends rays through a thick dielectric (IOR ≈ 1.5). Orbit to feel optical path length — the room warps with view angle.' },
+  caustics: { title: 'Caustics', blurb: 'Focused flux where refracted rays bunch on a surface. Bright spots are energy conservation: bend light, concentrate intensity on the floor.' },
+  'god-rays': { title: 'God rays', blurb: 'Radial blur of an occlusion map from the window light — fake volumetric scattering. Bright window + dark blockers → shafts through “haze.”' },
+  ssr: { title: 'SSR', blurb: 'Screen-space ray march along the reflection vector. Hits only what is already drawn — cheap local mirrors, fails off-screen.' },
+  ssao: { title: 'SSAO', blurb: 'Sample nearby depth around each pixel; occluded samples darken creases. Approximates ambient occlusion without full GI.' },
+  pcss: { title: 'PCSS shadows', blurb: 'Percentage-closer soft shadows: blocker search sets penumbra width, then filter. Contact = sharp; far = soft — like a finite-area sun.' },
+  outline: { title: 'Outline selection', blurb: 'Draw selected meshes to a mask, then edge-detect / grow the silhouette. A post pick cue — no extra scene lights needed.' },
+  stencil: { title: 'Stencil portals', blurb: 'Stencil buffer marks the portal aperture; only then draw the other room. Classic portal: mask → clear depth → render through.' },
+  decals: { title: 'Decals', blurb: 'Project a quad onto mesh triangles (DecalGeometry) and stamp UVs. Paint without remeshing — clip against surface normals.' },
+  'hdr-ibl': { title: 'HDR IBL / PMREM', blurb: 'Convolve an HDR environment into a PMREM cube. Specular lobe samples prefiltered mips by roughness — chrome lit by the world.' },
+  matcap: { title: 'MatCap', blurb: 'Map view-space normals to a sphere texture. Baked lighting in one lookup — sculpted look with zero scene lights.' },
+  anisotropic: { title: 'Anisotropic PBR', blurb: 'Specular BRDF stretches along a tangent (brushed grain). Highlights elongate as you turn — direction from tangent/bitangent.' },
+  ocean: { title: 'Ocean / water', blurb: 'Sum-of-sines / normal maps displace the surface; Fresnel + sun specular. Waves are analytic motion, not fluid pressure solve.' },
+  instancing: { title: 'InstancedMesh', blurb: 'One draw call, many world matrices in a buffer. GPU transforms each instance — density without CPU mesh spam.' },
+  lut: { title: 'LUT color grade', blurb: '3D color lookup remaps RGB → graded RGB in one sample. Film looks = baking a tone curve into a lattice.' },
+  morph: { title: 'Morph targets', blurb: 'Lerp vertex positions between sculpted targets (blend shapes). Same topology, weighted sum — facial / soft deformation.' },
+  ribbons: { title: 'Fat ribbons', blurb: 'Screen-space expansion of a centerline into a thick strip. Trails stay readable regardless of camera distance.' },
+  dolly: { title: 'Camera dolly', blurb: 'Scroll maps to arc-length on a path; camera position = sample(curve, t). Parallax sells depth as props slide past.' },
+  cloth: { title: 'Cloth', blurb: 'Verlet integration + distance (and shear) constraints. Gravity pulls; iterations project links — folds emerge, no FEM.' },
+  particles: { title: 'Flow particles', blurb: 'Advect points in a curl noise vector field (∇×ψ). Divergence-free-ish flow — fluid look without Navier–Stokes.' },
 };
 
 
@@ -1799,6 +1799,27 @@ async function placeWallLabPosters(wallMetas, opts) {
     side: THREE.FrontSide,
   };
 
+  // Thick Taxodium slabs (not paper planes) — depth reads from foyer / aisles.
+  const plateDepth = opts.plateDepth != null ? opts.plateDepth : 0.58;
+  const edgeMat = new THREE.MeshPhysicalMaterial({
+    color: 0x2a0c40, roughness: 0.35, metalness: 0.55,
+    emissive: new THREE.Color(0x4a1868), emissiveIntensity: 0.22,
+    clearcoat: 0.35, clearcoatRoughness: 0.35,
+  });
+
+  function makeSlab(w, h, tex) {
+    const faceMat = new THREE.MeshPhysicalMaterial({
+      map: tex, ...barkMatExtras,
+      clearcoat: 0.55, clearcoatRoughness: 0.18,
+    });
+    // Box faces: 0+X 1-X 2+Y 3-Y 4+Z 5-Z — poster on +Z (matches prior Plane front after rotY).
+    const mats = [edgeMat, edgeMat.clone(), edgeMat.clone(), edgeMat.clone(), faceMat, edgeMat.clone()];
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, plateDepth), mats);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
   async function alongZ(list, x, rotY) {
     const count = list.length;
     if (!count) return;
@@ -1808,14 +1829,9 @@ async function placeWallLabPosters(wallMetas, opts) {
       const z = z0 + t * zSpan * 0.94;
       const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
       const tex = paintTaxodiumPoster(meta, stillImg);
-      const mat = new THREE.MeshPhysicalMaterial({
-        map: tex, ...barkMatExtras,
-        clearcoat: 0.55, clearcoatRoughness: 0.18,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plateW, plateH), mat);
+      const mesh = makeSlab(plateW, plateH, tex);
       mesh.position.set(x, y, z);
       mesh.rotation.y = rotY;
-      mesh.receiveShadow = true;
       mesh.userData.wallLab = meta.id;
       wallPosterGroup.add(mesh);
     }
@@ -1831,18 +1847,13 @@ async function placeWallLabPosters(wallMetas, opts) {
     const x = fx0 + t * fxSpan;
     const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
     const tex = paintTaxodiumPoster(meta, stillImg);
-    const mat = new THREE.MeshPhysicalMaterial({
-      map: tex, ...barkMatExtras,
-      clearcoat: 0.55, clearcoatRoughness: 0.18,
-    });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plateW * 0.95, plateH), mat);
+    const mesh = makeSlab(plateW * 0.95, plateH, tex);
     mesh.position.set(x, y, foyerZ);
     mesh.rotation.y = Math.PI;
-    mesh.receiveShadow = true;
     mesh.userData.wallLab = meta.id;
     wallPosterGroup.add(mesh);
   }
-  console.info('[cubicles] taxodium wall posters', wallPosterGroup.children.length, 'full-H · live', [...LIVE_IDS].join(','));
+  console.info('[cubicles] taxodium wall posters', wallPosterGroup.children.length, 'slabD', plateDepth.toFixed(2), 'full-H · live', [...LIVE_IDS].join(','));
 }
 
 
@@ -2008,6 +2019,7 @@ requestAnimationFrame(() => {
       y: OUTER_H * 0.5,
       plateW: 1.95,
       plateH: Math.min(OUTER_H * 0.88, 12.2),
+      plateDepth: 0.62, // thick Taxodium slab (was paper-thin PlaneGeometry)
       inset: 0.55,
     }).catch((e) => console.warn('[cubicles] wall posters failed', e));
 

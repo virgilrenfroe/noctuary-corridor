@@ -16,14 +16,16 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
-html.embed,body.embed{background:transparent!important} body.embed canvas{background:transparent!important;background-color:transparent!important}
+/* God-rays need an opaque dark stage — keep ink bg even in embed (no alpha punch-through). */
+html.embed,body.embed{background:#020308!important}
+body.embed canvas{background:#020308!important;background-color:#020308!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');}})();
 </script>
 
 <div class="hud">
@@ -43,18 +45,15 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 function makeRenderer(opts={}) {
-  const embed = document.body.classList.contains('embed');
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:!embed, powerPreference:'high-performance', ...opts });
+  // Opaque canvas always — volumetric occlusion map + radial blur need a dark clear.
+  // Transparent embed clear was wiping shafts to white / objects-only silhouettes.
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
-  r.toneMappingExposure = 1.0;
-  if (embed) { r.setClearColor(0x000000, 0); r.setClearAlpha(0); }
-  if (embed) {
-    r.domElement.style.background = 'transparent';
-    r.domElement.style.backgroundColor = 'transparent';
-  }
+  r.toneMappingExposure = 1.05;
+  r.setClearColor(0x020308, 1);
   document.body.prepend(r.domElement);
   return r;
 }
@@ -73,14 +72,14 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const renderer = makeRenderer();
 const scene = new THREE.Scene();
-const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
-scene.background = new THREE.Color(0x020308); __floatClearBg();
+// Keep dark background in solo AND embed — null bg + alpha clear killed the shafts.
+scene.background = new THREE.Color(0x020308);
 const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
 camera.position.set(0, 1.2, 4.5);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.target.set(0,1.1,0);
 
-// Room
+// Room (occlusion volume for god-ray window)
 const room = new THREE.Mesh(new THREE.BoxGeometry(8,4,8), new THREE.MeshStandardMaterial({color:0x151820, side:THREE.BackSide, roughness:1}));
 scene.add(room);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(8,8), new THREE.MeshStandardMaterial({color:0x1c2030, roughness:0.8}));
@@ -89,18 +88,13 @@ floor.rotation.x=-Math.PI/2; scene.add(floor);
 // Window wall with hole (bright emissive panel behind)
 const wall = new THREE.Mesh(new THREE.PlaneGeometry(8,4), new THREE.MeshStandardMaterial({color:0x12151e, roughness:1}));
 wall.position.set(0,2,-3.95); scene.add(wall);
-const __embedRays = document.body.classList.contains('embed');
-if (__embedRays) { room.visible = floor.visible = wall.visible = false; } // floating labs: no black stage box
 const lightPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.2), new THREE.MeshBasicMaterial({color:0xfff2cc}));
 lightPanel.position.set(0, 1.8, -3.9); scene.add(lightPanel);
-const __bars = [];
 // bars
 for (let i=-2;i<=2;i++) {
   const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08,2.2,0.08), new THREE.MeshStandardMaterial({color:0x0a0a0e}));
-  bar.position.set(i*0.35, 1.8, -3.85); scene.add(bar); __bars.push(bar);
+  bar.position.set(i*0.35, 1.8, -3.85); scene.add(bar);
 }
-// Embed objects-only: window + god-ray plate fills the iframe opaque — keep pillar+statue only.
-if (__embedRays) { lightPanel.visible = false; for (const b of __bars) b.visible = false; }
 
 const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.3,2.4,16), new THREE.MeshStandardMaterial({color:0x2a3040, roughness:0.6}));
 pillar.position.set(-1.2,1.2,0.5); scene.add(pillar);
@@ -108,18 +102,18 @@ const statue = new THREE.Mesh(new THREE.TorusKnotGeometry(0.35,0.12,100,16), new
 statue.position.set(1.1,1.1,0.2); scene.add(statue);
 
 scene.add(new THREE.AmbientLight(0x334455, 0.25));
-const key = new THREE.DirectionalLight(0xffe6b0, 1.2); key.position.set(0,3,-2); scene.add(key);
+const key = new THREE.DirectionalLight(0xffe6b0, 1.35); key.position.set(0,3,-2); scene.add(key);
 
-// God rays shader
+// God rays shader — radial blur from window light (classic occlusion-map shafts)
 const GodRaysShader = {
   uniforms: {
     tDiffuse: { value: null },
     lightPosition: { value: new THREE.Vector2(0.5, 0.62) },
-    exposure: { value: 0.35 },
-    decay: { value: 0.95 },
-    density: { value: 0.9 },
-    weight: { value: 0.4 },
-    samples: { value: 50 }
+    exposure: { value: 0.42 },
+    decay: { value: 0.94 },
+    density: { value: 0.95 },
+    weight: { value: 0.48 },
+    samples: { value: 60 }
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: `
@@ -150,18 +144,15 @@ const god = new ShaderPass(GodRaysShader);
 composer.addPass(god);
 composer.addPass(new OutputPass());
 
-onResize(camera, renderer, __embedRays ? null : composer);
+onResize(camera, renderer, composer);
 (function tick(){
   requestAnimationFrame(tick);
+  // project light panel to NDC for ray origin
+  const sp = lightPanel.position.clone().project(camera);
+  god.uniforms.lightPosition.value.set(sp.x*0.5+0.5, sp.y*0.5+0.5);
   statue.rotation.y += 0.005;
   controls.update();
-  // Embed: direct render (composer god-rays fill opaque dark plate across the iframe).
-  if (__embedRays) renderer.render(scene, camera);
-  else {
-    const sp = lightPanel.position.clone().project(camera);
-    god.uniforms.lightPosition.value.set(sp.x*0.5+0.5, sp.y*0.5+0.5);
-    composer.render();
-  }
+  composer.render();
 })();
 
 </script>
