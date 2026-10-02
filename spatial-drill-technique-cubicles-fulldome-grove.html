@@ -572,7 +572,7 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 6; // Virgil LIVE×6: god-rays, hdr-ibl, instancing, cloth, stencil, decals
+const MAX_ARMED = 4; // Virgil LIVE×4: instancing, hdr-ibl (chrome), god-rays, cloth
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
@@ -615,35 +615,35 @@ if (wantAisle) {
 }
 
 const CELLS = [
-  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=budget1' },
-  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=budget1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=budget1' },
-  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=budget1' },
-  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=budget1' },
-  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=budget1' },
-  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=budget1' },
-  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=budget1' },
-  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=budget1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=budget1' },
-  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=budget1' },
-  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=budget1' },
-  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=budget1' },
-  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=budget1' },
-  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=budget1' },
-  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=budget1' },
-  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=budget1' },
-  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=budget1' },
-  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=budget1' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=budget1' },
+  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=live4' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=live4' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=live4' },
+  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=live4' },
+  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=live4' },
+  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=live4' },
+  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=live4' },
+  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=live4' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=live4' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=live4' },
+  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=live4' },
+  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=live4' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=live4' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=live4' },
+  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=live4' },
+  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=live4' },
+  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=live4' },
+  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=live4' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=live4' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=live4' },
 ];
 
-/** Virgil LIVE×6: god-rays, hdr-ibl (chrome), instancing, cloth (richer), stencil, decals.
- *  Rest → side/foyer wall stills+diagrams only. −Z stargazer untouched. */
-const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth', 'stencil', 'decals']);
-/** Near-aisle slots for the 6 live labs (col,row) — foyer-readable spread. */
+/** Virgil LIVE×4: god-rays, hdr-ibl (chrome), instancing, cloth.
+ *  Stencil (08) + decals (09) → side/foyer wall stills+diagrams. −Z stargazer untouched. */
+const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth']);
+/** Near-aisle slots for the 4 live labs (col,row) — foyer-readable spread. */
 const LIVE_SLOTS = [
-  [0, 0], [2, 0], [4, 0],
-  [1, 1], [2, 1], [3, 1],
+  [1, 0], [3, 0],
+  [2, 1], [4, 1],
 ];
 /** Still snapshot paths (labeled gallery). */
 const STILL_BY_ID = {
@@ -1846,10 +1846,18 @@ for (let li = 0; li < liveMetas.length; li++) {
   iframe.style.width = cssW + 'px';
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
-  iframe.style.background = 'transparent';
-  iframe.style.backgroundColor = 'transparent';
-  iframe.style.colorScheme = 'normal';
-  iframe.setAttribute('allowtransparency', 'true');
+  // God-rays need an opaque dark plate — transparent iframe compositing wiped shafts
+  // (dark objects on white / no volumetric). Other labs stay transparent floaters.
+  if (meta.id === 'god-rays') {
+    iframe.style.background = '#020308';
+    iframe.style.backgroundColor = '#020308';
+    iframe.style.colorScheme = 'dark';
+  } else {
+    iframe.style.background = 'transparent';
+    iframe.style.backgroundColor = 'transparent';
+    iframe.style.colorScheme = 'normal';
+    iframe.setAttribute('allowtransparency', 'true');
+  }
   iframe.style.pointerEvents = 'none';
   iframe.style.borderRadius = '0';
   iframe.style.boxShadow = 'none';

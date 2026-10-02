@@ -88,7 +88,7 @@ floor.rotation.x=-Math.PI/2; scene.add(floor);
 // Window wall with hole (bright emissive panel behind)
 const wall = new THREE.Mesh(new THREE.PlaneGeometry(8,4), new THREE.MeshStandardMaterial({color:0x12151e, roughness:1}));
 wall.position.set(0,2,-3.95); scene.add(wall);
-const lightPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.2), new THREE.MeshBasicMaterial({color:0xfff2cc}));
+const lightPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.2), new THREE.MeshBasicMaterial({color:0xfff6e0}));
 lightPanel.position.set(0, 1.8, -3.9); scene.add(lightPanel);
 // bars
 for (let i=-2;i<=2;i++) {
@@ -109,11 +109,11 @@ const GodRaysShader = {
   uniforms: {
     tDiffuse: { value: null },
     lightPosition: { value: new THREE.Vector2(0.5, 0.62) },
-    exposure: { value: 0.42 },
+    exposure: { value: 0.52 },
     decay: { value: 0.94 },
     density: { value: 0.95 },
-    weight: { value: 0.48 },
-    samples: { value: 60 }
+    weight: { value: 0.55 },
+    samples: { value: 72 }
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: `
