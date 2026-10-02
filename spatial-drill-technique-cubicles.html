@@ -817,15 +817,9 @@ function createWallpaper() {
   wallpaperOk = true;
 }
 
-// Mobile: skip wallpaper entirely (room geometry must not depend on it).
-if (!mobileLike) {
-  try {
-    createWallpaper();
-  } catch (err) {
-    console.warn('[cubicles] wallpaper create failed; room stays usable', err);
-    disposeWallpaper();
-  }
-}
+// Floating-labs sketch: skip far-wall InstancedMesh cube plate (read as hung black backing).
+window.__disposeWallpaper = disposeWallpaper;
+console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
 function updateWallpaper(t) {
   if (!wallpaperOk || !wallpaper || reduceMotion) return;
@@ -1053,17 +1047,19 @@ const outerEdges = new THREE.LineSegments(
 outerEdges.position.y = OUTER_H / 2;
 scene.add(outerEdges);
 
-// —— 5×4×1 equal cells (invisible partitions + hung demos) ——
+// —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
+// Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
+// Iframe carries each lab's own opaque scene (readable WebGL sketch), not a hung plate mesh.
 const hung = [];
 const debugGroup = new THREE.Group();
 debugGroup.visible = false;
 scene.add(debugGroup);
 const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
 
-const PANEL_W = Math.min(3.4, CELL_W * 0.62);
-// Keep hung labs human-scale even under cathedral vault
-const PANEL_H = Math.min(3.35, CELL_D * 0.72);
-const PANEL_Y = PANEL_H / 2 + 0.55;
+const PANEL_W = Math.min(3.35, CELL_W * 0.62);
+// Human-scale floating scenes under cathedral vault — readable from foyer
+const PANEL_H = Math.min(3.05, CELL_D * 0.66);
+const PANEL_Y = EYE + 0.15; // float near eye height inside each cell
 
 for (let i = 0; i < CELLS.length; i++) {
   const meta = CELLS[i];
@@ -1083,28 +1079,21 @@ for (let i = 0; i < CELLS.length; i++) {
   wire.position.set(cx, OUTER_H / 2, cz);
   debugGroup.add(wire);
 
-  // Hang toward the −Z half of the cell so the +Z face stays a walk aisle
-  const panelZ = cz - CELL_D * 0.22;
+  // Free-float near cell center, slight +Z bias so foyer walk sees faces clearly
+  const panelZ = cz + CELL_D * 0.06;
 
-  // Hung frame + CSS3D iframe (faces entrance / +Z)
   const group = new THREE.Group();
   group.position.set(cx, PANEL_Y, panelZ);
-  // Face +Z so visitors entering from +Z see the front
-  group.rotation.y = 0;
+  group.rotation.y = 0; // face +Z / foyer
 
-  const frame = new THREE.Mesh(
-    new THREE.BoxGeometry(PANEL_W + 0.12, PANEL_H + 0.12, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0x3a342c, roughness: 0.55, metalness: 0.14 })
-  );
-  frame.castShadow = true;
-  frame.receiveShadow = true;
-  group.add(frame);
+  // No wooden frame, ghost plate, or floor contact disk — only the lab iframe floats.
+  // Invisible hit plane for raycasting / click (does not draw).
 
   const hit = new THREE.Mesh(
     new THREE.PlaneGeometry(PANEL_W, PANEL_H),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })
   );
-  hit.position.z = 0.05;
+  hit.position.z = 0.04;
   hit.userData.cellIndex = i;
   hit.userData.clickable = true;
   group.add(hit);
@@ -1122,33 +1111,86 @@ for (let i = 0; i < CELLS.length; i++) {
   iframe.style.width = cssW + 'px';
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
-  iframe.style.background = '#1a1c24';
+  // Transparent host — lab's own scene.background is the sketch (no hung black plate mesh).
+  // Stay opacity 0 until embed canvas paints so empty iframes never read as black plates.
+  iframe.style.background = 'transparent';
   iframe.style.pointerEvents = 'none';
-  iframe.style.borderRadius = '2px';
+  iframe.style.borderRadius = '0'; // no CSS bezel chrome
+  iframe.style.boxShadow = 'none';
   iframe.style.opacity = '0';
-  iframe.style.transition = 'opacity 0.35s ease';
+  iframe.style.transition = 'opacity 0.45s ease';
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
-  cssObj.position.set(cx, PANEL_Y, panelZ + 0.045);
+  cssObj.position.set(cx, PANEL_Y, panelZ + 0.02);
   cssObj.rotation.y = 0;
   cssScene.add(cssObj);
 
-  const spot = new THREE.PointLight(0xfff6e8, 4.5, CELL_W * 1.4);
-  spot.position.set(cx, OUTER_H - 0.6, panelZ + 0.9);
+  const spot = new THREE.PointLight(0xfff6e8, 4.0, CELL_W * 1.3);
+  spot.position.set(cx, PANEL_Y + PANEL_H * 0.55, panelZ + 0.9);
   scene.add(spot);
 
   hung.push({
     meta, col, row, cx, cz, panelZ,
     aabb: { minX, maxX, minZ, maxZ },
-    group, frame, hit, cssObj, iframe, spot,
+    group, frame: null, ghost: null, hit, cssObj, iframe, spot,
     embedArmed: false,
     canInteract: false,
     embedUrl: meta.src,
   });
-  frame.userData.cellIndex = i;
-  frame.userData.clickable = true;
 }
+window.__hungLabs = hung;
+window.__floatingLabsSketch = true;
+/** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
+function revealLabWhenReady(panel) {
+  if (!panel || panel._revealWatch) return;
+  panel._revealWatch = true;
+  let tries = 0;
+  const tick = () => {
+    tries++;
+    try {
+      const doc = panel.iframe.contentDocument;
+      const canvas = doc && doc.querySelector('canvas');
+      if (canvas && canvas.width > 0) {
+        panel.iframe.style.opacity = '1';
+        panel._revealWatch = false;
+        return;
+      }
+    } catch {}
+    if (tries < 180) requestAnimationFrame(tick);
+    else { panel._revealWatch = false; } // stay hidden if canvas never arrives (no empty plate)
+  };
+  panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
+  requestAnimationFrame(tick);
+}
+
+function armLab(panel) {
+  if (!panel) return;
+  if (!panel.embedArmed) {
+    panel.iframe.src = panel.embedUrl;
+    panel.embedArmed = true;
+    revealLabWhenReady(panel);
+  } else if (panel.iframe.style.opacity !== '1') {
+    revealLabWhenReady(panel);
+  }
+}
+
+/** Pre-arm a few near-foyer labs (WebGL context budget) so walk shows floating sketches. */
+function armFoyerVisibleLabs() {
+  const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
+    .sort((a, b) => a.dist - b.dist);
+  const FOYER_ARM = Math.min(3, MAX_ARMED);
+  let n = 0;
+  for (const { h } of scored) {
+    if (n >= FOYER_ARM) break;
+    if (h.row > 1) continue;
+    armLab(h);
+    n++;
+  }
+  console.info('[cubicles] foyer-armed floating labs', n);
+}
+armFoyerVisibleLabs();
+console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
 
 // —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
 // True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
@@ -1397,7 +1439,7 @@ function placeBaldCypresses() {
   for (let i = 0; i < n; i++) {
     const p = trees[i];
     const h = p.h;
-    const yaw = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+    const yaw = (p.yaw != null) ? p.yaw : ((p.x * 0.3 + p.z * 0.17) % (Math.PI * 2));
     const base = i * 97 + 11;
     const trunkY = WATER_Y - TRUNK_SINK;
 
@@ -1631,42 +1673,98 @@ function placeProceduralCypresses() {
 }
 
 /**
- * Grid divider positions — cathedral nave: fewer, taller trees on column aisles
- * so silhouettes read at vault scale without burying the 20 hung panels.
+ * Natural irregular Taxodium grove — jittered positions / scales / yaws.
+ * Prefer aisle & margin seeds so floating lab faces stay readable from foyer;
+ * no straight grid rows.
  */
 const cypressPositions = [];
-// Primary nave: column aisles between cells — taller vault trees, skip some mid-bays for sightlines
-for (let c = 1; c < COLS; c++) {
-  const x = -OUTER_W / 2 + c * CELL_W;
-  for (let b = 0; b < ROWS; b++) {
-    // Thin mid-bay on even columns so hung panels breathe (cathedral rhythm, not office props)
-    if (c % 2 === 0 && b > 0 && b < ROWS - 1 && (b % 2 === 1)) continue;
-    const z = GRID_Z_MAX - b * CELL_D;
-    const jx = ((c * 17 + b * 31) % 7 - 3) * 0.04;
-    const jz = ((c * 13 + b * 19) % 7 - 3) * 0.05;
-    // Cathedral nave scale: ~9–11.4u toward vault (OUTER_H=12)
-    const hBase = 9.0 + ((c + b * 3) % 5) * 0.45;
-    const hBoost = (b === 0 || b === ROWS - 1) ? 1.15 : ((c % 2 === 0) ? -0.2 : 0.35);
-    cypressPositions.push({ x: x + jx, z: z + jz, h: Math.max(8.6, Math.min(11.4, hBase + hBoost)), role: 'nave' });
+(function buildIrregularGrove() {
+  const seeds = [];
+  // Loose aisle seeds (between columns) — then heavily jitter off the lattice
+  for (let c = 1; c < COLS; c++) {
+    const xAisle = -OUTER_W / 2 + c * CELL_W;
+    for (let b = 0; b < ROWS; b++) {
+      if (c % 2 === 0 && b === 2) continue; // spare one mid bay for sightline
+      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.15 + ((c * 5 + b * 9) % 7) * 0.04);
+      seeds.push({ x: xAisle, z: zBay, role: 'grove', hBias: (b === 0 || b === ROWS - 1) ? 0.7 : 0 });
+    }
   }
-}
-// Outer buttress trees along side walls (monumental piers)
-for (const side of [-1, 1]) {
-  // Inset enough that flared buttress (~0.17*h) stays inside outer walls
-  const x = side * (OUTER_W / 2 - 2.15);
-  for (let b = 0; b < ROWS; b += 1) {
-    const z = GRID_Z_MAX - b * CELL_D - CELL_D * 0.12;
-    cypressPositions.push({
-      x: x + side * -0.08,
-      z: z + ((b * 11) % 5 - 2) * 0.07,
-      h: 10.2 + (b % 3) * 0.55,
-      role: 'buttress',
+  // Side-margin clumps (not wall-aligned piers)
+  for (const side of [-1, 1]) {
+    for (let b = 0; b < ROWS; b++) {
+      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.2 + (b % 3) * 0.08);
+      seeds.push({
+        x: side * (OUTER_W / 2 - 2.4),
+        z: zBay,
+        role: 'margin',
+        hBias: 0.4,
+      });
+    }
+  }
+  // Foyer grove pair — offset, not symmetric gateposts
+  seeds.push({ x: -CELL_W * 1.15, z: GRID_Z_MAX + 1.85, role: 'foyer', hBias: 0.9 });
+  seeds.push({ x: CELL_W * 0.92, z: GRID_Z_MAX + 1.35, role: 'foyer', hBias: 0.55 });
+  // Extra mid-grove fillers (natural clumps, avoid cell centers)
+  for (let k = 0; k < 6; k++) {
+    const col = 0.5 + (k % 4) + ((k * 3) % 5) * 0.07;
+    const row = 0.4 + Math.floor(k / 2) * 0.85 + ((k * 7) % 5) * 0.05;
+    seeds.push({
+      x: -OUTER_W / 2 + col * CELL_W,
+      z: GRID_Z_MAX - row * CELL_D,
+      role: 'clump',
+      hBias: -0.35,
     });
   }
-}
-// Foyer sentinel pair flanking entrance — monumental gateposts
-cypressPositions.push({ x: -CELL_W * 1.05, z: GRID_Z_MAX + 1.55, h: 10.8, role: 'foyer' });
-cypressPositions.push({ x: CELL_W * 1.05, z: GRID_Z_MAX + 1.55, h: 10.6, role: 'foyer' });
+
+  function nearLabFace(x, z) {
+    for (const h of hung) {
+      // Keep clear of floating lab face AABB (panel footprint + margin)
+      const dx = Math.abs(x - h.cx);
+      const dz = Math.abs(z - h.panelZ);
+      if (dx < PANEL_W * 0.72 && dz < PANEL_H * 0.22 + 0.55) return true;
+    }
+    return false;
+  }
+
+  for (let i = 0; i < seeds.length; i++) {
+    const s = seeds[i];
+    const h1 = taxHash(i * 17 + 3);
+    const h2 = taxHash(i * 29 + 11);
+    const h3 = taxHash(i * 41 + 7);
+    const h4 = taxHash(i * 53 + 19);
+    // Strong planar jitter — natural grove, not lattice rows
+    const jx = (h1 - 0.5) * CELL_W * (s.role === 'margin' ? 0.85 : 1.15);
+    const jz = (h2 - 0.5) * CELL_D * (s.role === 'foyer' ? 0.55 : 1.05);
+    let x = s.x + jx;
+    let z = s.z + jz;
+    // Nudge away from lab faces if we landed on one
+    if (nearLabFace(x, z)) {
+      x += (h3 > 0.5 ? 1 : -1) * (PANEL_W * 0.55 + h4 * 0.4);
+      z += (h1 > 0.5 ? 1 : -1) * (0.7 + h2 * 0.5);
+    }
+    // Keep inside outer box with buttress clearance
+    const marginX = 1.9;
+    const marginZ = 1.35;
+    x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
+    z = Math.max(GRID_Z_MIN + marginZ, Math.min(OUTER_D / 2 - 1.2, z));
+    if (nearLabFace(x, z)) continue; // drop rather than bury a lab
+
+    // Density gaps — skip some seeds so grove reads clumpy, not regimented
+    if (s.role === 'grove' && h4 < 0.22) continue;
+    if (s.role === 'clump' && h1 < 0.28) continue;
+    const hBase = 7.6 + h3 * 3.2 + (s.hBias || 0);
+    const h = Math.max(6.8, Math.min(11.6, hBase + (h4 - 0.5) * 1.4));
+    const yaw = h1 * Math.PI * 2 + h2 * 2.3 + h3 * 0.9;
+    const scale = 0.72 + h3 * 0.52; // wider per-tree scale jitter
+    cypressPositions.push({
+      x, z,
+      h: h * scale,
+      yaw,
+      role: s.role,
+    });
+  }
+  console.info('[cubicles] irregular Taxodium grove', cypressPositions.length, 'trees (jittered pos/scale/yaw)');
+})();
 
 /**
  * Spanish-moss chrome filaments — hanging mercury/magenta fiber strands from canopy.
@@ -1807,7 +1905,7 @@ async function placeGltfCypresses() {
       const p = cypressPositions[i];
       const s = p.h / modelH;
       dummy.position.set(p.x, -modelMinY * s + 0.02, p.z);
-      dummy.rotation.set(0, (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2), 0);
+      dummy.rotation.set(0, (p.yaw != null) ? p.yaw : ((p.x * 0.3 + p.z * 0.17) % (Math.PI * 2)), 0);
       dummy.scale.set(s, s, s);
       dummy.updateMatrix();
       scratch.multiplyMatrices(dummy.matrix, part.local);
@@ -1945,11 +2043,7 @@ function setInteractTarget(panel) {
     stage.classList.remove('panel-hover');
     return;
   }
-  if (!panel.embedArmed) {
-    panel.iframe.src = panel.embedUrl;
-    panel.iframe.style.opacity = '1';
-    panel.embedArmed = true;
-  }
+  armLab(panel);
   panel.canInteract = true;
   panel.iframe.style.pointerEvents = 'auto';
   panel.iframe.style.cursor = 'pointer';
@@ -1979,13 +2073,12 @@ function updateLazyEmbeds() {
   for (const h of hung) {
     const want = armSet.has(h);
     if (want && !h.embedArmed) {
-      h.iframe.src = h.embedUrl;
-      h.iframe.style.opacity = '1';
-      h.embedArmed = true;
+      armLab(h);
     } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;
+      h._revealWatch = false;
     }
     h.group.visible = true;
   }
@@ -2352,6 +2445,8 @@ function frame() {
     yaw.value = SPAWN.yaw;
     pitch.value = SPAWN.pitch;
     applyCamera();
+    // Still/foyer capture must arm CSS3D labs (reduceMotion otherwise skips walk branch)
+    updateLazyEmbeds();
   } else {
     applyCamera();
   }

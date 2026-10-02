@@ -64,6 +64,8 @@
   body.embed .label,
   body.embed .hint,
   body.embed .open-full { display: none !important; }
+  body.embed, body.embed html { background: transparent !important; }
+  body.embed canvas { background: transparent !important; }
   body.still .hint { opacity: 0.35; }
   .open-full {
     display: none;
@@ -189,14 +191,16 @@ const ACCENT = 0xf0c24b;
 const VIOLET = 0x8a7bb8;
 const TEAL = 0x4db6a4;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !!embed, premultipliedAlpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
-renderer.setClearColor(BG, 1);
+if (embed) { renderer.setClearColor(0x000000, 0); renderer.setClearAlpha(0); }
+else renderer.setClearColor(BG, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(BG, 8, 22);
+if (!embed) scene.background = new THREE.Color(BG);
+if (!embed) scene.fog = new THREE.Fog(BG, 8, 22);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
 camera.position.set(0, 1.55, 5.2);
 camera.lookAt(0, 0.9, 0);
@@ -224,6 +228,7 @@ const back = new THREE.Mesh(
 );
 back.position.set(0, 3.2, -3.2);
 scene.add(back);
+if (embed) { floor.visible = false; back.visible = false; } // floating labs: interactive bodies only
 
 function resize() {
   const w = innerWidth;
@@ -338,7 +343,8 @@ function buildGravity() {
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.01;
-  scene.add(shadow);
+  if (!embed) scene.add(shadow);
+  else shadow.visible = false;
 
   function toss() {
     if (still) return;

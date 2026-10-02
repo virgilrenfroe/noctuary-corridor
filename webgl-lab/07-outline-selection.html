@@ -16,13 +16,14 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
+body.embed,body.embed html{background:transparent!important} body.embed canvas{background:transparent!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still'))document.body.classList.add('embed');})();
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
 </script>
 
 <div class="hud">
@@ -42,12 +43,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 function makeRenderer(opts={}) {
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  const embed = document.body.classList.contains('embed');
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:true, powerPreference:'high-performance', ...opts });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
   r.toneMappingExposure = 1.0;
+  if (embed) { r.setClearColor(0x000000, 0); r.setClearAlpha(0); }
   document.body.prepend(r.domElement);
   return r;
 }
@@ -68,24 +71,44 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 const renderer = makeRenderer();
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x12141c);
+const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
+scene.background = new THREE.Color(0x12141c); __floatClearBg();
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
 camera.position.set(0, 2, 6);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
+const __embed = document.body.classList.contains('embed');
 const selectable = [];
 const colors = [0xf0c24b, 0x8a7bb8, 0x5ec8c0, 0xe07060, 0xffffff];
+// Embed/CSS3D iframe (~square) frustum-crops a wide 5-object row. Pack tighter + pull
+// camera so leftmost cube and rightmost DodecahedronGeometry stay fully inside (no hard rect).
+const __gap = __embed ? 0.88 : 1.3;
+const __geoms = __embed
+  ? [new THREE.BoxGeometry(0.7,0.7,0.7), new THREE.SphereGeometry(0.42,32,32), new THREE.ConeGeometry(0.38,0.85,24),
+     new THREE.TorusGeometry(0.34,0.13,16,48), new THREE.DodecahedronGeometry(0.42)]
+  : [new THREE.BoxGeometry(0.8,0.8,0.8), new THREE.SphereGeometry(0.5,32,32), new THREE.ConeGeometry(0.45,1,24),
+     new THREE.TorusGeometry(0.4,0.15,16,48), new THREE.DodecahedronGeometry(0.5)];
 for (let i=0;i<5;i++) {
   const m = new THREE.Mesh(
-    [new THREE.BoxGeometry(0.8,0.8,0.8), new THREE.SphereGeometry(0.5,32,32), new THREE.ConeGeometry(0.45,1,24),
-     new THREE.TorusGeometry(0.4,0.15,16,48), new THREE.DodecahedronGeometry(0.5)][i],
+    __geoms[i],
     new THREE.MeshStandardMaterial({ color: colors[i], roughness:0.4, metalness:0.2 })
   );
-  m.position.set((i-2)*1.3, 0.6, 0); scene.add(m); selectable.push(m);
+  m.position.set((i-2)*__gap, 0.55, 0); scene.add(m); selectable.push(m);
+}
+if (__embed) {
+  // Near-square panel: keep full row with margin past iframe edges
+  camera.position.set(0, 1.2, 9.5);
+  camera.fov = 38;
+  camera.updateProjectionMatrix();
+  controls.target.set(0, 0.55, 0);
+  controls.enableDamping = false;
+  controls.update();
+  window.__outlineEmbed = { gap: __gap, cam: camera.position.toArray(), fov: camera.fov, aspect: camera.aspect };
 }
 const fl = new THREE.Mesh(new THREE.PlaneGeometry(14,14), new THREE.MeshStandardMaterial({color:0x1a1e2a, roughness:0.9}));
 fl.rotation.x=-Math.PI/2; scene.add(fl);
+if (document.body.classList.contains('embed')) fl.visible = false;
 scene.add(new THREE.AmbientLight(0xffffff,0.5));
 const d = new THREE.DirectionalLight(0xffffff,1.8); d.position.set(3,6,4); scene.add(d);
 

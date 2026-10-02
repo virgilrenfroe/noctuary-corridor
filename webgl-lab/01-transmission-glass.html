@@ -16,13 +16,14 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
+body.embed,body.embed html{background:transparent!important} body.embed canvas{background:transparent!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still'))document.body.classList.add('embed');})();
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
 </script>
 
 <div class="hud">
@@ -42,12 +43,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 function makeRenderer(opts={}) {
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  const embed = document.body.classList.contains('embed');
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:true, powerPreference:'high-performance', ...opts });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
   r.toneMappingExposure = 1.0;
+  if (embed) { r.setClearColor(0x000000, 0); r.setClearAlpha(0); }
   document.body.prepend(r.domElement);
   return r;
 }
@@ -65,6 +68,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const renderer = makeRenderer();
 renderer.toneMappingExposure = 1.15;
 const scene = new THREE.Scene();
+const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
 const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
 camera.position.set(2.4, 1.4, 3.2);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -72,13 +76,14 @@ controls.enableDamping = true; controls.target.set(0, 0.4, 0);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.background = new THREE.Color(0x101018);
+scene.background = new THREE.Color(0x101018); __floatClearBg();
 
 const floor = new THREE.Mesh(
   new THREE.CircleGeometry(4, 64),
   new THREE.MeshStandardMaterial({ color:0x1a1c28, metalness:0.2, roughness:0.55 })
 );
 floor.rotation.x = -Math.PI/2; scene.add(floor);
+if (document.body.classList.contains('embed')) floor.visible = false; // floating labs: object only
 
 const checker = new THREE.Mesh(
   new THREE.BoxGeometry(0.55, 0.55, 0.55),
@@ -105,7 +110,7 @@ scene.add(new THREE.AmbientLight(0x8899bb, 0.35));
 new RGBELoader().load('https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr', (tex) => {
   tex.mapping = THREE.EquirectangularReflectionMapping;
   const env = pmrem.fromEquirectangular(tex).texture;
-  scene.environment = env; scene.background = env; scene.backgroundBlurriness = 0.35;
+  scene.environment = env; scene.background = env; __floatClearBg(); scene.backgroundBlurriness = 0.35;
   tex.dispose();
 }, undefined, () => {});
 

@@ -16,12 +16,13 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
+body.embed,body.embed html{background:transparent!important} body.embed canvas{background:transparent!important}
 </style>
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still'))document.body.classList.add('embed');})();
+(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
 </script>
 
 <div class="hud">
@@ -38,12 +39,14 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const __embed = document.body.classList.contains('embed');
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:__embed, premultipliedAlpha:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.autoClear = false;
+if (__embed) { renderer.setClearColor(0x000000, 0); renderer.setClearAlpha(0); }
 document.body.prepend(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
@@ -52,12 +55,14 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.target.set(0,1.2,0);
 
 const mainScene = new THREE.Scene();
-mainScene.background = new THREE.Color(0x0c0e14);
+mainScene.background = __embed ? null : new THREE.Color(0x0c0e14);
 mainScene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(3,5,2); mainScene.add(sun);
 const floor = new THREE.Mesh(new THREE.CircleGeometry(8,64), new THREE.MeshStandardMaterial({color:0x1a1e28, roughness:0.9}));
 floor.rotation.x = -Math.PI/2; mainScene.add(floor);
-mainScene.add(new THREE.GridHelper(12, 24, 0x4a6080, 0x2a3040));
+const __grid = new THREE.GridHelper(12, 24, 0x4a6080, 0x2a3040); mainScene.add(__grid);
+if (__embed) { floor.visible = false; __grid.visible = false; } // floating labs: subjects only
+
 
 function frameGroup(w,h,thick,depth,hex) {
   const g = new THREE.Group();
@@ -82,6 +87,7 @@ function makeWorld(bg, panelColor, orbColor) {
   const l = new THREE.DirectionalLight(0xffffff, 1.4); l.position.set(1,2,2); s.add(l);
   const panel = new THREE.Mesh(new THREE.PlaneGeometry(5,5), new THREE.MeshStandardMaterial({color:panelColor, roughness:0.8}));
   panel.position.set(0,0,-2); s.add(panel);
+  if (__embed) { panel.visible = false; s.background = null; }
   const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5,1), new THREE.MeshStandardMaterial({color:orbColor, metalness:0.35, roughness:0.3}));
   orb.position.set(0,0,-1); s.add(orb);
   const torus = new THREE.Mesh(new THREE.TorusKnotGeometry(0.35,0.1,80,16), new THREE.MeshStandardMaterial({color:0xf0c24b, metalness:0.6, roughness:0.25}));
@@ -109,7 +115,32 @@ portals[1].plane.position.set(1.75, 1.25, 0); portals[1].plane.rotation.y = -0.4
 for (const p of portals) {
   p.frame.position.copy(p.plane.position);
   p.frame.rotation.copy(p.plane.rotation);
-  mainScene.add(p.frame);
+  if (__embed) {
+    // floating labs / objects-only: strip gold+coral portal bezel + stencil crop.
+    // Free-float orb+torus in mainScene, pulled to z=0 (not recessed behind old portal
+    // plane) so the hard rect clip where the frame used to sit cannot crop them.
+    p.frame.visible = false;
+    p.plane.visible = false;
+    const holder = new THREE.Group();
+    // Keep lateral portal separation, drop portal tilt so subjects read face-on.
+    holder.position.set(p.plane.position.x * 0.72, 1.15, 0);
+    p.world.scene.remove(p.world.orb);
+    p.world.scene.remove(p.world.torus);
+    // Local z was −1/−1.1 (behind portal); zero so full mesh sits in frustum.
+    p.world.orb.position.set(-0.15, 0.15, 0);
+    p.world.torus.position.set(0.55, -0.15, 0.05);
+    holder.add(p.world.orb);
+    holder.add(p.world.torus);
+    mainScene.add(holder);
+    p._floatHolder = holder;
+  } else {
+    mainScene.add(p.frame);
+  }
+}
+if (__embed) {
+  camera.position.set(0, 1.35, 5.6);
+  controls.target.set(0, 1.15, 0);
+  controls.update();
 }
 
 const maskScene = new THREE.Scene();
@@ -173,7 +204,10 @@ addEventListener('resize', () => {
   controls.update();
   renderer.clear(true, true, true);
   renderer.render(mainScene, camera);
-  for (const p of portals) renderPortal(p);
+  // Embed/objects-only: subjects already live in mainScene — skip stencil portals + frames
+  if (!__embed) {
+    for (const p of portals) renderPortal(p);
+  }
 })();
 </script>
 </body>
