@@ -36,6 +36,7 @@
   #stage {
     position: fixed; inset: 0; z-index: 0;
     cursor: grab; touch-action: none;
+    background: #140818;
   }
   #stage.dragging { cursor: grabbing; }
   #stage.look-locked { cursor: none; }
@@ -44,6 +45,10 @@
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
   }
+  /* Opaque WebGL covers the CSS3D layer (that layer is the dblclick hit target only).
+     The visible mural is a wall mesh textured from the live iframe. */
+  #stage > canvas { z-index: 2; pointer-events: none; }
+  #stage > div { z-index: 1; }
   .veil {
     position: fixed; inset: 0; z-index: 1; pointer-events: none;
     background:
@@ -682,14 +687,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=kneesync1' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wallflush1' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=kneesync1' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wallflush1' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -1203,7 +1208,7 @@ function addOuterWall(w, h, x, y, z, rotY) {
 // ±X only — far (−Z) stays open for stargazer dome + wallpaper; near (+Z) foyer open.
 addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
 addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
-console.info('[cubicles] ±X outer wall planes for flush LIVE (kneesync1)');
+console.info('[cubicles] ±X outer wall planes for flush LIVE (wallflush1)');
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -1997,6 +2002,25 @@ const PANEL_Y = EYE + 0.15;
 let revealLabWhenReady = function revealLabWhenReady(_panel) {};
 let armLab = function armLab(_panel) {};
 let armFoyerVisibleLabs = function armFoyerVisibleLabs() {};
+// Copy each wall iframe's canvas onto a mesh on the wall plane. CSS3D stays
+// behind the opaque canvas (hit target for dblclick only) so it cannot float
+// over the grove. Trunks, water, and the bark rails depth-test the mural.
+function updateWallLiveTextures() {
+  for (const h of hung) {
+    if (!h.wallMounted || !h.liveTex) continue;
+    let canvas = h._liveCanvas;
+    if (!canvas || canvas.width < 2) {
+      try {
+        const doc = h.iframe.contentDocument;
+        canvas = doc && doc.querySelector('canvas');
+      } catch (e) { canvas = null; }
+      if (!canvas || canvas.width < 2) continue;
+      h._liveCanvas = canvas;
+      h.liveTex.image = canvas;
+    }
+    h.liveTex.needsUpdate = true;
+  }
+}
 
 if (!SKIP_LABS) {
 const liveById = Object.fromEntries(CELLS.filter((c) => LIVE_IDS.has(c.id)).map((c) => [c.id, c]));
@@ -2062,9 +2086,22 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const scale = WALL_LAB_W / cssW;
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=kneesync1');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=kneesync1';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wallflush1');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wallflush1';
   if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
+
+  // matrix3d on the <iframe> itself is flattened by the browser (exact ±90° wall
+  // yaw puts scale on the Z column, which iframes drop). The plate then paints at
+  // raw CSS px — a huge tilted rectangle floating in the grove. Transform a div;
+  // the live iframe is a flat child on that plane (three.js css3d_youtube).
+  const plate = document.createElement('div');
+  plate.style.width = cssW + 'px';
+  plate.style.height = cssH + 'px';
+  plate.style.overflow = 'hidden';
+  plate.style.background = '#140818';
+  plate.style.backgroundColor = '#140818';
+  plate.style.borderRadius = '0';
+  plate.style.boxShadow = 'none';
 
   const iframe = document.createElement('iframe');
   // Arm immediately with correct opaque wall embed src (not about:blank / not lazy).
@@ -2073,8 +2110,9 @@ for (let li = 0; li < wallSpecs.length; li++) {
   iframe.title = meta.name + ' · ' + spec.side + ' wall';
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   iframe.allow = 'autoplay; fullscreen';
-  iframe.style.width = cssW + 'px';
-  iframe.style.height = cssH + 'px';
+  iframe.style.display = 'block';
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
   iframe.style.border = '0';
   // Wall-mounted: opaque plate (HDR keeps env; god-rays keeps ink). Not transparent float.
   iframe.style.background = '#140818';
@@ -2086,8 +2124,12 @@ for (let li = 0; li < wallSpecs.length; li++) {
   // Start slightly visible so plate bg paints even before WebGL canvas boots.
   iframe.style.opacity = '0.92';
   iframe.style.transition = 'opacity 0.35s ease';
+  plate.appendChild(iframe);
 
-  const cssObj = new CSS3DObject(iframe);
+  const cssObj = new CSS3DObject(plate);
+  // Constructor sets pointer-events:auto on the element. The wrapper must stay
+  // none so look / walkpad pass through; the iframe turns on only for dblclick focus.
+  plate.style.pointerEvents = 'none';
   cssObj.scale.set(scale, scale, scale);
   // Local +Z faces into the room after rotY (left:+X, right:−X). Keep flush to ±X —
   // faceInset via inward normal so cssObj + hit share the wall plane (not mid-nave).
@@ -2134,6 +2176,22 @@ for (let li = 0; li < wallSpecs.length; li++) {
   }
   group.add(frameGroup);
 
+  // Visible mural: same wall plane as the bark frame. Fed by the live iframe canvas.
+  const liveBlank = document.createElement('canvas');
+  liveBlank.width = 2; liveBlank.height = 2;
+  const liveTex = new THREE.CanvasTexture(liveBlank);
+  liveTex.colorSpace = THREE.SRGBColorSpace;
+  liveTex.minFilter = THREE.LinearFilter;
+  liveTex.magFilter = THREE.LinearFilter;
+  liveTex.generateMipmaps = false;
+  const liveMat = new THREE.MeshBasicMaterial({ map: liveTex, toneMapped: false, fog: false });
+  const livePlane = new THREE.Mesh(new THREE.PlaneGeometry(WALL_LAB_W, WALL_LAB_H), liveMat);
+  livePlane.position.z = faceInset;
+  livePlane.castShadow = false;
+  livePlane.receiveShadow = false;
+  livePlane.raycast = () => {};
+  group.add(livePlane);
+
   const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
   // Pull light slightly into the room from the wall face
   const inNx = spec.side === 'left' ? 1 : -1;
@@ -2149,7 +2207,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
       minZ: panelZ - WALL_LAB_W * 0.5,
       maxZ: panelZ + WALL_LAB_W * 0.5,
     },
-    group, frame: frameGroup, ghost: null, hit, cssObj, iframe, spot,
+    group, frame: frameGroup, ghost: null, hit, cssObj, iframe, spot, liveTex,
     embedArmed: true, // src set at create — opaque wall embed already loading
     canInteract: false,
     embedUrl,
@@ -3261,6 +3319,10 @@ function setInteractTarget(panel) {
   for (const h of hung) {
     h.canInteract = false;
     // Wall LIVE iframes default to none — facing/hover must NEVER steal look / walkpad.
+    // Wrapper (CSS3D element) stays none too; only the iframe turns on for dblclick focus.
+    if (h.cssObj && h.cssObj.element && h.cssObj.element !== h.iframe) {
+      h.cssObj.element.style.pointerEvents = 'none';
+    }
     h.iframe.style.pointerEvents = 'none';
     h.iframe.style.cursor = '';
   }
@@ -4056,7 +4118,7 @@ function frame() {
   }
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
-    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (kneesync1)
+    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (wallflush1)
     const _bed = window.__wormholeAmbient;
     const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
     updateBeatKneesWater(_tSpark, dt, _bass);
@@ -4066,6 +4128,7 @@ function frame() {
     updateCssDepthOcclusion();
     try {
       pinWallLabsFlush();
+      updateWallLiveTextures();
       if (composer) composer.render();
       else renderer.render(scene, camera);
       cssRenderer.render(cssScene, camera);
