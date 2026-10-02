@@ -682,14 +682,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall5' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall6' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall5' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall6' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -1996,11 +1996,13 @@ if (liveMetas.length > MAX_ARMED) {
   console.warn('[cubicles] LIVE_IDS count', liveMetas.length, '> MAX_ARMED', MAX_ARMED);
 }
 
-const WALL_LAB_H = Math.min(OUTER_H * 0.92, OUTER_H - 0.55);
-const WALL_LAB_W = Math.min(GRID_D * 0.58, 10.5);
+// Flush-pin LIVE plates to ±X outer wall planes (not mid-aisle / mid-grove).
+// Mirror far-wall WALL_Z inset: sit just inside the wall so bark frame reads flush.
+const WALL_LAB_H = Math.min(OUTER_H * 0.96, OUTER_H - 0.35); // full-height
+const WALL_LAB_W = Math.min(GRID_D * 0.72, OUTER_D * 0.52, 14.5); // long run along wall
 const wallY = OUTER_H * 0.5;
 const wallZ = (GRID_Z_MIN + GRID_Z_MAX) * 0.5;
-const wallInset = 0.14;
+const wallInset = 0.12; // same spirit as WALL_Z = -OUTER_D/2 + 0.12
 const leftX = -OUTER_W / 2 + wallInset;
 const rightX = OUTER_W / 2 - wallInset;
 
@@ -2044,8 +2046,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const scale = WALL_LAB_W / cssW;
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall5');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wall5';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall6');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wall6';
   if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
 
   const iframe = document.createElement('iframe');
@@ -2071,8 +2073,9 @@ for (let li = 0; li < wallSpecs.length; li++) {
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
-  // Local +Z faces into the room after rotY (left:+X, right:−X) — not world +Z.
-  const faceInset = 0.05;
+  // Local +Z faces into the room after rotY (left:+X, right:−X). Keep flush to ±X —
+  // tiny faceInset only so the plate sits just proud of the wall plane (not mid-nave).
+  const faceInset = 0.08;
   cssObj.position.set(
     cx + Math.sin(rotY) * faceInset,
     wallY,
@@ -2145,6 +2148,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
     wallSide: spec.side,
     wallLabW: WALL_LAB_W,
     wallLabH: WALL_LAB_H,
+    wallZ0: panelZ,
+    wallFaceInset: faceInset,
     rotY,
   });
 }
@@ -3042,6 +3047,38 @@ function labBehindTree(h, tree) {
       && _labNdc.minY < _treeNdc.maxY && _labNdc.maxY > _treeNdc.minY;
 }
 
+
+/** Keep side-wall LIVE iframes flush-pinned to ±X wall planes every frame. */
+function pinWallLabsFlush() {
+  for (const h of hung) {
+    if (!h.wallMounted || !h.cssObj) continue;
+    const wallX = h.wallSide === 'left' ? (-OUTER_W / 2 + 0.12) : (OUTER_W / 2 - 0.12);
+    const z = (h.wallZ0 != null) ? h.wallZ0 : h.panelZ;
+    const face = (h.wallFaceInset != null) ? h.wallFaceInset : 0.08;
+    const rotY = h.rotY != null ? h.rotY : (h.wallSide === 'left' ? Math.PI / 2 : -Math.PI / 2);
+    h.cx = wallX;
+    h.panelZ = z;
+    h.cz = z;
+    if (h.group) {
+      h.group.position.set(wallX, h.baseY, z);
+      h.group.rotation.set(0, rotY, 0);
+      h.group.scale.set(1, 1, 1);
+    }
+    h.cssObj.position.set(
+      wallX + Math.sin(rotY) * face,
+      h.baseY,
+      z + Math.cos(rotY) * face
+    );
+    h.cssObj.rotation.set(0, rotY, 0);
+    const cs = h.cssBaseScale || 1;
+    h.cssObj.scale.set(cs, cs, cs);
+    if (h.spot) {
+      const inNx = h.wallSide === 'left' ? 1 : -1;
+      h.spot.position.set(wallX + inNx * 1.1, h.baseY + (h.wallLabH || 1) * 0.15, z);
+    }
+  }
+}
+
 function updateCssDepthOcclusion() {
   if (!TREE_OCCLUDERS.length) return;
   camera.updateMatrixWorld(true);
@@ -3190,9 +3227,19 @@ function panelUnderPointer(e) {
   return panelFromHits(hits, 1.25);
 }
 
+/** Intentional wall-lab focus (dblclick). Null = look/yaw always on parent. */
+let wallLabFocus = null;
+
+function clearWallLabFocus() {
+  if (!wallLabFocus) return;
+  wallLabFocus = null;
+  panelPointerLock = false;
+}
+
 function setInteractTarget(panel) {
   for (const h of hung) {
     h.canInteract = false;
+    // Wall LIVE iframes default to none — facing/hover must NEVER steal look / walkpad.
     h.iframe.style.pointerEvents = 'none';
     h.iframe.style.cursor = '';
   }
@@ -3204,6 +3251,12 @@ function setInteractTarget(panel) {
   // never enable iframe pointer-events while visually suppressed (clicks fall to walk).
   armLab(panel);
   if (panel._depthOccluded || panel.cssObj?.visible === false) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
+  // Side-wall LIVE: pointer-events ONLY when intentionally focused (dblclick).
+  // Otherwise always route drag-look / walkpad yaw to the parent.
+  if (panel.wallMounted && wallLabFocus !== panel) {
     stage.classList.remove('panel-hover');
     return;
   }
@@ -3505,10 +3558,11 @@ function setOverview(on) {
     velocity.set(0, 0, 0);
     clearPadMove();
     panelPointerLock = false;
+    clearWallLabFocus();
     for (const h of hung) {
       h.iframe.style.pointerEvents = 'none';
       // Keep side-wall LIVE embeds warm in overview (blanking caused empty frames on return).
-      if (h.wallMounted) { h.canInteract = false; continue; }
+      if (h.wallMounted) { h.canInteract = false; h.iframe.style.pointerEvents = 'none'; continue; }
       if (h.embedArmed) {
         h.iframe.src = 'about:blank';
         h.iframe.style.opacity = '0';
@@ -3560,6 +3614,11 @@ if (params.has('overview') && !params.has('still') && !params.has('walk')) {
 }
 
 document.addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && wallLabFocus) {
+    clearWallLabFocus();
+    setInteractTarget(hoverPanel && !hoverPanel.wallMounted ? hoverPanel : null);
+    return;
+  }
   if (!entered && !reduceMotion) return;
   if (e.code === 'KeyO') { setOverview(!overview.on); return; }
   if (e.code === 'KeyB') setDebug(!debugOn);
@@ -3730,11 +3789,27 @@ stage.addEventListener('pointerdown', (e) => {
   if (pinching || (e.pointerType !== 'mouse' && pinchPointers.size >= 2)) return;
   if (!overview.on) {
     const panel = panelUnderPointer(e);
-    if (panel) {
+    // Floating labs (if any): click arms iframe interact.
+    // Wall LIVE: never steal look — PE stay none unless wallLabFocus (dblclick).
+    if (panel && !panel.wallMounted) {
       hoverPanel = panel;
       setInteractTarget(panel);
       panelPointerLock = true;
       return;
+    }
+    if (panel && panel.wallMounted) {
+      hoverPanel = panel;
+      // Clicking a non-focused wall plate clears focus and starts look-drag.
+      if (wallLabFocus && wallLabFocus !== panel) clearWallLabFocus();
+      if (wallLabFocus === panel) {
+        setInteractTarget(panel);
+        panelPointerLock = true;
+        return;
+      }
+      // fall through → look-drag (yaw stays on parent)
+    } else if (wallLabFocus) {
+      clearWallLabFocus();
+      setInteractTarget(null);
     }
   }
   // Don't start look-drag while Pointer Lock owns the mouse (mousemove handles it)
@@ -3760,8 +3835,25 @@ document.addEventListener('pointercancel', endLookDrag, { capture: true });
 
 // Desktop Pointer Lock — continuous mouse-look; Esc exits (browser). Double-click stage or pill.
 stage.addEventListener('dblclick', (e) => {
-  if (!entered || overview.on || mobileLike || reduceMotion) return;
-  if (panelUnderPointer(e)) return; // don't break panel interact
+  if (!entered || overview.on || reduceMotion) return;
+  const panel = panelUnderPointer(e);
+  // Double-click wall LIVE → intentional iframe interact (pointer-events on).
+  // Second dblclick on same / Esc / click elsewhere clears and restores look routing.
+  if (panel && panel.wallMounted) {
+    e.preventDefault();
+    if (wallLabFocus === panel) {
+      clearWallLabFocus();
+      setInteractTarget(null);
+    } else {
+      wallLabFocus = panel;
+      hoverPanel = panel;
+      setInteractTarget(panel);
+      panelPointerLock = true;
+    }
+    return;
+  }
+  if (mobileLike) return;
+  if (panel) return; // don't break floating-lab interact
   e.preventDefault();
   requestWalkPointerLock();
 });
@@ -3947,6 +4039,7 @@ function frame() {
     updateBeatLabs(_tSpark, _bass);
     updateCssDepthOcclusion();
     try {
+      pinWallLabsFlush();
       if (composer) composer.render();
       else renderer.render(scene, camera);
       cssRenderer.render(cssScene, camera);
