@@ -312,15 +312,16 @@ const SPAWN = {
   yaw: 0,
   pitch: -0.04,
 };
-/** ?aisle=1 / ?view=aisle — stand in a column aisle looking −Z so chrome cypresses sit between panels. */
+/** ?aisle=1 / ?view=aisle — stand beside a column aisle looking at chrome cypresses between panels. */
 const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashParams.get('view') === 'aisle';
 if (wantAisle) {
-  // First interior column aisle (c=1): trees on divider, panels left/right
-  SPAWN.x = -OUTER_W / 2 + CELL_W * 1.0;
-  SPAWN.z = GRID_Z_MAX - CELL_D * 0.55;
-  SPAWN.yaw = 0.12;   // slight yaw so both trees + panel faces read
-  SPAWN.pitch = -0.06;
-  console.info('[cubicles] aisle viewpoint', SPAWN.x, SPAWN.z);
+  // Offset into the cell east of aisle c=1 so we are NOT inside a trunk; yaw toward aisle + −Z
+  const aisleX = -OUTER_W / 2 + CELL_W * 1.0;
+  SPAWN.x = aisleX + CELL_W * 0.32;
+  SPAWN.z = GRID_Z_MAX - CELL_D * 0.85;
+  SPAWN.yaw = 0.48;
+  SPAWN.pitch = -0.05;
+  console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw);
 }
 
 const CELLS = [
@@ -354,6 +355,10 @@ renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = chromeVariant === 2 ? 1.22 : chromeVariant === 3 ? 1.08 : 1.12;
+if (wantAisle) {
+  // Aisle capture: pull exposure down so chrome foliage / trunks aren't bloom-crushed
+  renderer.toneMappingExposure = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 0.92 : 0.98;
+}
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -596,9 +601,9 @@ async function setupCathedralEnvAndBloom() {
     composer.addPass(new RenderPass(scene, camera));
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(innerWidth, innerHeight),
-      0.42,
-      0.55,
-      0.72
+      wantAisle ? 0.28 : 0.42,
+      wantAisle ? 0.45 : 0.55,
+      wantAisle ? 0.82 : 0.72
     );
     composer.addPass(bloomPass);
     composer.addPass(new OutputPass());
