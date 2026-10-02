@@ -68,29 +68,43 @@ const __floatClearBg = () => { if (document.body.classList.contains('embed')) sc
 scene.background = new THREE.Color(0x08090e); __floatClearBg();
 const __embed = document.body.classList.contains('embed');
 if (!__embed) scene.fog = new THREE.Fog(0x08090e, 20, 80);
-const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
-camera.position.set(__embed ? 14 : 18, __embed ? 11 : 14, __embed ? 16 : 22);
+const camera = new THREE.PerspectiveCamera(__embed ? 42 : 50, innerWidth/innerHeight, 0.1, 200);
+// Embed: compact cloud + camera framed so no boxes clip the square iframe edges.
+camera.position.set(__embed ? 0 : 18, __embed ? 7.2 : 14, __embed ? 18.5 : 22);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-if (__embed) { controls.target.set(0, 4, 0); controls.update(); }
+if (__embed) { controls.target.set(0, 3.2, 0); controls.enableDamping = false; controls.update(); }
 
-const COUNT = 4000;
-const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const COUNT = __embed ? 2200 : 4000;
+const geo = new THREE.BoxGeometry(__embed ? 0.32 : 0.4, __embed ? 0.32 : 0.4, __embed ? 0.32 : 0.4);
 const mat = new THREE.MeshStandardMaterial({ roughness:0.4, metalness:0.3 });
 const mesh = new THREE.InstancedMesh(geo, mat, COUNT);
 mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
 const dummy = new THREE.Object3D();
 const color = new THREE.Color();
+const __spreadXZ = __embed ? 14 : 40;
+const __spreadY = __embed ? 7.5 : 12;
 for (let i=0;i<COUNT;i++) {
-  dummy.position.set((Math.random()-0.5)*40, Math.random()*12, (Math.random()-0.5)*40);
+  dummy.position.set((Math.random()-0.5)*__spreadXZ, Math.random()*__spreadY, (Math.random()-0.5)*__spreadXZ);
   dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
-  const s = 0.4 + Math.random()*1.6; dummy.scale.setScalar(s);
+  const s = (__embed ? 0.35 : 0.4) + Math.random()*(__embed ? 1.1 : 1.6); dummy.scale.setScalar(s);
   dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix);
   color.setHSL(0.08 + Math.random()*0.15, 0.7, 0.45 + Math.random()*0.25);
   mesh.setColorAt(i, color);
 }
 scene.add(mesh);
+if (__embed) {
+  // Keep cloud inside frustum with margin (half-extent of spread + max box scale).
+  const halfW = __spreadXZ * 0.5 + 0.9;
+  const halfH = __spreadY * 0.55 + 0.6;
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const needZ = Math.max(halfW / Math.tan(hFov / 2), halfH / Math.tan(vFov / 2)) * 1.2;
+  // Camera looks from (0,7.2,z) toward (0,3.2,0) — use distance along view roughly as z.
+  if (needZ > camera.position.z) camera.position.z = needZ;
+  controls.update();
+}
 scene.add(new THREE.AmbientLight(0x445566, 0.6));
 const d = new THREE.DirectionalLight(0xffe0b0, 2); d.position.set(10,20,8); scene.add(d);
 

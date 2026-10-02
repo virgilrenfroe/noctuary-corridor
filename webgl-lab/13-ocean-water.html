@@ -139,13 +139,54 @@ if (__embed) {
 const buoy = new THREE.Mesh(new THREE.CylinderGeometry(1,1.2,4,16), new THREE.MeshStandardMaterial({color:0xe07060, roughness:0.5}));
 buoy.position.y = 1; scene.add(buoy);
 
+// Embed: soft alpha vignette so the water plane doesn't read as a hard square slab.
+let __vigScene = null, __vigCam = null, __vigQuad = null;
+if (__embed) {
+  __vigScene = new THREE.Scene();
+  __vigCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const vigMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    // Multiply dest RGB+A by vignette (center=1, edges→0) so edges fade to clear.
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.SrcColorFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.SrcAlphaFactor,
+    uniforms: {},
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
+    fragmentShader: `
+      varying vec2 vUv;
+      void main(){
+        vec2 p = vUv * 2.0 - 1.0;
+        // Soft radial + slight square falloff — feather ~18% of half-extent
+        float r = length(p);
+        float radial = 1.0 - smoothstep(0.55, 1.05, r);
+        float edgeX = 1.0 - smoothstep(0.72, 1.0, abs(p.x));
+        float edgeY = 1.0 - smoothstep(0.72, 1.0, abs(p.y));
+        float v = radial * edgeX * edgeY;
+        v = pow(clamp(v, 0.0, 1.0), 0.85);
+        gl_FragColor = vec4(v, v, v, v);
+      }`,
+  });
+  __vigQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), vigMat);
+  __vigScene.add(__vigQuad);
+}
+
 onResize(camera, renderer);
 (function tick(){
   requestAnimationFrame(tick);
   water.material.uniforms['time'].value += 1.0/60.0;
   buoy.position.y = 1 + Math.sin(performance.now()*0.002)*0.4;
   buoy.rotation.z = Math.sin(performance.now()*0.001)*0.08;
-  controls.update(); renderer.render(scene, camera);
+  controls.update();
+  renderer.render(scene, camera);
+  if (__vigScene) {
+    renderer.autoClear = false;
+    renderer.render(__vigScene, __vigCam);
+    renderer.autoClear = true;
+  }
 })();
 
 </script>

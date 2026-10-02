@@ -208,9 +208,10 @@ if (!embed) scene.background = new THREE.Color(BG);
 if (!embed) scene.fog = new THREE.Fog(BG, 8, 22);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
 if (embed && (demo === 'cloth' || demo === 'particles')) {
-  camera.fov = demo === 'particles' ? 40 : 38;
-  camera.position.set(0, demo === 'cloth' ? 1.45 : 1.55, demo === 'cloth' ? 4.4 : 4.6);
-  camera.lookAt(0, demo === 'cloth' ? 1.35 : 1.4, 0);
+  // Particles: pull back so curl cloud stays inside square iframe (no edge overflow).
+  camera.fov = demo === 'particles' ? 34 : 38;
+  camera.position.set(0, demo === 'cloth' ? 1.45 : 1.5, demo === 'cloth' ? 4.4 : 5.8);
+  camera.lookAt(0, demo === 'cloth' ? 1.35 : 1.45, 0);
 } else {
   camera.position.set(0, 1.55, 5.2);
   camera.lookAt(0, 0.9, 0);
@@ -789,13 +790,20 @@ function buildCloth() {
 }
 
 function buildParticles() {
-  const N = 900;
+  const N = embed ? 720 : 900;
+  // Embed: tighter XY bounds so the curl field reads as a floating cloud, not a square slab.
+  const xSpan = embed ? 2.6 : 4.5;
+  const yMin = embed ? 0.7 : 0.4;
+  const ySpan = embed ? 1.7 : 2.6;
+  const xBound = embed ? 1.45 : 2.6;
+  const yLo = embed ? 0.55 : 0.2;
+  const yHi = embed ? 2.55 : 3.1;
   const positions = new Float32Array(N * 3);
   const velocities = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * 4.5;
-    positions[i * 3 + 1] = 0.4 + Math.random() * 2.6;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+    positions[i * 3] = (Math.random() - 0.5) * xSpan;
+    positions[i * 3 + 1] = yMin + Math.random() * ySpan;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * (embed ? 0.7 : 1.2);
     velocities[i * 3] = 0;
     velocities[i * 3 + 1] = 0;
     velocities[i * 3 + 2] = 0;
@@ -829,12 +837,12 @@ function buildParticles() {
     if (still) return;
     // Drive vortex from raycasted pointer on the interaction plane (mouse + touch)
     if (pointerActive || pointerDown) {
-      vortex.x = THREE.MathUtils.clamp(pointerWorld.x, -2.4, 2.4);
-      vortex.y = THREE.MathUtils.clamp(pointerWorld.y, 0.35, 3.0);
+      vortex.x = THREE.MathUtils.clamp(pointerWorld.x, -xBound + 0.15, xBound - 0.15);
+      vortex.y = THREE.MathUtils.clamp(pointerWorld.y, yLo + 0.15, yHi - 0.15);
     } else {
       // Gentle idle drift until the pointer engages
-      vortex.x = Math.sin(t * 0.35) * 0.9;
-      vortex.y = 1.35 + Math.cos(t * 0.28) * 0.35;
+      vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : 0.9);
+      vortex.y = (embed ? 1.4 : 1.35) + Math.cos(t * 0.28) * (embed ? 0.22 : 0.35);
     }
     vortexMesh.position.x = vortex.x;
     vortexMesh.position.y = vortex.y;
@@ -855,8 +863,8 @@ function buildParticles() {
       velocities[ix + 1] += ((dx * curl - dy * pull) + Math.sin(t * 0.7 + i * 0.01) * 0.12 - velocities[ix + 1] * 0.5) * dt;
       x += velocities[ix] * dt * 2.6;
       y += velocities[ix + 1] * dt * 2.6;
-      if (x < -2.6 || x > 2.6) { x *= -0.92; velocities[ix] *= -0.4; }
-      if (y < 0.2 || y > 3.1) { y = Math.max(0.2, Math.min(3.1, y)); velocities[ix + 1] *= -0.4; }
+      if (x < -xBound || x > xBound) { x = Math.sign(x) * xBound * 0.92; velocities[ix] *= -0.4; }
+      if (y < yLo || y > yHi) { y = Math.max(yLo, Math.min(yHi, y)); velocities[ix + 1] *= -0.4; }
       positions[ix] = x;
       positions[ix + 1] = y;
     }

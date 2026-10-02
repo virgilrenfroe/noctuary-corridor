@@ -68,10 +68,13 @@ const renderer = makeRenderer();
 renderer.toneMappingExposure = 1.25;
 const scene = new THREE.Scene();
 const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
-const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 1, 4);
+const __embed = document.body.classList.contains('embed');
+const camera = new THREE.PerspectiveCamera(__embed ? 36 : 45, innerWidth/innerHeight, 0.1, 100);
+// Embed: square CSS3D iframe — pull back so knot+flanking spheres stay inside with margin.
+camera.position.set(0, __embed ? 0.55 : 1, __embed ? 6.4 : 4);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
+if (__embed) { controls.target.set(0, 0, 0); controls.enableDamping = false; controls.update(); }
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 pmrem.compileEquirectangularShader();
@@ -81,9 +84,22 @@ const mats = {
   gold: new THREE.MeshStandardMaterial({ color:0xf0c24b, metalness:1, roughness:0.18 }),
   dielectric: new THREE.MeshStandardMaterial({ color:0x8a7bb8, metalness:0.0, roughness:0.25 }),
 };
-const chrome = new THREE.Mesh(new THREE.TorusKnotGeometry(0.6,0.22,180,32), mats.chrome); scene.add(chrome);
-const gold = new THREE.Mesh(new THREE.SphereGeometry(0.4,64,64), mats.gold); gold.position.set(-1.4,0,0); scene.add(gold);
-const diel = new THREE.Mesh(new THREE.SphereGeometry(0.4,64,64), mats.dielectric); diel.position.set(1.4,0,0); scene.add(diel);
+const __knotR = __embed ? 0.48 : 0.6;
+const __knotT = __embed ? 0.17 : 0.22;
+const __sphR = __embed ? 0.32 : 0.4;
+const __gap = __embed ? 1.05 : 1.4;
+const chrome = new THREE.Mesh(new THREE.TorusKnotGeometry(__knotR,__knotT,180,32), mats.chrome); scene.add(chrome);
+const gold = new THREE.Mesh(new THREE.SphereGeometry(__sphR,64,64), mats.gold); gold.position.set(-__gap,0,0); scene.add(gold);
+const diel = new THREE.Mesh(new THREE.SphereGeometry(__sphR,64,64), mats.dielectric); diel.position.set(__gap,0,0); scene.add(diel);
+if (__embed) {
+  // Hard frustum fit: outer sphere centers + radius must stay inside horizontal FOV with ~18% pad.
+  const halfW = __gap + __sphR;
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const needZ = (halfW / Math.tan(hFov / 2)) * 1.22;
+  if (needZ > camera.position.z) camera.position.z = needZ;
+  controls.update();
+}
 
 new RGBELoader().load(
   'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',

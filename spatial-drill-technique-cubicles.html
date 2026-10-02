@@ -351,17 +351,17 @@ const CELLS = [
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=float3' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=float3' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=float3' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=float3' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=float4' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=float3' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=float3' },
-  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=float3' },
-  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=float3' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=float4' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=float4' },
   { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=float3' },
   { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=float3' },
   { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=float3' },
   { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=float3' },
   { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=float3' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float3' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float4' },
 ];
 
 const stage = document.getElementById('stage');
@@ -826,6 +826,63 @@ function createWallpaper() {
 // Floating-labs sketch: skip far-wall InstancedMesh cube plate (read as hung black backing).
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
+
+// —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
+// Tall centered mural on −Z wall; purple wall shows as side letterbox.
+(function installStargazingWall() {
+  try {
+    const vid = document.createElement('video');
+    vid.src = './demo-assets/backwall/stargazing.mp4';
+    vid.crossOrigin = 'anonymous';
+    vid.loop = true;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('muted', '');
+    vid.preload = 'auto';
+    vid.setAttribute('aria-hidden', 'true');
+    // Keep off-DOM; VideoTexture reads from the element.
+    const tex = new THREE.VideoTexture(vid);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    // Portrait 720×~976 → mural ~0.74 aspect, almost full vault height.
+    const muralH = Math.min(OUTER_H * 0.88, 10.4);
+    const muralW = muralH * (720 / 974);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      toneMapped: false,
+      side: THREE.FrontSide,
+      fog: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(muralW, muralH), mat);
+    mesh.position.set(0, OUTER_H * 0.5, WALL_Z + 0.04);
+    mesh.rotation.y = 0; // face +Z / foyer
+    mesh.receiveShadow = false;
+    mesh.castShadow = false;
+    mesh.raycast = () => {}; // don't steal walk clicks
+    scene.add(mesh);
+    // Soft rim light so the mural reads against cathedral chrome
+    const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
+    rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
+    scene.add(rim);
+    const tryPlay = () => {
+      const p = vid.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    };
+    vid.addEventListener('canplay', tryPlay, { once: true });
+    vid.addEventListener('loadeddata', tryPlay, { once: true });
+    tryPlay();
+    // Resume after first pointer (autoplay policies)
+    const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.__stargazingWall = { mesh, vid, tex, muralW, muralH };
+    console.info('[cubicles] stargazing back-wall video', muralW.toFixed(2), '×', muralH.toFixed(2));
+  } catch (err) {
+    console.warn('[cubicles] stargazing wall failed', err);
+  }
+})();
 
 function updateWallpaper(t) {
   if (!wallpaperOk || !wallpaper || reduceMotion) return;
