@@ -25,11 +25,9 @@ canvas{display:block;width:100%;height:100%}
 .current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.06em;max-width:min(420px,42vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .current-pill strong{color:var(--accent);font-weight:600;text-transform:none;letter-spacing:.02em}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
-.embed-hint{display:none;position:fixed;bottom:10px;left:10px;z-index:3;pointer-events:none;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(8px);border-radius:999px;padding:6px 10px;color:var(--mute);font-size:10px;letter-spacing:.06em;max-width:calc(100% - 24px)}
 body.embed .hud{display:none!important}
 body.embed .error{display:none!important}
 body.embed .word-chip{display:flex!important;max-width:min(240px,calc(100% - 24px));font-size:10px;padding:6px 10px}
-body.embed .embed-hint{display:block!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -53,7 +51,6 @@ body.embed .embed-hint{display:block!important}
   </div>
 </div>
 <button type="button" class="word-chip" id="wordChip" title="Click: next Hobbit phrase · Double-click: type your own"><span class="lbl">Hobbit</span><span class="val" id="chipWord">In a hole in the ground there lived a hobbit.</span></button>
-<div class="embed-hint" id="embedHint">Click sphere to stamp · chip advances</div>
 <div class="error" id="err"></div>
 <script type="module">
 
@@ -304,7 +301,7 @@ function isTypingTarget(el) {
 
 let ptrDown = null;
 function eventOnUi(t) {
-  return t && t.closest && (t.closest('.word-bar') || t.closest('.word-chip') || t.closest('.brand') || t.closest('.pill') || t.closest('.embed-hint'));
+  return t && t.closest && (t.closest('.word-bar') || t.closest('.word-chip') || t.closest('.brand') || t.closest('.pill'));
 }
 function stampAtClient(clientX, clientY) {
   ptr.x = (clientX / innerWidth) * 2 - 1;
