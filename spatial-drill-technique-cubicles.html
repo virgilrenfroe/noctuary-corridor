@@ -323,10 +323,10 @@ const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
-renderer.setClearColor(0xcfc8ba, 1);
+renderer.setClearColor(0x7a8568, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.92;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -353,7 +353,7 @@ renderer.domElement.addEventListener('webglcontextrestored', () => {
   glContextLost = false;
   hideGlTip();
   try {
-    renderer.setClearColor(0xcfc8ba, 1);
+    renderer.setClearColor(0x7a8568, 1);
     renderer.setSize(innerWidth, innerHeight, false);
     cssRenderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / Math.max(1, innerHeight);
@@ -369,8 +369,8 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xcfc8ba, 16, 46);
-scene.background = new THREE.Color(0xcfc8ba);
+scene.fog = new THREE.Fog(0x7a8568, 11, 40);
+scene.background = new THREE.Color(0x7a8568);
 const cssScene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
@@ -378,8 +378,8 @@ const yaw = { value: SPAWN.yaw };
 const pitch = { value: SPAWN.pitch };
 const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
 
-scene.add(new THREE.HemisphereLight(0xf7f2e8, 0x8a8490, 1.2));
-const key = new THREE.DirectionalLight(0xfff6e8, 1.2);
+scene.add(new THREE.HemisphereLight(0xe8e4c8, 0x4a5a38, 0.95));
+const key = new THREE.DirectionalLight(0xe8d8a8, 0.95);
 key.position.set(5, 12, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
@@ -392,31 +392,46 @@ key.shadow.camera.bottom = -10;
 key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
 scene.add(key);
-scene.add(new THREE.PointLight(0xa898d0, 16, 36).translateX(-5).translateY(3.2).translateZ(2));
+scene.add(new THREE.PointLight(0x7a8a58, 10, 36).translateX(-5).translateY(3.2).translateZ(2));
 
 // —— Visible outer box ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0xa8a193, roughness: 0.9, metalness: 0.04 });
-const ceilMat = new THREE.MeshStandardMaterial({ color: 0xcfc8ba, roughness: 0.95, metalness: 0.02 });
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x7e7a68, roughness: 0.92, metalness: 0.04 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x8a9178, roughness: 0.95, metalness: 0.02 });
 
-// Ocean / water floor — same three.js Water addon + palette as webgl-lab/13-ocean-water.html
+// Swamp water floor — three.js Water addon, slowed + murkier olive/brown
+const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
 const waterNormals = new THREE.TextureLoader().load(
   'https://threejs.org/examples/textures/waternormals.jpg',
   (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
 );
-const waterSun = new THREE.Vector3(0.35, 0.85, 0.25).normalize();
+const waterSun = new THREE.Vector3(0.25, 0.75, 0.35).normalize();
 const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   textureWidth: mobileLike ? 256 : 512,
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
   sunDirection: waterSun.clone(),
-  sunColor: 0xffffff,
-  waterColor: 0x001e0f,
-  distortionScale: 2.4,
+  sunColor: 0xb8a868,
+  waterColor: 0x1a2e12, // murky olive-brown swamp
+  distortionScale: 1.15,
   fog: true,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0.02;
 water.raycast = () => {};
+// Larger, lazier ripples (size) + stretch baked wave time divisors in getNoise
+if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
+if (water.material?.fragmentShader) {
+  water.material.fragmentShader = water.material.fragmentShader
+    .replace('time / 17.0', 'time / 52.0')
+    .replace('time / 29.0', 'time / 78.0')
+    .replace('time / -19.0', 'time / -58.0')
+    .replace('time / 31.0', 'time / 86.0')
+    .replace('time / 101.0', 'time / 240.0')
+    .replace('time / 97.0', 'time / 230.0')
+    .replace('time / 109.0', 'time / 260.0')
+    .replace('time / -113.0', 'time / -270.0');
+  water.material.needsUpdate = true;
+}
 scene.add(water);
 
 function addOuterWall(w, h, x, y, z, rotY) {
@@ -852,6 +867,106 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.cellIndex = i;
   frame.userData.clickable = true;
 }
+
+// —— Stylized bald cypresses in cell aisles / divider lines (not on panel faces) ——
+const cypressGroup = new THREE.Group();
+cypressGroup.name = 'cypresses';
+scene.add(cypressGroup);
+const cypressTrunkMat = new THREE.MeshStandardMaterial({
+  color: 0x3a2e22, roughness: 0.92, metalness: 0.02,
+});
+const cypressFoliageMat = new THREE.MeshStandardMaterial({
+  color: 0x1e3a22, roughness: 0.88, metalness: 0.0,
+});
+const cypressMossMat = new THREE.MeshStandardMaterial({
+  color: 0x6a7a58, roughness: 1, metalness: 0, transparent: true, opacity: 0.72,
+});
+
+function makeCypress(height) {
+  const g = new THREE.Group();
+  const trunkH = height * 0.7;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.11, trunkH, 6),
+    cypressTrunkMat
+  );
+  trunk.position.y = trunkH * 0.5;
+  trunk.castShadow = !mobileLike;
+  trunk.receiveShadow = true;
+  g.add(trunk);
+  // Knee / buttress hint at waterline
+  const knee = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.18, 0.22, 6),
+    cypressTrunkMat
+  );
+  knee.position.y = 0.1;
+  g.add(knee);
+  // Sparse vertical canopy — stacked slender cones
+  const layers = 3;
+  for (let L = 0; L < layers; L++) {
+    const t = L / (layers - 1);
+    const coneH = height * (0.28 - t * 0.06);
+    const coneR = 0.38 - t * 0.12;
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(coneR, coneH, 7),
+      cypressFoliageMat
+    );
+    cone.position.y = trunkH * 0.42 + L * height * 0.18 + coneH * 0.35;
+    cone.castShadow = !mobileLike;
+    g.add(cone);
+  }
+  // Spanish-moss hints — thin hanging strands
+  const mossN = mobileLike ? 2 : 4;
+  for (let m = 0; m < mossN; m++) {
+    const mossLen = 0.35 + (m % 3) * 0.18;
+    const moss = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.006, mossLen, 4),
+      cypressMossMat
+    );
+    const ang = (m / mossN) * Math.PI * 2 + 0.4;
+    const rad = 0.22;
+    moss.position.set(Math.cos(ang) * rad, trunkH * 0.55 - mossLen * 0.35, Math.sin(ang) * rad);
+    moss.raycast = () => {};
+    g.add(moss);
+  }
+  g.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
+  return g;
+}
+
+/** Grid divider positions: column aisles × row aisles (between cells, clear of panel faces). */
+const cypressPositions = [];
+for (let c = 1; c < COLS; c++) {
+  const x = -OUTER_W / 2 + c * CELL_W;
+  for (let b = 0; b < ROWS; b++) {
+    // b=0 foyer/grid edge; b=1..3 between rows — skip far-wall flush (b=ROWS)
+    const z = GRID_Z_MAX - b * CELL_D;
+    // Tiny jitter along the aisle so trunks aren't laser-aligned
+    const jx = ((c * 17 + b * 31) % 7 - 3) * 0.04;
+    const jz = ((c * 13 + b * 19) % 7 - 3) * 0.05;
+    cypressPositions.push({ x: x + jx, z: z + jz, h: 3.4 + ((c + b * 3) % 5) * 0.38 });
+  }
+}
+// A few along the outer column edges of the grid (still in side aisles, not panel centers)
+for (const side of [-1, 1]) {
+  const x = side * (OUTER_W / 2 - 0.55);
+  for (let b = 1; b < ROWS; b++) {
+    const z = GRID_Z_MAX - b * CELL_D;
+    cypressPositions.push({
+      x: x + side * -0.15,
+      z: z + ((b * 11) % 5 - 2) * 0.06,
+      h: 3.6 + (b % 3) * 0.45,
+    });
+  }
+}
+
+let cypressCount = 0;
+for (const p of cypressPositions) {
+  const tree = makeCypress(p.h);
+  tree.position.set(p.x, 0.02, p.z);
+  tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+  cypressGroup.add(tree);
+  cypressCount++;
+}
+console.info('[cubicles] cypresses', cypressCount);
 
 function resetToFoyer() {
   pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
@@ -1361,7 +1476,7 @@ function frame() {
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
     if (water?.material?.uniforms?.time) {
-      water.material.uniforms.time.value += dt;
+      water.material.uniforms.time.value += dt * WATER_TIME_SCALE;
       if (water.material.uniforms.sunDirection) {
         water.material.uniforms.sunDirection.value.copy(waterSun);
       }
