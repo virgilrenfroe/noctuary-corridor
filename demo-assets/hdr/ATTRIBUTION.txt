@@ -11,3 +11,5 @@ Poly Haven HDRIs (vendored for offline Sketch C cathedral chrome)
    (high-chroma specular alternate; primary env is small_cathedral_02)
 
 https://creativecommons.org/publicdomain/zero/1.0/
+
+Prebaked soft bg: small_cathedral_02_1k_pmrem_bg.webp (local PMREM-style bake from small_cathedral_02_1k for first-paint; optional ?hdr=1 restores full RGBE path).

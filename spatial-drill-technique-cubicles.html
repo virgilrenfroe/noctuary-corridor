@@ -6,6 +6,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<!-- First-paint critical: Three + cathedral bg + cypress bark (not all 20 lab panels). -->
+<link rel="modulepreload" href="./vendor/three/build/three.module.js" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -590,44 +596,61 @@ async function setupCathedralEnvAndBloom() {
   try { pmrem.compileEquirectangularShader(); } catch (_) {}
 
   let usedLocalHdrBg = false;
-  // Vendored Poly Haven HDR → soft blurred background (cathedral atmosphere)
+  // Fast path: pre-baked soft cathedral equirect (WebP) — skips RGBE decode + PMREM of 1.6MB HDR on first paint.
+  // Visual match for backgroundBlurriness≈0.68; envMap still uses punchy synth below.
   try {
-    const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
-    const localCandidates = [
-      './demo-assets/hdr/small_cathedral_02_1k.hdr',
-      './demo-assets/hdr/neon_photostudio_1k.hdr',
-    ];
-    let hdr = null;
-    let hdrSrc = null;
-    for (const url of localCandidates) {
-      try {
-        hdr = await new RGBELoader().loadAsync(url);
-        hdrSrc = url;
-        break;
-      } catch (_) { /* try next */ }
+    const prebakedUrl = './demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp';
+    const prebaked = await new THREE.TextureLoader().loadAsync(prebakedUrl);
+    prebaked.mapping = THREE.EquirectangularReflectionMapping;
+    prebaked.colorSpace = THREE.SRGBColorSpace;
+    scene.background = prebaked;
+    scene.backgroundBlurriness = 0.12; // already soft-baked
+    scene.backgroundIntensity = chromeVariant === 2 ? 0.42 : 0.36;
+    window.__sketchCHdrEnv = prebaked;
+    usedLocalHdrBg = true;
+    console.info('[cubicles] prebaked PMREM-style bg (skip HDR decode)', prebakedUrl, 'chrome=' + chromeVariant);
+  } catch (preErr) {
+    console.warn('[cubicles] prebaked bg missing — HDR fallback', preErr);
+  }
+  // Optional: full HDR upgrade only when ?hdr=1 (quality A/B), otherwise skip decode cost.
+  if (!usedLocalHdrBg || params.has('hdr')) {
+    try {
+      const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
+      const localCandidates = [
+        './demo-assets/hdr/small_cathedral_02_1k.hdr',
+        './demo-assets/hdr/neon_photostudio_1k.hdr',
+      ];
+      let hdr = null;
+      let hdrSrc = null;
+      for (const url of localCandidates) {
+        try {
+          hdr = await new RGBELoader().loadAsync(url);
+          hdrSrc = url;
+          break;
+        } catch (_) { /* try next */ }
+      }
+      if (!hdr) {
+        try {
+          hdr = await new RGBELoader().loadAsync(
+            'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
+          );
+          hdrSrc = 'cdn:venice_sunset';
+        } catch (_) {}
+      }
+      if (hdr) {
+        tintHdrTowardMagentaGold(hdr, chromeVariant);
+        const bgRT = pmrem.fromEquirectangular(hdr);
+        scene.background = bgRT.texture;
+        scene.backgroundBlurriness = 0.68;
+        scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
+        window.__sketchCHdrEnv = bgRT.texture;
+        hdr.dispose();
+        usedLocalHdrBg = true;
+        console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
+      }
+    } catch (loaderErr) {
+      console.warn('[cubicles] RGBELoader unavailable', loaderErr);
     }
-    if (!hdr) {
-      try {
-        hdr = await new RGBELoader().loadAsync(
-          'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
-        );
-        hdrSrc = 'cdn:venice_sunset';
-      } catch (_) {}
-    }
-    if (hdr) {
-      tintHdrTowardMagentaGold(hdr, chromeVariant);
-      const bgRT = pmrem.fromEquirectangular(hdr);
-      scene.background = bgRT.texture;
-      scene.backgroundBlurriness = 0.68;
-      scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
-      // Keep a copy for optional env fallback if synth fails
-      window.__sketchCHdrEnv = bgRT.texture;
-      hdr.dispose();
-      usedLocalHdrBg = true;
-      console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
-    }
-  } catch (loaderErr) {
-    console.warn('[cubicles] RGBELoader unavailable', loaderErr);
   }
 
   // Sketch C chrome reflections: punchy magenta/gold synth with hot specular windows (mercury beads)
@@ -1252,8 +1275,13 @@ function armFoyerVisibleLabs() {
   }
   console.info('[cubicles] foyer-armed floating labs', n);
 }
-armFoyerVisibleLabs();
-console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
+// Defer foyer lab iframes one frame so room (walls/water/trees/HDR bg) paints first.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    armFoyerVisibleLabs();
+    console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
+  });
+});
 
 // —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
 // True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
@@ -1309,7 +1337,7 @@ window.__sketchCChromeMats = cypressChromeMats;
 // Bark normals + canopy alpha cards — break mercury into specular beads (not plastic wash)
 (() => {
   const loader = new THREE.TextureLoader();
-  const barkN = loader.load('./demo-assets/cypress/bark_normal.png', (t) => {
+  const barkN = loader.load('./demo-assets/cypress/bark_normal.webp', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(2.2, 4.5);
     t.colorSpace = THREE.NoColorSpace;
@@ -1320,7 +1348,7 @@ window.__sketchCChromeMats = cypressChromeMats;
     cypressKneeMat.normalScale = new THREE.Vector2(1.25, 1.25);
     cypressKneeMat.needsUpdate = true;
   });
-  const barkR = loader.load('./demo-assets/cypress/bark_roughness.png', (t) => {
+  const barkR = loader.load('./demo-assets/cypress/bark_roughness.webp', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(3.2, 6.5);
     t.colorSpace = THREE.NoColorSpace;
@@ -1330,7 +1358,7 @@ window.__sketchCChromeMats = cypressChromeMats;
     cypressKneeMat.needsUpdate = true;
   });
   window.__sketchCBark = { barkN, barkR };
-  const leaf = loader.load('./demo-assets/cypress/needle_spray.png', (t) => {
+  const leaf = loader.load('./demo-assets/cypress/needle_spray.webp', (t) => {
     // Alpha silhouette only — do NOT bind as color map (albedo is dark green, kills gold chrome)
     t.colorSpace = THREE.NoColorSpace;
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
@@ -1931,6 +1959,16 @@ function placeSpanishMossFilaments() {
 async function placeGltfCypresses() {
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
+  try {
+    const { MeshoptDecoder } = await import('./vendor/meshopt/meshopt_decoder.mjs');
+    // meshopt package exports decoder ready for GLTFLoader
+    if (MeshoptDecoder) {
+      if (MeshoptDecoder.ready) await MeshoptDecoder.ready;
+      loader.setMeshoptDecoder(MeshoptDecoder);
+    }
+  } catch (meshOptErr) {
+    console.warn('[cubicles] MeshoptDecoder unavailable', meshOptErr);
+  }
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
   const proto = gltf.scene;
   chromeifyCypressRoot(proto);

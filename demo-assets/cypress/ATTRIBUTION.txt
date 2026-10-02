@@ -14,3 +14,5 @@ Note: GLB canopy is a low-poly billboard plane — default path is procedural.
 
 
 needle_spray.png — procedural Taxodium needle-spray alpha (local, for chrome canopy cards).
+
+Optimized: bark_*.webp / needle_spray.webp (near-lossless WebP). cypress.glb remeshed with EXT_meshopt_compression + EXT_texture_webp (no mesh simplify). Source archive kept out of Pages deploy as cypress.src.glb locally only.
