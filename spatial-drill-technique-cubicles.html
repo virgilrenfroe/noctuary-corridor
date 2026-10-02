@@ -2024,13 +2024,12 @@ btnEnter.addEventListener('click', () => {
   resetToFoyer();
   velocity.set(0, 0, 0);
   move.f = move.b = move.l = move.r = false;
-  if (mobileLike && !params.has('walk')) setOverview(true);
-  else {
-    chip.classList.remove('show');
-    activeCell = null;
-    updateActiveCell();
-    updateLazyEmbeds();
-  }
+  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / Overview pill / ?overview=1.
+  if (overview.on) setOverview(false);
+  chip.classList.remove('show');
+  activeCell = null;
+  updateActiveCell();
+  updateLazyEmbeds();
 });
 
 let debugOn = params.has('debug');
@@ -2130,13 +2129,18 @@ function setOverview(on) {
   document.body.classList.toggle('overview', overview.on);
 }
 document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
-// Mobile / narrow: first paint in overview so Enter isn’t face-into-panel.
-// Desktop: foyer walk. ?overview=1 forces overview; ?walk=1 forces walk on mobile.
-if (params.has('overview') || (mobileLike && !params.has('walk') && !params.has('still'))) {
+// Default: full-screen foyer walk (Sketch C) on mobile + desktop.
+// ?overview=1 forces dollhouse overview; Overview pill / O still toggles. ?walk=1 kept as no-op alias.
+if (params.has('overview') && !params.has('still') && !params.has('walk')) {
   entered = true;
   gate.classList.add('hide');
   resetToFoyer();
   setOverview(true);
+} else if (mobileLike && !params.has('still')) {
+  // Skip gate on mobile — land in walkable foyer immediately (pad + drag look).
+  entered = true;
+  gate.classList.add('hide');
+  resetToFoyer();
 }
 
 // Dev assert: foyer spawn must not sit in any cell
