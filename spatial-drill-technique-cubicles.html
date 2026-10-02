@@ -2206,7 +2206,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   livePlane.position.z = faceInset;
   livePlane.castShadow = false;
   livePlane.receiveShadow = false;
-  livePlane.raycast = () => {};
+  livePlane.userData.cellIndex = li;
+  livePlane.userData.wallSide = spec.side;
   group.add(livePlane);
 
   const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
@@ -2224,7 +2225,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
       minZ: panelZ - WALL_LAB_W * 0.5,
       maxZ: panelZ + WALL_LAB_W * 0.5,
     },
-    group, frame: frameGroup, ghost: null, hit, cssObj, iframe, spot, liveMat,
+    group, frame: frameGroup, ghost: null, hit, livePlane, cssObj, iframe, spot, liveMat,
     embedArmed: true, // src set at create — opaque wall embed already loading
     canInteract: false,
     embedUrl,
@@ -3329,6 +3330,7 @@ function hungPickMeshes() {
   const meshes = [];
   for (const h of hung) {
     if (h.hit) meshes.push(h.hit);
+    if (h.livePlane) meshes.push(h.livePlane);
     if (h.frame) meshes.push(h.frame);
   }
   return meshes;
@@ -3863,7 +3865,12 @@ mobilePad.addEventListener('pointerup', (e) => {
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
 stage.addEventListener('pointermove', (e) => {
-  if (overview.on || !entered || panelPointerLock || dragging) return;
+  lastClientX = e.clientX;
+  lastClientY = e.clientY;
+  if (overview.on || !entered || panelPointerLock || dragging) {
+    syncPanelCursor();
+    return;
+  }
   // Don't fight look-drag; only refresh hover when idle
   const next = panelUnderPointer(e);
   if (next !== hoverPanel) {
@@ -4171,6 +4178,18 @@ function clampWalkPos() {
   pos.y = EYE;
 }
 
+let lastClientX = -1, lastClientY = -1;
+function syncPanelCursor() {
+  if (overview.on || dragging || lastClientX < 0) {
+    if (!dragging) stage.style.cursor = '';
+    return;
+  }
+  const over = panelUnderPointer({ clientX: lastClientX, clientY: lastClientY });
+  const onWall = !!(over && over.wallMounted);
+  stage.style.cursor = onWall ? 'pointer' : '';
+  stage.classList.toggle('panel-hover', onWall);
+}
+
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
   if (overview.on) {
@@ -4208,6 +4227,7 @@ function frame() {
   } else {
     applyCamera();
   }
+  syncPanelCursor();
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
     // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (wallpaint1)
