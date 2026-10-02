@@ -12,22 +12,9 @@ canvas{display:block;width:100%;height:100%}
 .top{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .brand,.pill{pointer-events:auto;border:1px solid var(--line);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);text-decoration:none;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
 .brand a{color:inherit;text-decoration:none}
-.note{position:absolute;bottom:14px;left:14px;right:14px;max-width:560px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
-.note b{color:var(--accent);font-weight:600}
-.word-bar{position:absolute;bottom:14px;right:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;max-width:min(480px,calc(100% - 28px));pointer-events:auto}
-.word-bar input{width:min(280px,55vw);border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.04em;outline:none}
-.word-bar input:focus{border-color:var(--accent)}
-.word-bar button,.word-chip{border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
-.word-bar button:hover,.word-chip:hover{border-color:var(--accent);color:var(--accent)}
-.word-chip{position:fixed;top:12px;right:12px;z-index:3;display:none;pointer-events:auto;backdrop-filter:blur(10px);gap:6px;align-items:center;max-width:min(280px,calc(100% - 24px));overflow:hidden}
-.word-chip .lbl{opacity:.55;letter-spacing:.16em;font-size:9px;flex-shrink:0}
-.word-chip .val{color:var(--accent);font-weight:600;letter-spacing:.02em;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.06em;max-width:min(420px,42vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.current-pill strong{color:var(--accent);font-weight:600;text-transform:none;letter-spacing:.02em}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important}
 body.embed .error{display:none!important}
-body.embed .word-chip{display:flex!important;max-width:min(240px,calc(100% - 24px));font-size:10px;padding:6px 10px}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -40,17 +27,9 @@ body.embed .word-chip{display:flex!important;max-width:min(240px,calc(100% - 24p
 <div class="hud">
   <div class="top">
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 09 Decals</div>
-    <div class="current-pill">Hobbit · <strong id="hudWord">In a hole in the ground there lived a hobbit.</strong></div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>The Hobbit.</b> Click to stamp successive opening phrases via DecalGeometry — each stamp advances. Type your own phrase and <b>Add</b>, or press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b>. Right-click clears.</div>
-  <div class="word-bar">
-    <input id="wordInput" type="text" maxlength="120" placeholder="Your Hobbit phrase…" autocomplete="off" spellcheck="false"/>
-    <button type="button" id="addWord">Add</button>
-    <button type="button" id="nextWord">Next</button>
-  </div>
 </div>
-<button type="button" class="word-chip" id="wordChip" title="Click: next Hobbit phrase · Double-click: type your own"><span class="lbl">Hobbit</span><span class="val" id="chipWord">In a hole in the ground there lived a hobbit.</span></button>
 <div class="error" id="err"></div>
 <script type="module">
 
@@ -94,7 +73,7 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
-// The Hobbit — successive short opening phrases (user can still add their own)
+// The Hobbit — successive short opening phrases (click stamps & advances)
 const phrases = [
   'In a hole in the ground there lived a hobbit.',
   'Not a nasty, dirty, wet hole…',
@@ -109,46 +88,15 @@ const phrases = [
 const DEFAULT_PHRASE = phrases[0];
 let phraseIndex = 0;
 
-const hudWord = document.getElementById('hudWord');
-const chipWord = document.getElementById('chipWord');
-const wordInput = document.getElementById('wordInput');
-const wordChip = document.getElementById('wordChip');
-
-function normalizePhrase(s) {
-  return String(s || '').trim().replace(/\s+/g, ' ').slice(0, 120);
-}
-function shortLabel(s, max = 42) {
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + '…';
-}
 function currentPhrase() {
   return phrases[phraseIndex] || DEFAULT_PHRASE;
-}
-function syncPhraseUI() {
-  const w = currentPhrase();
-  if (hudWord) hudWord.textContent = shortLabel(w, 48);
-  if (chipWord) chipWord.textContent = shortLabel(w, 36);
-  if (wordChip) wordChip.title = w + ' — click: next · double-click: custom';
 }
 function setPhraseIndex(i) {
   if (!phrases.length) return;
   phraseIndex = ((i % phrases.length) + phrases.length) % phrases.length;
-  syncPhraseUI();
 }
 function nextPhrase() { setPhraseIndex(phraseIndex + 1); }
 function prevPhrase() { setPhraseIndex(phraseIndex - 1); }
-function addCustomPhrase(raw, { select = true } = {}) {
-  const w = normalizePhrase(raw);
-  if (!w) return false;
-  const existing = phrases.indexOf(w);
-  if (existing >= 0) {
-    if (select) setPhraseIndex(existing);
-    return true;
-  }
-  phrases.push(w);
-  if (select) setPhraseIndex(phrases.length - 1);
-  return true;
-}
 
 const textureCache = new Map();
 
@@ -295,13 +243,9 @@ function clearDecals() {
   decals.length = 0;
 }
 
-function isTypingTarget(el) {
-  return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-}
-
 let ptrDown = null;
 function eventOnUi(t) {
-  return t && t.closest && (t.closest('.word-bar') || t.closest('.word-chip') || t.closest('.brand') || t.closest('.pill'));
+  return t && t.closest && (t.closest('.brand') || t.closest('.pill'));
 }
 function stampAtClient(clientX, clientY) {
   ptr.x = (clientX / innerWidth) * 2 - 1;
@@ -348,32 +292,8 @@ if (typeof ResizeObserver !== 'undefined') {
   new ResizeObserver(() => fitRenderer()).observe(document.documentElement);
 }
 
-document.getElementById('nextWord')?.addEventListener('click', (e) => { e.stopPropagation(); nextPhrase(); });
-document.getElementById('addWord')?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (addCustomPhrase(wordInput.value)) wordInput.value = '';
-});
-wordInput?.addEventListener('keydown', (e) => {
-  e.stopPropagation();
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    if (addCustomPhrase(wordInput.value)) wordInput.value = '';
-  }
-});
-wordChip?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  nextPhrase();
-});
-wordChip?.addEventListener('dblclick', (e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  const custom = prompt('Hobbit phrase to stamp:', currentPhrase());
-  if (custom != null) addCustomPhrase(custom);
-});
-
+// Silent keyboard cycle (no on-screen language chrome)
 addEventListener('keydown', (e) => {
-  if (isTypingTarget(e.target)) return;
   if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextPhrase(); return; }
   if (e.key === '[') { prevPhrase(); return; }
   if (e.key >= '1' && e.key <= '9') {
@@ -381,8 +301,6 @@ addEventListener('keydown', (e) => {
     if (i < phrases.length) setPhraseIndex(i);
   }
 });
-
-syncPhraseUI();
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(3, 4, 2); scene.add(d);
