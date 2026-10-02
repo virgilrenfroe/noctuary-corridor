@@ -14,16 +14,16 @@ canvas{display:block;width:100%;height:100%}
 .brand a{color:inherit;text-decoration:none}
 .note{position:absolute;bottom:14px;left:14px;right:14px;max-width:560px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
 .note b{color:var(--accent);font-weight:600}
-.word-bar{position:absolute;bottom:14px;right:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;max-width:min(420px,calc(100% - 28px));pointer-events:auto}
-.word-bar input{width:140px;border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;outline:none}
+.word-bar{position:absolute;bottom:14px;right:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;max-width:min(480px,calc(100% - 28px));pointer-events:auto}
+.word-bar input{width:min(280px,55vw);border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.04em;outline:none}
 .word-bar input:focus{border-color:var(--accent)}
 .word-bar button,.word-chip{border:1px solid var(--line);background:rgba(10,11,16,.7);color:var(--paper);border-radius:999px;padding:7px 12px;font:11px/1.2 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 .word-bar button:hover,.word-chip:hover{border-color:var(--accent);color:var(--accent)}
-.word-chip{position:fixed;top:12px;right:12px;z-index:3;display:none;pointer-events:auto;backdrop-filter:blur(10px);gap:6px;align-items:center;max-width:min(220px,calc(100% - 24px));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.word-chip .lbl{opacity:.55;letter-spacing:.16em;font-size:9px}
-.word-chip .val{color:var(--accent);font-weight:600}
-.current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
-.current-pill strong{color:var(--accent);font-weight:600}
+.word-chip{position:fixed;top:12px;right:12px;z-index:3;display:none;pointer-events:auto;backdrop-filter:blur(10px);gap:6px;align-items:center;max-width:min(280px,calc(100% - 24px));overflow:hidden}
+.word-chip .lbl{opacity:.55;letter-spacing:.16em;font-size:9px;flex-shrink:0}
+.word-chip .val{color:var(--accent);font-weight:600;letter-spacing:.02em;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.current-pill{pointer-events:none;border:1px solid rgba(240,194,75,.35);background:rgba(10,11,16,.55);backdrop-filter:blur(10px);border-radius:999px;padding:8px 12px;color:var(--paper);font-size:11px;letter-spacing:.06em;max-width:min(420px,42vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.current-pill strong{color:var(--accent);font-weight:600;text-transform:none;letter-spacing:.02em}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important}
 body.embed .error{display:none!important}
@@ -40,17 +40,17 @@ body.embed .word-chip{display:flex!important}
 <div class="hud">
   <div class="top">
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 09 Decals</div>
-    <div class="current-pill">Word · <strong id="hudWord">HELLO</strong></div>
+    <div class="current-pill">Intro · <strong id="hudWord">Call me Ishmael.</strong></div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>Word stamps.</b> Click the mesh to stamp the current word via DecalGeometry. Each stamp advances to the next word. Edit the list, press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b> to pick. Right-click clears.</div>
+  <div class="note"><b>Famous openings.</b> Click to stamp the current book intro via DecalGeometry — each stamp advances. Type your own phrase and <b>Add</b>, or press <b>N</b> / <b>[</b> <b>]</b> / <b>1–9</b>. Right-click clears.</div>
   <div class="word-bar">
-    <input id="wordInput" type="text" maxlength="24" placeholder="CUSTOM WORD" autocomplete="off" spellcheck="false"/>
+    <input id="wordInput" type="text" maxlength="120" placeholder="Your opening line…" autocomplete="off" spellcheck="false"/>
     <button type="button" id="addWord">Add</button>
     <button type="button" id="nextWord">Next</button>
   </div>
 </div>
-<button type="button" class="word-chip" id="wordChip" title="Click: next word · Double-click: custom"><span class="lbl">Word</span><span class="val" id="chipWord">HELLO</span></button>
+<button type="button" class="word-chip" id="wordChip" title="Click: next intro · Double-click: type your own"><span class="lbl">Intro</span><span class="val" id="chipWord">Call me Ishmael.</span></button>
 <div class="error" id="err"></div>
 <script type="module">
 
@@ -94,74 +94,141 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
-const words = ['HELLO', 'YES', 'NO', 'LOOK', 'HERE', 'STAMP'];
-let wordIndex = 0;
+// Famous short book openings — user can add/edit their own phrases
+const phrases = [
+  'Call me Ishmael.',
+  'It is a truth universally acknowledged…',
+  'In a hole in the ground there lived a hobbit.',
+  'All children, except one, grow up.',
+  'It was a bright cold day in April…',
+  'It was the best of times…',
+  'Someone must have slandered Josef K.',
+  'Mrs. Dalloway said she would buy the flowers.',
+  'Happy families are all alike…',
+  'The sun shone, having no alternative…'
+];
+let phraseIndex = 0;
 
 const hudWord = document.getElementById('hudWord');
 const chipWord = document.getElementById('chipWord');
 const wordInput = document.getElementById('wordInput');
 const wordChip = document.getElementById('wordChip');
 
-function normalizeWord(s) {
-  return String(s || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 24);
+function normalizePhrase(s) {
+  return String(s || '').trim().replace(/\s+/g, ' ').slice(0, 120);
 }
-function currentWord() {
-  return words[wordIndex] || 'STAMP';
+function shortLabel(s, max = 42) {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
 }
-function syncWordUI() {
-  const w = currentWord();
-  if (hudWord) hudWord.textContent = w;
-  if (chipWord) chipWord.textContent = w;
+function currentPhrase() {
+  return phrases[phraseIndex] || 'Call me Ishmael.';
 }
-function setWordIndex(i) {
-  if (!words.length) return;
-  wordIndex = ((i % words.length) + words.length) % words.length;
-  syncWordUI();
+function syncPhraseUI() {
+  const w = currentPhrase();
+  if (hudWord) hudWord.textContent = shortLabel(w, 48);
+  if (chipWord) chipWord.textContent = shortLabel(w, 36);
+  if (wordChip) wordChip.title = w + ' — click: next · double-click: custom';
 }
-function nextWord() { setWordIndex(wordIndex + 1); }
-function prevWord() { setWordIndex(wordIndex - 1); }
-function addCustomWord(raw, { select = true } = {}) {
-  const w = normalizeWord(raw);
+function setPhraseIndex(i) {
+  if (!phrases.length) return;
+  phraseIndex = ((i % phrases.length) + phrases.length) % phrases.length;
+  syncPhraseUI();
+}
+function nextPhrase() { setPhraseIndex(phraseIndex + 1); }
+function prevPhrase() { setPhraseIndex(phraseIndex - 1); }
+function addCustomPhrase(raw, { select = true } = {}) {
+  const w = normalizePhrase(raw);
   if (!w) return false;
-  const existing = words.indexOf(w);
+  const existing = phrases.indexOf(w);
   if (existing >= 0) {
-    if (select) setWordIndex(existing);
+    if (select) setPhraseIndex(existing);
     return true;
   }
-  words.push(w);
-  if (select) setWordIndex(words.length - 1);
+  phrases.push(w);
+  if (select) setPhraseIndex(phrases.length - 1);
   return true;
 }
 
 const textureCache = new Map();
-function makeWordTexture(word) {
-  const key = word;
+
+function wrapLines(ctx, text, maxWidth, maxLines = 3) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const trial = line ? line + ' ' + word : word;
+    if (ctx.measureText(trial).width <= maxWidth) {
+      line = trial;
+    } else {
+      if (line) lines.push(line);
+      line = word;
+      if (lines.length >= maxLines - 1) break;
+    }
+  }
+  if (lines.length < maxLines && line) {
+    // if we stopped early because maxLines, append remaining as truncated last line
+    if (lines.length === maxLines - 1) {
+      const rest = words.slice(words.indexOf(line)).join(' ');
+      let last = rest;
+      while (ctx.measureText(last + '…').width > maxWidth && last.length > 4) {
+        last = last.slice(0, -1);
+      }
+      if (ctx.measureText(rest).width > maxWidth) last = last.replace(/\s+\S*$/, '') + '…';
+      lines.push(last);
+    } else {
+      lines.push(line);
+    }
+  }
+  // leftover beyond maxLines → ensure last ends with …
+  if (words.length && lines.join(' ') !== text && !lines[lines.length - 1]?.endsWith('…')) {
+    const last = lines[lines.length - 1] || '';
+    let t = last;
+    while (ctx.measureText(t + '…').width > maxWidth && t.length > 4) t = t.slice(0, -1);
+    lines[lines.length - 1] = t.replace(/\s+\S*$/, '').trimEnd() + '…';
+  }
+  return lines.length ? lines : [text];
+}
+
+function makePhraseTexture(phrase) {
+  const key = phrase;
   if (textureCache.has(key)) return textureCache.get(key);
-  const size = 256;
+  const size = 512;
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
   const ctx = c.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  // soft dark plate so letters read on the sphere
-  ctx.fillStyle = 'rgba(8,10,16,0.55)';
-  const pad = 18;
-  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 28);
+  const pad = 28;
+  ctx.fillStyle = 'rgba(8,10,16,0.62)';
+  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 36);
   ctx.fill();
   ctx.strokeStyle = 'rgba(240,194,75,0.55)';
-  ctx.lineWidth = 3;
-  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 28);
+  ctx.lineWidth = 4;
+  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 36);
   ctx.stroke();
+
   ctx.fillStyle = '#f0c24b';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // fit text into plate
-  let fontSize = word.length <= 4 ? 72 : word.length <= 6 ? 56 : word.length <= 9 ? 42 : 32;
-  ctx.font = `700 ${fontSize}px "IBM Plex Sans", system-ui, sans-serif`;
-  while (fontSize > 18 && ctx.measureText(word).width > size - pad * 2 - 24) {
+  const maxW = size - pad * 2 - 36;
+  let fontSize = phrase.length < 28 ? 42 : phrase.length < 48 ? 34 : 28;
+  let lines;
+  do {
+    ctx.font = `600 ${fontSize}px Georgia, "Times New Roman", serif`;
+    lines = wrapLines(ctx, phrase, maxW, 3);
+    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
+    if (widest <= maxW || fontSize <= 20) break;
     fontSize -= 2;
-    ctx.font = `700 ${fontSize}px "IBM Plex Sans", system-ui, sans-serif`;
+  } while (fontSize > 18);
+
+  const lineH = fontSize * 1.25;
+  const blockH = lines.length * lineH;
+  let y = size / 2 - blockH / 2 + lineH / 2;
+  for (const line of lines) {
+    ctx.fillText(line, size / 2, y);
+    y += lineH;
   }
-  ctx.fillText(word, size / 2, size / 2 + 2);
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
@@ -198,25 +265,25 @@ const ptr = new THREE.Vector2();
 const mouseHelper = new THREE.Object3D();
 
 function stamp(intersect) {
-  const word = currentWord();
-  const map = makeWordTexture(word);
+  const phrase = currentPhrase();
+  const map = makePhraseTexture(phrase);
   const n = intersect.face.normal.clone();
   n.transformDirection(target.matrixWorld);
   n.multiplyScalar(10); n.add(intersect.point);
   mouseHelper.position.copy(intersect.point);
   mouseHelper.lookAt(n);
-  // readable on the unit sphere; slight random scale for variety
-  const size = 0.42 + Math.random() * 0.12;
+  // larger than single-word blobs so opening lines stay readable
+  const size = 0.72 + Math.random() * 0.12;
   const mat = new THREE.MeshStandardMaterial({
     ...decalMatBase,
     map
   });
   const m = new THREE.Mesh(
-    new DecalGeometry(target, intersect.point, mouseHelper.rotation, new THREE.Vector3(size, size, size * 0.35)),
+    new DecalGeometry(target, intersect.point, mouseHelper.rotation, new THREE.Vector3(size, size, size * 0.28)),
     mat
   );
   scene.add(m); decals.push(m);
-  nextWord(); // successive words
+  nextPhrase();
 }
 
 function clearDecals() {
@@ -247,41 +314,41 @@ addEventListener('pointerdown', (e) => {
 });
 addEventListener('contextmenu', e => e.preventDefault());
 
-document.getElementById('nextWord')?.addEventListener('click', (e) => { e.stopPropagation(); nextWord(); });
+document.getElementById('nextWord')?.addEventListener('click', (e) => { e.stopPropagation(); nextPhrase(); });
 document.getElementById('addWord')?.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (addCustomWord(wordInput.value)) wordInput.value = '';
+  if (addCustomPhrase(wordInput.value)) wordInput.value = '';
 });
 wordInput?.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (addCustomWord(wordInput.value)) wordInput.value = '';
+    if (addCustomPhrase(wordInput.value)) wordInput.value = '';
   }
 });
 wordChip?.addEventListener('click', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  nextWord();
+  nextPhrase();
 });
 wordChip?.addEventListener('dblclick', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  const custom = prompt('Custom word to stamp:', currentWord());
-  if (custom != null) addCustomWord(custom);
+  const custom = prompt('Your opening line to stamp:', currentPhrase());
+  if (custom != null) addCustomPhrase(custom);
 });
 
 addEventListener('keydown', (e) => {
   if (isTypingTarget(e.target)) return;
-  if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextWord(); return; }
-  if (e.key === '[') { prevWord(); return; }
+  if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextPhrase(); return; }
+  if (e.key === '[') { prevPhrase(); return; }
   if (e.key >= '1' && e.key <= '9') {
     const i = parseInt(e.key, 10) - 1;
-    if (i < words.length) setWordIndex(i);
+    if (i < phrases.length) setPhraseIndex(i);
   }
 });
 
-syncWordUI();
+syncPhraseUI();
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(3, 4, 2); scene.add(d);
