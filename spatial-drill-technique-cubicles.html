@@ -199,7 +199,7 @@
       <h2 id="chip-title">—</h2>
       <p id="chip-hint"></p>
     </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag/lock look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag/lock look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · pinch zoom · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
   </div>
 
   <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
@@ -207,7 +207,7 @@
       <p class="k">Technique cubicles</p>
       <h1>One box ·<br/>twenty cells</h1>
       <p>Outer walls stay visible. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
-      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag/lock look · full 360° · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look · full 360°</span></p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag/lock look · full 360° · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look · pinch zoom · full 360°</span></p>
       <button type="button" id="btn-enter">Enter</button>
     </div>
   </div>
@@ -2251,6 +2251,9 @@ document.getElementById('btn-debug').addEventListener('click', () => setDebug(!d
 // —— Overview / walk camera ——
 let overviewOn = false;
 const WALK_FOV = 48;
+const WALK_FOV_MIN = 28;
+const WALK_FOV_MAX = 70;
+let walkFov = WALK_FOV;
 const OVERVIEW_FOV = 58;
 const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.22, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
 const overview = {
@@ -2327,7 +2330,7 @@ function setOverview(on) {
     pos.copy(walkSnapshot.pos);
     yaw.value = walkSnapshot.yaw;
     pitch.value = walkSnapshot.pitch;
-    camera.fov = WALK_FOV;
+    camera.fov = walkFov;
     camera.updateProjectionMatrix();
     updateActiveCell();
     updateLazyEmbeds();
@@ -2466,6 +2469,12 @@ document.addEventListener('pointermove', (e) => {
 // crosses a lab iframe. Use document-level move/up + pointer capture so look
 // continues across embeds. Optional Pointer Lock (desktop) for continuous look.
 let lookPointerId = null;
+// Pinch state (handlers installed after look-drag; decls here so guards can see them)
+const pinchPointers = new Map(); // pointerId -> {x,y}
+let pinching = false;
+let pinchStartDist = 0;
+let pinchStartFov = WALK_FOV;
+let pinchStartRadius = 56;
 const PITCH_MIN = -1.25;
 const PITCH_MAX = 1.15; // slightly wider than prior −1.0…0.8
 
@@ -2519,6 +2528,8 @@ function requestWalkPointerLock() {
 
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
+  // Two-finger pinch owns the gesture — don't start / continue look-drag
+  if (pinching || (e.pointerType !== 'mouse' && pinchPointers.size >= 2)) return;
   if (!overview.on) {
     const panel = panelUnderPointer(e);
     if (panel) {
@@ -2539,7 +2550,7 @@ stage.addEventListener('pointerdown', (e) => {
 });
 // Document-level look while dragging — survives CSS3D iframe crossings
 document.addEventListener('pointermove', (e) => {
-  if (!dragging || reduceMotion || panelPointerLock) return;
+  if (!dragging || reduceMotion || panelPointerLock || pinching) return;
   if (lookPointerId != null && e.pointerId !== lookPointerId) return;
   if (document.pointerLockElement) return; // mousemove + movementX path
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
@@ -2581,14 +2592,92 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
+// —— Pinch zoom: walk FOV / overview radius (ignores walk-pad fingers) ——
+pinchStartRadius = overview.radius;
+
+function pinchDist() {
+  const pts = [...pinchPointers.values()];
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+function endLookForPinch() {
+  if (!dragging) return;
+  dragging = false;
+  stage.classList.remove('dragging');
+  if (lookPointerId != null) {
+    try { stage.releasePointerCapture(lookPointerId); } catch {}
+  }
+  lookPointerId = null;
+}
+function applyPinchZoom() {
+  if (!pinching || pinchPointers.size < 2 || !entered || reduceMotion) return;
+  const d = pinchDist();
+  if (d < 1) return;
+  const scale = d / pinchStartDist;
+  if (overview.on) {
+    overview.radius = THREE.MathUtils.clamp(
+      pinchStartRadius / scale,
+      overview.minRadius,
+      overview.maxRadius
+    );
+  } else {
+    walkFov = THREE.MathUtils.clamp(pinchStartFov / scale, WALK_FOV_MIN, WALK_FOV_MAX);
+    camera.fov = walkFov;
+    camera.updateProjectionMatrix();
+  }
+}
+function pinchIgnoreTarget(t) {
+  if (!t || !t.closest) return false;
+  return !!(t.closest('#mobile-pad') || t.closest('.pills') || t.closest('.gate') || t.closest('.chip') || t.closest('button') || t.closest('a'));
+}
+document.addEventListener('pointerdown', (e) => {
+  if (!entered || reduceMotion) return;
+  if (e.pointerType === 'mouse') return;
+  if (pinchIgnoreTarget(e.target)) return;
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchPointers.size >= 2) {
+    endLookForPinch();
+    panelPointerLock = false;
+    if (!pinching) {
+      pinching = true;
+      pinchStartDist = Math.max(1, pinchDist());
+      pinchStartFov = walkFov;
+      pinchStartRadius = overview.radius;
+    }
+  }
+}, { capture: true });
+document.addEventListener('pointermove', (e) => {
+  if (!pinchPointers.has(e.pointerId)) return;
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinching) applyPinchZoom();
+}, { capture: true, passive: true });
+function endPinchPointer(e) {
+  if (!pinchPointers.has(e.pointerId)) return;
+  pinchPointers.delete(e.pointerId);
+  if (pinchPointers.size < 2) pinching = false;
+}
+document.addEventListener('pointerup', endPinchPointer, { capture: true });
+document.addEventListener('pointercancel', endPinchPointer, { capture: true });
+
 stage.addEventListener('wheel', (e) => {
-  if (!overview.on || !entered) return;
-  e.preventDefault();
-  overview.radius = THREE.MathUtils.clamp(
-    overview.radius + e.deltaY * 0.02,
-    overview.minRadius,
-    overview.maxRadius
-  );
+  if (!entered || reduceMotion) return;
+  // Overview orbit zoom (legacy) OR ctrl/trackpad pinch → walk FOV
+  if (overview.on) {
+    e.preventDefault();
+    overview.radius = THREE.MathUtils.clamp(
+      overview.radius + e.deltaY * 0.02,
+      overview.minRadius,
+      overview.maxRadius
+    );
+    return;
+  }
+  if (e.ctrlKey) {
+    e.preventDefault();
+    const factor = Math.exp(e.deltaY * 0.01);
+    walkFov = THREE.MathUtils.clamp(walkFov * factor, WALK_FOV_MIN, WALK_FOV_MAX);
+    camera.fov = walkFov;
+    camera.updateProjectionMatrix();
+  }
 }, { passive: false });
 
 
