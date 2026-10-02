@@ -682,14 +682,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall6' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=kneesync1' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall6' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=kneesync1' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -864,7 +864,7 @@ if (chromeVariant === 2) {
 }
 
 // —— Inward-facing outer sphere (continuous skydome; no planar box walls) ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // legacy refs only
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // ±X flush planes under wall LIVE
 const SHELL_CENTER_Y = OUTER_H * 0.38;
 const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
 const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
@@ -1188,6 +1188,22 @@ outerShell.raycast = () => {};
 scene.add(outerShell);
 window.__outerShell = { mesh: outerShell, radius: SHELL_R, centerY: SHELL_CENTER_Y, floorChordR: FLOOR_CHORD_R };
 console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', SHELL_CENTER_Y.toFixed(2), 'waterR', WATER_R.toFixed(2));
+
+// ±X (and far/near) flat wall planes — LIVE iframes pin flush to these, facing inward.
+// Sphere shell still carries the stargazer dome; walls give side labs a readable surface.
+function addOuterWall(w, h, x, y, z, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
+  m.position.set(x, y, z);
+  m.rotation.y = rotY;
+  m.receiveShadow = true;
+  m.raycast = () => {}; // never steal look / walkpad
+  scene.add(m);
+  return m;
+}
+// ±X only — far (−Z) stays open for stargazer dome + wallpaper; near (+Z) foyer open.
+addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
+addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+console.info('[cubicles] ±X outer wall planes for flush LIVE (kneesync1)');
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -2032,7 +2048,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
     })
   );
   hit.layers.set(LAB_HIT_LAYER);
-  hit.position.z = 0.04;
+  hit.position.z = 0.08; // same face inset as cssObj (pinned every frame)
   hit.userData.cellIndex = li;
   hit.userData.clickable = true;
   hit.userData.liveLab = meta.id;
@@ -2046,8 +2062,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const scale = WALL_LAB_W / cssW;
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall6');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wall6';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=kneesync1');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=kneesync1';
   if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
 
   const iframe = document.createElement('iframe');
@@ -2074,13 +2090,10 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
   // Local +Z faces into the room after rotY (left:+X, right:−X). Keep flush to ±X —
-  // tiny faceInset only so the plate sits just proud of the wall plane (not mid-nave).
+  // faceInset via inward normal so cssObj + hit share the wall plane (not mid-nave).
   const faceInset = 0.08;
-  cssObj.position.set(
-    cx + Math.sin(rotY) * faceInset,
-    wallY,
-    panelZ + Math.cos(rotY) * faceInset
-  );
+  const inward0 = spec.side === 'left' ? 1 : -1;
+  cssObj.position.set(cx + inward0 * faceInset, wallY, panelZ);
   cssObj.rotation.y = rotY;
   cssScene.add(cssObj);
 
@@ -3048,33 +3061,41 @@ function labBehindTree(h, tree) {
 }
 
 
-/** Keep side-wall LIVE iframes flush-pinned to ±X wall planes every frame. */
+/** Keep side-wall LIVE iframes flush-pinned to ±X wall planes every frame.
+ *  cssObj + hit share the same wall face; local +Z faces inward (left→+X, right→−X). */
 function pinWallLabsFlush() {
   for (const h of hung) {
     if (!h.wallMounted || !h.cssObj) continue;
-    const wallX = h.wallSide === 'left' ? (-OUTER_W / 2 + 0.12) : (OUTER_W / 2 - 0.12);
+    const inward = h.wallSide === 'left' ? 1 : -1; // world +X from left wall, −X from right
+    const wallX = inward > 0 ? (-OUTER_W / 2 + 0.12) : (OUTER_W / 2 - 0.12);
     const z = (h.wallZ0 != null) ? h.wallZ0 : h.panelZ;
+    const y = h.baseY;
     const face = (h.wallFaceInset != null) ? h.wallFaceInset : 0.08;
-    const rotY = h.rotY != null ? h.rotY : (h.wallSide === 'left' ? Math.PI / 2 : -Math.PI / 2);
+    // Local +Z → inward: left rotY=+π/2 (+Z→+X), right rotY=−π/2 (+Z→−X)
+    const rotY = inward > 0 ? Math.PI / 2 : -Math.PI / 2;
+    h.rotY = rotY;
     h.cx = wallX;
     h.panelZ = z;
     h.cz = z;
+    // Group (bark frame) sits ON the wall plane, facing inward
     if (h.group) {
-      h.group.position.set(wallX, h.baseY, z);
+      h.group.position.set(wallX, y, z);
       h.group.rotation.set(0, rotY, 0);
       h.group.scale.set(1, 1, 1);
     }
-    h.cssObj.position.set(
-      wallX + Math.sin(rotY) * face,
-      h.baseY,
-      z + Math.cos(rotY) * face
-    );
+    // Hit plane: local +Z = inward; same face inset as cssObj (proud of wall)
+    if (h.hit) {
+      h.hit.position.set(0, 0, face);
+      h.hit.rotation.set(0, 0, 0);
+      h.hit.scale.set(1, 1, 1);
+    }
+    // CSS3D iframe: world pos on the same wall face, same inward rotation
+    h.cssObj.position.set(wallX + inward * face, y, z);
     h.cssObj.rotation.set(0, rotY, 0);
     const cs = h.cssBaseScale || 1;
     h.cssObj.scale.set(cs, cs, cs);
     if (h.spot) {
-      const inNx = h.wallSide === 'left' ? 1 : -1;
-      h.spot.position.set(wallX + inNx * 1.1, h.baseY + (h.wallLabH || 1) * 0.15, z);
+      h.spot.position.set(wallX + inward * 1.1, y + (h.wallLabH || 1) * 0.15, z);
     }
   }
 }
@@ -3412,16 +3433,21 @@ function updateBeatKneesWater(t, dt, bassOpt) {
   const pack = window.__sketchCKnees;
   if (!pack?.inst || !pack.bases?.length) return;
   const { inst, bases, dummy } = pack;
-  const AMP_Y = 0.28;   // vertical protrusion (knuckle pops out of water)
-  const AMP_XZ = 0.10;  // slight swell
-  const AMP_LIFT = 0.18; // lift mound so emergence reads
+  // Same AnalyserNode bass sample as water surge (passed via bassOpt / getBass).
+  // All knuckles lock to that kick — no time-sine desync. Intentional phase =
+  // fixed radial offset around each trunk (slight amp variation only).
+  const AMP_Y = 0.38;    // vertical protrusion (knuckle pops out of water)
+  const AMP_XZ = 0.14;   // slight swell
+  const AMP_LIFT = 0.26; // lift mound so emergence reads with water beat
+  const PHASE_GAIN = 0.10; // intentional ring offset; keep mostly in-phase
   for (let i = 0; i < bases.length; i++) {
     const b = bases[i];
-    const local = bass * (0.70 + 0.30 * Math.sin(t * 1.9 + b.phase));
+    const ring = 1 - PHASE_GAIN + PHASE_GAIN * Math.sin(b.phase || 0);
+    const local = bass * ring;
     const sy = b.sy * (1 + local * AMP_Y);
     const sx = b.sx * (1 + local * AMP_XZ);
     const sz = b.sz * (1 + local * AMP_XZ);
-    // Keep sink ratio: base py = WATER_Y - sy0*0.55; lift with pulse
+    // Keep sink ratio: base py = WATER_Y - sy0*0.55; lift with shared bass pulse
     dummy.position.set(b.px, b.py + local * b.sy * AMP_LIFT, b.pz);
     dummy.rotation.set(b.rx, b.ry, b.rz);
     dummy.scale.set(sx, sy, sz);
@@ -4030,7 +4056,7 @@ function frame() {
   }
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
-    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (watbeat1)
+    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (kneesync1)
     const _bed = window.__wormholeAmbient;
     const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
     updateBeatKneesWater(_tSpark, dt, _bass);
