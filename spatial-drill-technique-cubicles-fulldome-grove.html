@@ -1158,10 +1158,8 @@ function addOuterWall(w, h, x, y, z, rotY) {
   m.receiveShadow = true;
   scene.add(m);
 }
-addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
-addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+// Stargazer wall only (−Z). Side and foyer walls removed.
 addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
-addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -2042,6 +2040,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const inward0 = spec.side === 'left' ? 1 : -1;
   cssObj.position.set(cx + inward0 * faceInset, wallY, panelZ);
   cssObj.rotation.y = rotY;
+  cssObj.visible = false;
+  plate.style.opacity = '0';
   cssScene.add(cssObj);
 
   // Taxodium bark frame slab around the LIVE plate (glossy purple + orange leaf rim)
@@ -2079,7 +2079,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
     rail.position.set(x, y, z);
     frameGroup.add(rail);
   }
-  group.add(frameGroup);
+  // Frame stripped — WebGL live plane only (openwall1).
 
   // Visible mural: same wall plane as the bark frame. Map is attached once the
   // iframe canvas has a real size (a 2×2 placeholder texture stays blank).
