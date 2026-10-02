@@ -282,7 +282,7 @@ console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 /** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 32;   // X — roomier cells for pointer
 const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
-const OUTER_H = 6.4;  // Y
+const OUTER_H = 12.0; // Y — cathedral vault for chrome cypress nave
 const COLS = 5;
 const ROWS = 4;
 /** Empty entrance strip on +Z; cells do NOT cover this AABB. */
@@ -315,13 +315,13 @@ const SPAWN = {
 /** ?aisle=1 / ?view=aisle — stand beside a column aisle looking at chrome cypresses between panels. */
 const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashParams.get('view') === 'aisle';
 if (wantAisle) {
-  // Offset into the cell east of aisle c=1 so we are NOT inside a trunk; yaw toward aisle + −Z
+  // Foyer edge looking −Z into a column aisle of cathedral chrome cypresses
   const aisleX = -OUTER_W / 2 + CELL_W * 1.0;
-  SPAWN.x = aisleX + CELL_W * 0.32;
-  SPAWN.z = GRID_Z_MAX - CELL_D * 0.85;
-  SPAWN.yaw = 0.48;
-  SPAWN.pitch = -0.05;
-  console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw);
+  SPAWN.x = aisleX + 1.15; // clear of trunks, panels to the side
+  SPAWN.z = GRID_Z_MAX + 2.4; // still in foyer, not inside a cell AABB
+  SPAWN.yaw = 0.22;
+  SPAWN.pitch = 0.14; // glance up at gold canopy spires
+  console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw, 'pitch', SPAWN.pitch);
 }
 
 const CELLS = [
@@ -354,10 +354,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
 renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = chromeVariant === 2 ? 1.22 : chromeVariant === 3 ? 1.08 : 1.12;
+renderer.toneMappingExposure = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 0.95 : 0.88;
 if (wantAisle) {
-  // Aisle capture: pull exposure down so chrome foliage / trunks aren't bloom-crushed
-  renderer.toneMappingExposure = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 0.92 : 0.98;
+  // Aisle capture: keep chrome readable — avoid bloom-crushed white
+  renderer.toneMappingExposure = chromeVariant === 2 ? 0.92 : chromeVariant === 3 ? 0.85 : 0.78;
 }
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -401,11 +401,11 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x140818, 14, 42);
-scene.background = new THREE.Color(0x140818);
+scene.fog = new THREE.Fog(0x1a0820, 18, 55);
+scene.background = new THREE.Color(0x1a0820);
 const cssScene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 140);
 const yaw = { value: SPAWN.yaw };
 const pitch = { value: SPAWN.pitch };
 const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
@@ -413,15 +413,15 @@ const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
 // Sketch C — magenta / gold cathedral cross-light (chrome cypresses drink this)
 scene.add(new THREE.HemisphereLight(0xc44cff, 0x1a0820, 0.55));
 const key = new THREE.DirectionalLight(0xffd078, 1.55); // warm gold key
-key.position.set(6, 14, 3);
+key.position.set(7, 22, 4);
 key.castShadow = true;
 key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
 key.shadow.camera.near = 0.5;
-key.shadow.camera.far = 40;
-key.shadow.camera.left = -14;
-key.shadow.camera.right = 14;
-key.shadow.camera.top = 14;
-key.shadow.camera.bottom = -10;
+key.shadow.camera.far = 55;
+key.shadow.camera.left = -16;
+key.shadow.camera.right = 16;
+key.shadow.camera.top = 18;
+key.shadow.camera.bottom = -12;
 key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
 if (chromeVariant === 2) key.intensity = 1.75;
@@ -445,8 +445,8 @@ if (chromeVariant === 2) {
 }
 
 // —— Visible outer box ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a2a42, roughness: 0.88, metalness: 0.08 });
-const ceilMat = new THREE.MeshStandardMaterial({ color: 0x2a1838, roughness: 0.9, metalness: 0.06 });
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1a0c28, roughness: 0.55, metalness: 0.35, envMapIntensity: 0.85 });
 
 // Swamp water floor — three.js Water addon, slowed + murkier olive/brown
 const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
@@ -460,8 +460,8 @@ const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
   sunDirection: waterSun.clone(),
-  sunColor: 0xffc868,
-  waterColor: 0x1a2e12, // murky olive-brown swamp (kept)
+  sunColor: 0xffd078,
+  waterColor: 0x1a1028, // cathedral aisle — dark magenta mirror under chrome trees
   distortionScale: 1.15,
   fog: true,
 });
@@ -559,7 +559,7 @@ async function setupCathedralEnvAndBloom() {
     const env = pmrem.fromEquirectangular(synth).texture;
     scene.environment = env;
     // 1 heavy mirror · 2 brushed gold (softer IBL) · 3 cooler purple (punchy)
-    scene.environmentIntensity = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 1.42 : 1.28;
+    scene.environmentIntensity = chromeVariant === 2 ? 1.12 : chromeVariant === 3 ? 1.48 : 1.55;
     if (!scene.background || scene.background.isColor) {
       scene.background = env;
       scene.backgroundBlurriness = 0.55;
@@ -601,9 +601,9 @@ async function setupCathedralEnvAndBloom() {
     composer.addPass(new RenderPass(scene, camera));
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(innerWidth, innerHeight),
-      wantAisle ? 0.28 : 0.42,
-      wantAisle ? 0.45 : 0.55,
-      wantAisle ? 0.82 : 0.72
+      wantAisle ? 0.18 : 0.28,
+      wantAisle ? 0.38 : 0.48,
+      wantAisle ? 0.88 : 0.8
     );
     composer.addPass(bloomPass);
     composer.addPass(new OutputPass());
@@ -854,7 +854,7 @@ function createSparklines() {
   const lightBudget = mobileLike ? 4 : 10;
   for (let i = 0; i < SPARK_CEIL_N; i++) {
     const [x, z] = fixtureSlots[i];
-    const stemLen = 0.55 + Math.random() * 0.85;
+    const stemLen = 1.8 + Math.random() * 2.4; // hang into vault volume
     const headY = OUTER_H - stemLen;
     cBase[i * 3] = x;
     cBase[i * 3 + 1] = headY;
@@ -877,7 +877,7 @@ function createSparklines() {
     glows.setColorAt(i, color);
 
     if (i < lightBudget && !mobileLike) {
-      const pl = new THREE.PointLight(0xffe0b8, 4.5 + Math.random() * 2.5, 9.5, 1.6);
+      const pl = new THREE.PointLight(0xffd090, 5.5 + Math.random() * 3.0, 14, 1.55);
       pl.position.set(x, headY - 0.05, z);
       scene.add(pl);
       sparkLights.push(pl);
@@ -951,7 +951,7 @@ ceil.position.y = OUTER_H;
 scene.add(ceil);
 
 // Outer edge lines (readable “box” silhouette)
-const edgeMat = new THREE.LineBasicMaterial({ color: 0x5a564c, transparent: true, opacity: 0.55 });
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.45 });
 const outerEdges = new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.BoxGeometry(OUTER_W, OUTER_H, OUTER_D)),
   edgeMat
@@ -967,7 +967,8 @@ scene.add(debugGroup);
 const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
 
 const PANEL_W = Math.min(3.4, CELL_W * 0.62);
-const PANEL_H = Math.min(3.5, OUTER_H * 0.55);
+// Keep hung labs human-scale even under cathedral vault
+const PANEL_H = Math.min(3.35, CELL_D * 0.72);
 const PANEL_Y = PANEL_H / 2 + 0.55;
 
 for (let i = 0; i < CELLS.length; i++) {
@@ -1055,33 +1056,33 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.clickable = true;
 }
 
-// —— Bald cypresses in cell aisles / divider lines (not on panel faces) ——
-// Prefer GLTF (demo-assets/cypress/cypress.glb, OpenGameArt / David W CG, CC-BY 4.0).
-// GLTFLoader is dynamic-imported so a missing vendor file or 404 GLB never blocks WebGL boot.
+// —— Sketch C: cathedral-scale chrome cypress silhouettes in aisle nave ——
+// Procedural flame/spire geometry is the primary look (matches concept more than
+// re-skinned GLTF alone). Optional GLTF detail can layer under ?gltf=1.
 const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
 
 /** Three temporary chrome HDR looks (?chrome=1|2|3) — all magenta/gold family, clearly distinct. */
 const CHROME_PRESETS = {
-  // 1 — heavy mirror: near-liquid chrome trunk, warm gold canopy, punchy clearcoat
+  // 1 — sketch C default: liquid chrome trunk, warm gold canopy, magenta moss
   1: {
-    trunk:  { color: 0xf2f4f8, metalness: 1.0, roughness: 0.04, envMapIntensity: 1.55, clearcoat: 0.72, clearcoatRoughness: 0.06, reflectivity: 1.0 },
-    foliage:{ color: 0xf0c24b, metalness: 1.0, roughness: 0.12, envMapIntensity: 1.35, clearcoat: 0.35, clearcoatRoughness: 0.14 },
-    knee:   { color: 0xe8ecf2, metalness: 1.0, roughness: 0.07, envMapIntensity: 1.4, clearcoat: 0.55, clearcoatRoughness: 0.1 },
-    moss:   { color: 0xd040a8, metalness: 0.95, roughness: 0.18, envMapIntensity: 1.2, transparent: true, opacity: 0.72, depthWrite: false },
+    trunk:  { color: 0xe8eef8, metalness: 1.0, roughness: 0.045, envMapIntensity: 1.65, clearcoat: 0.78, clearcoatRoughness: 0.05, reflectivity: 1.0 },
+    foliage:{ color: 0xf0c24b, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.45, clearcoat: 0.42, clearcoatRoughness: 0.12, emissive: 0x402008, emissiveIntensity: 0.12 },
+    knee:   { color: 0xd8dee8, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.45, clearcoat: 0.58, clearcoatRoughness: 0.09 },
+    moss:   { color: 0xd040a8, metalness: 0.95, roughness: 0.18, envMapIntensity: 1.25, transparent: true, opacity: 0.72, depthWrite: false, emissive: 0x601040, emissiveIntensity: 0.35 },
   },
   // 2 — brushed gold canopy: warmer metals, higher roughness = brushed specular, gold-heavy
   2: {
     trunk:  { color: 0xc9a46a, metalness: 1.0, roughness: 0.32, envMapIntensity: 1.1, clearcoat: 0.18, clearcoatRoughness: 0.42, reflectivity: 0.85 },
-    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.38, envMapIntensity: 1.05, clearcoat: 0.12, clearcoatRoughness: 0.48 },
+    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.38, envMapIntensity: 1.05, clearcoat: 0.12, clearcoatRoughness: 0.48, emissive: 0x503010, emissiveIntensity: 0.08 },
     knee:   { color: 0xb8893c, metalness: 1.0, roughness: 0.36, envMapIntensity: 1.0, clearcoat: 0.15, clearcoatRoughness: 0.4 },
     moss:   { color: 0xc45a20, metalness: 0.9, roughness: 0.4, envMapIntensity: 0.95, transparent: true, opacity: 0.7, depthWrite: false },
   },
   // 3 — cooler purple chrome: violet-silver mirrors, magenta canopy, less gold
   3: {
     trunk:  { color: 0xd4c2f0, metalness: 1.0, roughness: 0.05, envMapIntensity: 1.5, clearcoat: 0.65, clearcoatRoughness: 0.08, reflectivity: 1.0 },
-    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.4, clearcoat: 0.4, clearcoatRoughness: 0.16 },
+    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.4, clearcoat: 0.4, clearcoatRoughness: 0.16, emissive: 0x280850, emissiveIntensity: 0.15 },
     knee:   { color: 0xc8b8e8, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.35, clearcoat: 0.5, clearcoatRoughness: 0.12 },
     moss:   { color: 0x7a28ff, metalness: 0.95, roughness: 0.2, envMapIntensity: 1.25, transparent: true, opacity: 0.75, depthWrite: false },
   },
@@ -1091,10 +1092,16 @@ const cypressTrunkMat = new THREE.MeshPhysicalMaterial(_cp.trunk);
 const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage);
 const cypressKneeMat = new THREE.MeshPhysicalMaterial(_cp.knee);
 const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
-const kneeGeo = new THREE.CylinderGeometry(0.04, 0.07, 0.28, 5);
-const mossGeo = new THREE.CylinderGeometry(0.01, 0.005, 1, 4);
+const kneeGeo = new THREE.CylinderGeometry(0.05, 0.09, 0.34, 6);
+const mossGeo = new THREE.CylinderGeometry(0.012, 0.004, 1, 4);
+// Shared cathedral canopy / rib geos (scaled per tree)
+const canopyConeGeo = new THREE.ConeGeometry(1, 1, 9);
+const tipConeGeo = new THREE.ConeGeometry(1, 1, 6);
+const buttressGeo = new THREE.CylinderGeometry(1, 1.85, 1, 10);
+const trunkGeo = new THREE.CylinderGeometry(0.35, 1, 1, 8);
+const ribGeo = new THREE.TorusGeometry(1, 0.12, 6, 18);
 
-/** Replace GLTF / procedural mesh mats with cathedral chrome / gold. */
+/** Replace GLTF mesh mats with cathedral chrome / gold. */
 function chromeifyCypressRoot(root) {
   root.traverse((o) => {
     if (!o.isMesh) return;
@@ -1113,112 +1120,174 @@ function disableRaycast(root) {
 }
 
 function addKneesAndMoss(parent, height, seed) {
-  // Bald-cypress knees poking through swamp water around the buttress
-  const kneeN = mobileLike ? 3 : 5;
+  const kneeN = mobileLike ? 4 : 7;
   for (let k = 0; k < kneeN; k++) {
     const ang = (k / kneeN) * Math.PI * 2 + seed * 0.7;
-    const rad = 0.18 + ((seed * 3 + k * 5) % 7) * 0.025;
+    const rad = height * 0.055 + ((seed * 3 + k * 5) % 7) * 0.02;
     const knee = new THREE.Mesh(kneeGeo, cypressKneeMat);
-    const kh = 0.22 + (k % 3) * 0.06;
-    knee.scale.set(0.85 + (k % 2) * 0.25, kh / 0.28, 0.85 + ((k + 1) % 2) * 0.2);
-    knee.position.set(Math.cos(ang) * rad, kh * 0.35, Math.sin(ang) * rad);
-    knee.rotation.z = (k % 2 ? 0.18 : -0.14);
-    knee.rotation.x = (k % 3 ? 0.1 : -0.08);
+    const kh = 0.28 + (k % 3) * 0.1;
+    knee.scale.set(1.1 + (k % 2) * 0.35, kh / 0.34, 1.1 + ((k + 1) % 2) * 0.3);
+    knee.position.set(Math.cos(ang) * rad, kh * 0.38, Math.sin(ang) * rad);
+    knee.rotation.z = (k % 2 ? 0.22 : -0.18);
+    knee.rotation.x = (k % 3 ? 0.12 : -0.1);
     knee.castShadow = !mobileLike;
     knee.raycast = () => {};
     parent.add(knee);
   }
-  // Spanish-moss strands under the crown
-  const mossN = mobileLike ? 3 : 6;
-  const hangY = height * 0.42;
+  const mossN = mobileLike ? 4 : 8;
+  const hangY = height * 0.48;
   for (let m = 0; m < mossN; m++) {
-    const mossLen = 0.4 + (m % 4) * 0.16;
+    const mossLen = 0.55 + (m % 4) * 0.22;
     const moss = new THREE.Mesh(mossGeo, cypressMossMat);
     moss.scale.y = mossLen;
     const ang = (m / mossN) * Math.PI * 2 + seed;
-    const rad = 0.28 + (m % 3) * 0.08;
+    const rad = height * 0.07 + (m % 3) * 0.04;
     moss.position.set(Math.cos(ang) * rad, hangY - mossLen * 0.45, Math.sin(ang) * rad);
     moss.raycast = () => {};
     parent.add(moss);
   }
 }
 
-/** Procedural cone-stack cypress — used if GLTFLoader or cypress.glb fails. */
-function makeProceduralCypress(height) {
+/**
+ * Cathedral chrome cypress silhouette — flared buttress, tall chrome trunk,
+ * biomechanical rib rings, stacked gold flame canopy to a spire tip.
+ * This is the Sketch C geometric language (not a plain GLTF recolor).
+ */
+function makeCathedralCypress(height) {
   const g = new THREE.Group();
-  const trunkH = height * 0.7;
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.11, trunkH, 6),
-    cypressTrunkMat
-  );
-  trunk.position.y = trunkH * 0.5;
+  const segs = mobileLike ? 7 : 10;
+
+  // Flared chrome buttress / knees mass
+  const buttress = new THREE.Mesh(buttressGeo, cypressTrunkMat);
+  buttress.scale.set(height * 0.055, height * 0.11, height * 0.055);
+  buttress.position.y = height * 0.055;
+  buttress.castShadow = !mobileLike;
+  buttress.receiveShadow = true;
+  g.add(buttress);
+
+  // Tall tapered chrome trunk
+  const trunkH = height * 0.52;
+  const trunk = new THREE.Mesh(trunkGeo, cypressTrunkMat);
+  trunk.scale.set(height * 0.038, trunkH, height * 0.038);
+  trunk.position.y = height * 0.11 + trunkH * 0.5;
   trunk.castShadow = !mobileLike;
   trunk.receiveShadow = true;
   g.add(trunk);
-  const knee = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.18, 0.22, 6),
-    cypressTrunkMat
-  );
-  knee.position.y = 0.1;
-  g.add(knee);
-  const layers = 3;
+
+  // Biomechanical chrome rib rings along the shaft
+  const ribN = mobileLike ? 2 : 4;
+  for (let r = 0; r < ribN; r++) {
+    const t = r / Math.max(1, ribN - 1);
+    const ring = new THREE.Mesh(ribGeo, cypressKneeMat);
+    const rad = height * (0.042 - t * 0.018);
+    ring.scale.set(rad, rad, height * 0.007);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = height * (0.2 + t * 0.28);
+    ring.castShadow = !mobileLike;
+    ring.raycast = () => {};
+    g.add(ring);
+  }
+
+  // Stacked gold/magenta chrome flame canopy (cypress spire silhouette)
+  const layers = mobileLike ? 5 : 8;
   for (let L = 0; L < layers; L++) {
     const t = L / (layers - 1);
-    const coneH = height * (0.28 - t * 0.06);
-    const coneR = 0.38 - t * 0.12;
-    const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(coneR, coneH, 7),
-      cypressFoliageMat
-    );
-    cone.position.y = trunkH * 0.42 + L * height * 0.18 + coneH * 0.35;
+    const coneH = height * (0.2 - t * 0.11);
+    const coneR = height * (0.12 - t * 0.095);
+    const cone = new THREE.Mesh(canopyConeGeo, cypressFoliageMat);
+    cone.scale.set(Math.max(0.1, coneR), Math.max(0.28, coneH), Math.max(0.1, coneR));
+    cone.position.y = height * (0.36 + t * 0.5);
+    // slight alternate lean for biomechanical asymmetry
+    cone.rotation.y = L * 0.35;
+    cone.rotation.z = ((L % 2) ? 0.04 : -0.03);
     cone.castShadow = !mobileLike;
     g.add(cone);
   }
+
+  // Spire tip
+  const tip = new THREE.Mesh(tipConeGeo, cypressFoliageMat);
+  tip.scale.set(height * 0.018, height * 0.14, height * 0.018);
+  tip.position.y = height * 0.97;
+  tip.castShadow = !mobileLike;
+  g.add(tip);
+
+  // Magenta/gold vault spark at tip (emissive moss mat as jewel)
+  const jewel = new THREE.Mesh(
+    new THREE.SphereGeometry(height * 0.018, 8, 6),
+    cypressMossMat
+  );
+  jewel.position.y = height * 1.04;
+  jewel.raycast = () => {};
+  g.add(jewel);
+
   addKneesAndMoss(g, height, height * 1.7);
   disableRaycast(g);
   return g;
 }
 
+/** Legacy cone-stack fallback alias. */
+function makeProceduralCypress(height) {
+  return makeCathedralCypress(height);
+}
+
 function placeProceduralCypresses() {
   let n = 0;
   for (const p of cypressPositions) {
-    const tree = makeProceduralCypress(p.h);
+    const tree = makeCathedralCypress(p.h);
     tree.position.set(p.x, 0.02, p.z);
     tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+    tree.userData.cathedral = true;
     cypressGroup.add(tree);
     n++;
   }
-  console.info('[cubicles] procedural cypresses', n);
+  console.info('[cubicles] cathedral chrome cypresses', n, 'sketch-C silhouettes');
   return n;
 }
 
-/** Grid divider positions: column aisles × row aisles (between cells, clear of panel faces). */
+/**
+ * Grid divider positions — cathedral nave: fewer, taller trees on column aisles
+ * so silhouettes read at vault scale without burying the 20 hung panels.
+ */
 const cypressPositions = [];
+// Primary nave: column aisles between cells (c=1..COLS-1), every other bay + ends
 for (let c = 1; c < COLS; c++) {
   const x = -OUTER_W / 2 + c * CELL_W;
   for (let b = 0; b < ROWS; b++) {
-    // b=0 foyer/grid edge; b=1..3 between rows — skip far-wall flush (b=ROWS)
     const z = GRID_Z_MAX - b * CELL_D;
-    // Tiny jitter along the aisle so trunks aren't laser-aligned
-    const jx = ((c * 17 + b * 31) % 7 - 3) * 0.04;
-    const jz = ((c * 13 + b * 19) % 7 - 3) * 0.05;
-    cypressPositions.push({ x: x + jx, z: z + jz, h: 3.4 + ((c + b * 3) % 5) * 0.38 });
+    const jx = ((c * 17 + b * 31) % 7 - 3) * 0.05;
+    const jz = ((c * 13 + b * 19) % 7 - 3) * 0.06;
+    // Cathedral scale: ~7.5–10.5u toward vault (OUTER_H=12); thin mid-bay slightly for panel sightlines
+    const hBase = 7.6 + ((c + b * 3) % 5) * 0.55;
+    const hBoost = (b === 0 || b === ROWS - 1) ? 0.9 : ((c % 2 === 0) ? -0.35 : 0.2);
+    cypressPositions.push({ x: x + jx, z: z + jz, h: Math.max(7.2, hBase + hBoost), role: 'nave' });
   }
 }
-// A few along the outer column edges of the grid (still in side aisles, not panel centers)
+// Outer buttress trees along side walls (monumental)
 for (const side of [-1, 1]) {
-  const x = side * (OUTER_W / 2 - 0.55);
-  for (let b = 1; b < ROWS; b++) {
-    const z = GRID_Z_MAX - b * CELL_D;
+  const x = side * (OUTER_W / 2 - 0.85);
+  for (let b = 0; b < ROWS; b += 1) {
+    const z = GRID_Z_MAX - b * CELL_D - CELL_D * 0.15;
     cypressPositions.push({
-      x: x + side * -0.15,
-      z: z + ((b * 11) % 5 - 2) * 0.06,
-      h: 3.6 + (b % 3) * 0.45,
+      x: x + side * -0.1,
+      z: z + ((b * 11) % 5 - 2) * 0.08,
+      h: 8.8 + (b % 3) * 0.7,
+      role: 'buttress',
     });
   }
 }
+// Foyer sentinel pair flanking entrance to the grid
+cypressPositions.push({ x: -CELL_W * 1.05, z: GRID_Z_MAX + 1.6, h: 9.4, role: 'foyer' });
+cypressPositions.push({ x: CELL_W * 1.05, z: GRID_Z_MAX + 1.6, h: 9.2, role: 'foyer' });
 
 async function placeGltfCypresses() {
+  // Sketch C default: procedural cathedral silhouettes.
+  // Optional organic GLTF underlay when ?gltf=1 (still chrome-dressed).
+  const wantGltf = params.has('gltf') || hashParams.get('gltf') === '1';
+  placeProceduralCypresses();
+  if (!wantGltf) {
+    console.info('[cubicles] GLTF underlay skipped (use ?gltf=1); sketch C silhouettes active');
+    return;
+  }
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
@@ -1228,46 +1297,38 @@ async function placeGltfCypresses() {
   box.getSize(size);
   const modelH = Math.max(size.y, 0.001);
   const modelMinY = box.min.y;
-
-  // Chrome / gold cathedral materials on the prototype (shared across clones)
   chromeifyCypressRoot(proto);
   proto.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = !mobileLike;
     o.receiveShadow = true;
     o.raycast = () => {};
-    // Gold canopy cards: double-sided, no depth write so panels stay readable
     if (o.material === cypressFoliageMat) {
-      // per-mesh clone so we can tweak opacity/side without mutating trunk chrome
       o.material = cypressFoliageMat.clone();
       o.material.transparent = true;
-      o.material.opacity = 0.88;
+      o.material.opacity = 0.55;
       o.material.depthWrite = false;
       o.material.side = THREE.DoubleSide;
     }
   });
-
-  let cypressCount = 0;
+  let extra = 0;
   for (const p of cypressPositions) {
-    const root = new THREE.Group();
+    if (p.role === 'foyer') continue;
     const tree = proto.clone(true);
-    const s = p.h / modelH;
+    // Under-scale so silhouette cones remain the dominant read
+    const s = (p.h * 0.55) / modelH;
     tree.scale.setScalar(s);
-    // Sit trunk on swamp waterline (model origin may not be y=0)
-    tree.position.y = -modelMinY * s + 0.02;
+    tree.position.set(p.x, -modelMinY * s + 0.02, p.z);
     tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
     disableRaycast(tree);
-    root.add(tree);
-    addKneesAndMoss(root, p.h, p.x + p.z);
-    root.position.set(p.x, 0, p.z);
-    cypressGroup.add(root);
-    cypressCount++;
+    cypressGroup.add(tree);
+    extra++;
   }
-  console.info('[cubicles] gltf cypresses', cypressCount, 'from', modelH.toFixed(2) + 'u model');
+  console.info('[cubicles] gltf chrome underlay', extra, 'under cathedral silhouettes');
 }
 
 placeGltfCypresses().catch((err) => {
-  console.error('[cubicles] cypress GLB failed — using procedural fallback', err);
+  console.error('[cubicles] cypress place failed — forcing procedural cathedral', err);
   try {
     while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
     placeProceduralCypresses();
@@ -1481,15 +1542,15 @@ document.getElementById('btn-debug').addEventListener('click', () => setDebug(!d
 let overviewOn = false;
 const WALK_FOV = 48;
 const OVERVIEW_FOV = 58;
-const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.35, 0);
+const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.28, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
 const overview = {
   on: false,
-  // spherical coords relative to box center (elevated front view)
-  theta: 0.35,          // yaw around Y
-  phi: 0.95,            // polar from +Y (smaller = higher)
-  radius: 28,
-  minRadius: 14,
-  maxRadius: 48,
+  // spherical coords relative to box center (elevated front view of cathedral nave)
+  theta: 0.28,          // yaw around Y
+  phi: 1.05,            // polar from +Y (smaller = higher)
+  radius: 36,
+  minRadius: 18,
+  maxRadius: 58,
 };
 const walkSnapshot = {
   pos: new THREE.Vector3(),
@@ -1614,8 +1675,10 @@ const PAD_MAX = 42;
 let padPointerId = null;
 function clearPadMove() {
   move.f = move.b = move.l = move.r = false;
-  if (padKnob) padKnob.style.transform = '';
-  mobilePad.classList.remove('active');
+  const k = document.getElementById('pad-knob');
+  if (k) k.style.transform = '';
+  const mp = document.getElementById('mobile-pad');
+  if (mp) mp.classList.remove('active');
 }
 function applyPadVector(dx, dy) {
   const dist = Math.hypot(dx, dy);
