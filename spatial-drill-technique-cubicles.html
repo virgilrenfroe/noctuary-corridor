@@ -2356,19 +2356,24 @@ function updateLazyEmbeds() {
 }
 
 
-// —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
+// —— Wormhole ambient bed (musical loop: beat 1 → beat 4 → 1; unlock on Enter / pointer) ——
+// Asset is an 8-bar / 96 BPM trim (20.000s) of wormhole-ambient, beat1@source 0.952s → after beat4.
+// Tiny dual-Audio XFADE only hides MP3 decoder padding — not a phrasing blur.
 // Web Audio AnalyserNode on the bed drives subtle bass-reactive CSS3D lab motion.
 // Level is driven by GainNodes (HTML volume is ignored once MediaElementSource is wired).
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3';
     const VOL = 0.38; // soft bed after Enter/tap
-    const XFADE = 2.4; // seconds of overlap on ~25.05s MP3
+    const BPM = 96;
+    const BARS = 8;
+    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s — start on 1, end after 4
+    const XFADE = 0.05; // ~1/12 beat; covers MP3 gap without smearing the downbeat
     const a = new Audio(SRC);
     const b = new Audio(SRC);
     for (const el of [a, b]) {
       el.preload = 'auto';
-      el.loop = false; // crossfade handles looping — avoids MP3 gap click
+      el.loop = false; // dual-buffer + LOOP_LEN handles phrase loop (avoids MP3 gap)
       el.volume = VOL; // element path fallback before/without Web Audio graph
       el.setAttribute('playsinline', '');
       // Same-origin asset; skip crossOrigin so decode into MediaElementSource is reliable
@@ -2475,8 +2480,9 @@ function updateLazyEmbeds() {
     function crossfadeTick() {
       if (!started) return;
       const cur = active();
-      const dur = cur.duration;
-      if (!Number.isFinite(dur) || dur < 1) {
+      // Musical length wins over element.duration (MP3 container is ~20.036s with padding)
+      const dur = LOOP_LEN;
+      if (!Number.isFinite(cur.duration) || cur.duration < 1) {
         raf = requestAnimationFrame(crossfadeTick);
         return;
       }
@@ -2485,7 +2491,7 @@ function updateLazyEmbeds() {
         arming = true;
         const nxt = idle();
         try {
-          nxt.currentTime = 0;
+          nxt.currentTime = 0; // restart on beat 1
           const p = nxt.play();
           if (p && typeof p.catch === 'function') {
             p.catch((err) => console.warn('[cubicles] ambient crossfade play failed', err));
@@ -2497,8 +2503,9 @@ function updateLazyEmbeds() {
       if (arming) {
         const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
         setLevels(VOL * (1 - t), VOL * t);
-        if (t >= 0.999 || cur.ended || cur.paused) {
+        if (t >= 0.999 || cur.currentTime >= dur || cur.ended || cur.paused) {
           try { cur.pause(); } catch {}
+          try { cur.currentTime = 0; } catch {}
           setLevels(0, VOL);
           usingA = !usingA;
           arming = false;
@@ -2550,6 +2557,7 @@ function updateLazyEmbeds() {
 
     window.__wormholeAmbient = {
       audio: a, audioB: b, tryPlay, vol: VOL,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: XFADE,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
     };
@@ -2569,7 +2577,7 @@ function updateLazyEmbeds() {
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (dual crossfade + gain/analyser)', XFADE + 's');
+    console.info('[cubicles] wormhole ambient ready', BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's, xfade ' + XFADE + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
