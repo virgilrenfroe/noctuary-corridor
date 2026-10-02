@@ -832,14 +832,14 @@ const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   sunDirection: waterSun.clone(),
   sunColor: 0xffd078,
   waterColor: 0x140c22, // cathedral aisle — dark mirror so mercury trees read
-  distortionScale: 1.15,
+  distortionScale: 3.6, // visible swamp ripple; bass boosts further (watbeat1)
   fog: true,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0.02;
 water.raycast = () => {};
 // Larger, lazier ripples (size) + stretch baked wave time divisors in getNoise
-if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
+if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.58; // larger visible ripples (watbeat1)
 if (water.material?.fragmentShader) {
   water.material.fragmentShader = water.material.fragmentShader
     .replace('time / 17.0', 'time / 52.0')
@@ -2204,6 +2204,7 @@ function placeBaldCypresses() {
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
+  const kneeBases = []; // rest pose for bass-reactive knuckle pulse (watbeat1)
   const branchInst = new THREE.InstancedMesh(taxBranchGeo, cypressTrunkMat, n * (branchPer + flutePer));
   const needleInst = new THREE.InstancedMesh(taxNeedleGeo, cypressFoliageMat, n * needlePer);
   const tuftInst = new THREE.InstancedMesh(taxTuftGeo, cypressFoliageMat, n * tuftPer);
@@ -2266,6 +2267,12 @@ function placeBaldCypresses() {
       dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.18, ang, (taxHash(base + 90 + k) - 0.5) * 0.18);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
+      kneeBases.push({
+        px: dummy.position.x, py: dummy.position.y, pz: dummy.position.z,
+        rx: dummy.rotation.x, ry: dummy.rotation.y, rz: dummy.rotation.z,
+        sx, sy, sz,
+        phase: taxHash(base + 95 + k) * Math.PI * 2,
+      });
       kneeInst.setMatrixAt(ki++, dummy.matrix);
     }
 
@@ -2438,6 +2445,12 @@ function placeBaldCypresses() {
     meshes: { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri },
     instanced: true,
     source: 'procedural-bald-cypress-taxodium',
+  };
+  // Cypress knees / protruding knuckles — bass-reactive via AnalyserNode (same bed as lab pulse)
+  window.__sketchCKnees = {
+    inst: kneeInst,
+    bases: kneeBases,
+    dummy: new THREE.Object3D(),
   };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return n;
@@ -3086,10 +3099,10 @@ function updateLazyEmbeds() {
 
 
 /** Subtle bass-reactive scale / bob / yaw on floating CSS3D labs — small amplitude. */
-function updateBeatLabs(t) {
+function updateBeatLabs(t, bassOpt) {
   if (reduceMotion) return;
   const bed = window.__wormholeAmbient;
-  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
+  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
   if (bass < 0.002 && !bed?.analyser) {
     // Rest pose when no audio graph yet
     for (const h of hung) {
@@ -3131,6 +3144,47 @@ function updateBeatLabs(t) {
     if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55 + bob * 0.6;
     h._beatApplied = true;
   }
+}
+
+/** Cypress knuckle / knee pulse + visible water ripple from wormhole ambient AnalyserNode. */
+const WATER_DISTORTION_BASE = 3.6;
+const WATER_SIZE_BASE = 0.58;
+const WATER_TIME_BASE = WATER_TIME_SCALE;
+function updateBeatKneesWater(t, dt, bassOpt) {
+  const bed = window.__wormholeAmbient;
+  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
+  // —— Water ripple (always animate; bass makes it visibly surge) ——
+  if (water?.material?.uniforms) {
+    const u = water.material.uniforms;
+    const surge = reduceMotion ? 0 : bass;
+    // Time races ahead on the kick so normals crawl into a readable ripple
+    const timeScale = WATER_TIME_BASE * (1 + surge * 2.8);
+    if (u.time) u.time.value += dt * timeScale;
+    if (u.distortionScale) u.distortionScale.value = WATER_DISTORTION_BASE + surge * 5.2;
+    if (u.size) u.size.value = WATER_SIZE_BASE + surge * 0.22;
+    if (u.sunDirection) u.sunDirection.value.copy(waterSun);
+  }
+  if (reduceMotion) return;
+  const pack = window.__sketchCKnees;
+  if (!pack?.inst || !pack.bases?.length) return;
+  const { inst, bases, dummy } = pack;
+  const AMP_Y = 0.28;   // vertical protrusion (knuckle pops out of water)
+  const AMP_XZ = 0.10;  // slight swell
+  const AMP_LIFT = 0.18; // lift mound so emergence reads
+  for (let i = 0; i < bases.length; i++) {
+    const b = bases[i];
+    const local = bass * (0.70 + 0.30 * Math.sin(t * 1.9 + b.phase));
+    const sy = b.sy * (1 + local * AMP_Y);
+    const sx = b.sx * (1 + local * AMP_XZ);
+    const sz = b.sz * (1 + local * AMP_XZ);
+    // Keep sink ratio: base py = WATER_Y - sy0*0.55; lift with pulse
+    dummy.position.set(b.px, b.py + local * b.sy * AMP_LIFT, b.pz);
+    dummy.rotation.set(b.rx, b.ry, b.rz);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    inst.setMatrixAt(i, dummy.matrix);
+  }
+  inst.instanceMatrix.needsUpdate = true;
 }
 
 // —— Controls ——
@@ -3677,15 +3731,13 @@ function frame() {
   }
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
-    if (water?.material?.uniforms?.time) {
-      water.material.uniforms.time.value += dt * WATER_TIME_SCALE;
-      if (water.material.uniforms.sunDirection) {
-        water.material.uniforms.sunDirection.value.copy(waterSun);
-      }
-    }
+    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (watbeat1)
+    const _bed = window.__wormholeAmbient;
+    const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
+    updateBeatKneesWater(_tSpark, dt, _bass);
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
-    updateBeatLabs(_tSpark);
+    updateBeatLabs(_tSpark, _bass);
     updateCssDepthOcclusion();
     try {
       if (composer) composer.render();
