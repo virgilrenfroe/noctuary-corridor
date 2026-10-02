@@ -52,7 +52,9 @@ function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
   const wall = document.body.classList.contains('wall');
   const alpha = embed && !wall;
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha, premultipliedAlpha:!alpha, powerPreference:'high-performance', ...opts });
+  // Wall mural copies this canvas into the parent each frame; without
+  // preserveDrawingBuffer the buffer is cleared after composite and the plate stays blank.
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha, premultipliedAlpha:!alpha, powerPreference:'high-performance', ...opts, preserveDrawingBuffer: wall || !!opts.preserveDrawingBuffer });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;

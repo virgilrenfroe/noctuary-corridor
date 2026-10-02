@@ -51,7 +51,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 function makeRenderer(opts={}) {
   // Opaque canvas always — volumetric occlusion map + radial blur need a dark clear.
   // Transparent embed clear was wiping shafts to white / objects-only silhouettes.
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts });
+  // Wall mural copies this canvas into the parent each frame; without
+  // preserveDrawingBuffer the buffer is cleared after composite and the plate stays blank.
+  const wall = document.body.classList.contains('wall');
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha:false, powerPreference:'high-performance', ...opts, preserveDrawingBuffer: wall || !!opts.preserveDrawingBuffer });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
