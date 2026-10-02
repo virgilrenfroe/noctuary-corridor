@@ -259,8 +259,25 @@ import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer
 import { Water } from 'three/addons/objects/Water.js';
 
 const params = new URLSearchParams(location.search);
+// Also accept #chrome=N / #chrome:N for temporary look switches
+const hashParams = new URLSearchParams(String(location.hash || '').replace(/^#/, '').replace(/,/g, '&'));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
 if (reduceMotion) document.body.classList.add('reduce');
+
+/** Temporary chrome HDR look for aisle cypresses: ?chrome=1|2|3 (or #chrome=N). */
+function resolveChromeVariant() {
+  const raw = params.get('chrome') || hashParams.get('chrome') || '1';
+  const n = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
+  if (n === 2 || n === 3) return n;
+  return 1;
+}
+const chromeVariant = resolveChromeVariant();
+const CHROME_LOOK = {
+  1: 'heavy-mirror',
+  2: 'brushed-gold-canopy',
+  3: 'cooler-purple-chrome',
+}[chromeVariant];
+console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 
 /** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 32;   // X — roomier cells for pointer
@@ -295,6 +312,16 @@ const SPAWN = {
   yaw: 0,
   pitch: -0.04,
 };
+/** ?aisle=1 / ?view=aisle — stand in a column aisle looking −Z so chrome cypresses sit between panels. */
+const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashParams.get('view') === 'aisle';
+if (wantAisle) {
+  // First interior column aisle (c=1): trees on divider, panels left/right
+  SPAWN.x = -OUTER_W / 2 + CELL_W * 1.0;
+  SPAWN.z = GRID_Z_MAX - CELL_D * 0.55;
+  SPAWN.yaw = 0.12;   // slight yaw so both trees + panel faces read
+  SPAWN.pitch = -0.06;
+  console.info('[cubicles] aisle viewpoint', SPAWN.x, SPAWN.z);
+}
 
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1' },
@@ -326,7 +353,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
 renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = chromeVariant === 2 ? 1.22 : chromeVariant === 3 ? 1.08 : 1.12;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -392,12 +419,25 @@ key.shadow.camera.top = 14;
 key.shadow.camera.bottom = -10;
 key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
+if (chromeVariant === 2) key.intensity = 1.75;
+if (chromeVariant === 3) key.color.setHex(0xe8c8ff);
 scene.add(key);
-const magentaFill = new THREE.DirectionalLight(0xe040a0, 1.05); // magenta cross-fill
+const magentaFill = new THREE.DirectionalLight(
+  chromeVariant === 2 ? 0xd06050 : chromeVariant === 3 ? 0x9030ff : 0xe040a0,
+  chromeVariant === 3 ? 1.25 : chromeVariant === 2 ? 0.75 : 1.05
+); // magenta / warm / violet cross-fill
 magentaFill.position.set(-8, 6, -4);
 scene.add(magentaFill);
-scene.add(new THREE.PointLight(0xffc050, 18, 28).translateX(4).translateY(4.5).translateZ(-2)); // gold nave accent
-scene.add(new THREE.PointLight(0xb028ff, 14, 32).translateX(-5).translateY(3.2).translateZ(2)); // magenta aisle
+if (chromeVariant === 2) {
+  scene.add(new THREE.PointLight(0xffb030, 22, 30).translateX(4).translateY(4.5).translateZ(-2)); // stronger gold nave
+  scene.add(new THREE.PointLight(0xd06040, 10, 28).translateX(-5).translateY(3.2).translateZ(2)); // warm amber aisle
+} else if (chromeVariant === 3) {
+  scene.add(new THREE.PointLight(0xe090ff, 14, 28).translateX(4).translateY(4.5).translateZ(-2)); // cool violet nave
+  scene.add(new THREE.PointLight(0x7028ff, 20, 34).translateX(-5).translateY(3.2).translateZ(2)); // deep purple aisle
+} else {
+  scene.add(new THREE.PointLight(0xffc050, 18, 28).translateX(4).translateY(4.5).translateZ(-2)); // gold nave accent
+  scene.add(new THREE.PointLight(0xb028ff, 14, 32).translateX(-5).translateY(3.2).translateZ(2)); // magenta aisle
+}
 
 // —— Visible outer box ——
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a2a42, roughness: 0.88, metalness: 0.08 });
@@ -444,7 +484,8 @@ scene.add(water);
 let composer = null;
 let bloomPass = null;
 
-function makeMagentaGoldEquirect(size = 256) {
+/** Magenta/gold-family equirect; shape shifts per chromeVariant. */
+function makeMagentaGoldEquirect(size = 256, variant = chromeVariant) {
   const data = new Float32Array(size * size * 4);
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -454,11 +495,26 @@ function makeMagentaGoldEquirect(size = 256) {
       const gold2 = Math.pow(Math.max(0, Math.cos((u - 0.72) * Math.PI * 2) * 0.4 + 0.2), 2.4);
       const magenta = Math.pow(Math.max(0, 1 - Math.abs(v - 0.42) * 1.8), 1.6);
       const vault = Math.pow(Math.max(0, v - 0.55), 1.4);
+      const coolBand = Math.pow(Math.max(0, 1 - Math.abs(v - 0.55) * 2.2), 1.8);
       const i = (y * size + x) * 4;
-      data[i]     = 0.12 + gold * 3.2 + gold2 * 1.6 + magenta * 1.1 + vault * 0.4;
-      data[i + 1] = 0.04 + gold * 1.9 + gold2 * 0.9 + magenta * 0.12;
-      data[i + 2] = 0.18 + magenta * 2.8 + vault * 1.6 + gold * 0.35;
-      data[i + 3] = 1;
+      let r, g, b;
+      if (variant === 2) {
+        // Brushed gold canopy: gold-dominant, softer magenta wash
+        r = 0.18 + gold * 3.8 + gold2 * 2.2 + magenta * 0.55 + vault * 0.55;
+        g = 0.08 + gold * 2.6 + gold2 * 1.4 + magenta * 0.08 + vault * 0.2;
+        b = 0.06 + magenta * 1.4 + vault * 0.9 + gold * 0.25;
+      } else if (variant === 3) {
+        // Cooler purple chrome: violet/magenta lead, gold as rim only
+        r = 0.10 + gold * 1.4 + gold2 * 0.6 + magenta * 1.8 + coolBand * 1.2 + vault * 0.5;
+        g = 0.03 + gold * 0.7 + magenta * 0.25 + coolBand * 0.35;
+        b = 0.22 + magenta * 3.4 + coolBand * 2.6 + vault * 2.0 + gold * 0.15;
+      } else {
+        // Heavy mirror: balanced magenta + gold cathedral (default)
+        r = 0.12 + gold * 3.2 + gold2 * 1.6 + magenta * 1.1 + vault * 0.4;
+        g = 0.04 + gold * 1.9 + gold2 * 0.9 + magenta * 0.12;
+        b = 0.18 + magenta * 2.8 + vault * 1.6 + gold * 0.35;
+      }
+      data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 1;
     }
   }
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
@@ -494,17 +550,18 @@ async function setupCathedralEnvAndBloom() {
 
   // Sketch C reflections: magenta + gold cathedral envMap via PMREM
   try {
-    const synth = makeMagentaGoldEquirect(mobileLike ? 128 : 256);
+    const synth = makeMagentaGoldEquirect(mobileLike ? 128 : 256, chromeVariant);
     const env = pmrem.fromEquirectangular(synth).texture;
     scene.environment = env;
-    scene.environmentIntensity = 1.28;
+    // 1 heavy mirror · 2 brushed gold (softer IBL) · 3 cooler purple (punchy)
+    scene.environmentIntensity = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 1.42 : 1.28;
     if (!scene.background || scene.background.isColor) {
       scene.background = env;
       scene.backgroundBlurriness = 0.55;
       scene.backgroundIntensity = 0.3;
     }
     synth.dispose();
-    console.info('[cubicles] magenta/gold cathedral envMap');
+    console.info('[cubicles] magenta/gold cathedral envMap', 'chrome=' + chromeVariant, CHROME_LOOK);
   } catch (pmErr) {
     console.warn('[cubicles] equirect PMREM failed — fromScene lights', pmErr);
     try {
@@ -1000,41 +1057,35 @@ const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
 
-/** Sketch C — high-metalness chrome / gold cathedral materials (MeshPhysicalMaterial). */
-const cypressTrunkMat = new THREE.MeshPhysicalMaterial({
-  color: 0xf2f4f8,
-  metalness: 1.0,
-  roughness: 0.06,
-  envMapIntensity: 1.35,
-  clearcoat: 0.55,
-  clearcoatRoughness: 0.12,
-  reflectivity: 1.0,
-});
-const cypressFoliageMat = new THREE.MeshPhysicalMaterial({
-  color: 0xf0c24b, // warm gold canopy reflections
-  metalness: 1.0,
-  roughness: 0.18,
-  envMapIntensity: 1.2,
-  clearcoat: 0.25,
-  clearcoatRoughness: 0.2,
-});
-const cypressKneeMat = new THREE.MeshPhysicalMaterial({
-  color: 0xe8ecf2,
-  metalness: 1.0,
-  roughness: 0.1,
-  envMapIntensity: 1.25,
-  clearcoat: 0.4,
-  clearcoatRoughness: 0.15,
-});
-const cypressMossMat = new THREE.MeshPhysicalMaterial({
-  color: 0xd040a8, // magenta moss wisps
-  metalness: 0.95,
-  roughness: 0.22,
-  envMapIntensity: 1.1,
-  transparent: true,
-  opacity: 0.72,
-  depthWrite: false,
-});
+/** Three temporary chrome HDR looks (?chrome=1|2|3) — all magenta/gold family, clearly distinct. */
+const CHROME_PRESETS = {
+  // 1 — heavy mirror: near-liquid chrome trunk, warm gold canopy, punchy clearcoat
+  1: {
+    trunk:  { color: 0xf2f4f8, metalness: 1.0, roughness: 0.04, envMapIntensity: 1.55, clearcoat: 0.72, clearcoatRoughness: 0.06, reflectivity: 1.0 },
+    foliage:{ color: 0xf0c24b, metalness: 1.0, roughness: 0.12, envMapIntensity: 1.35, clearcoat: 0.35, clearcoatRoughness: 0.14 },
+    knee:   { color: 0xe8ecf2, metalness: 1.0, roughness: 0.07, envMapIntensity: 1.4, clearcoat: 0.55, clearcoatRoughness: 0.1 },
+    moss:   { color: 0xd040a8, metalness: 0.95, roughness: 0.18, envMapIntensity: 1.2, transparent: true, opacity: 0.72, depthWrite: false },
+  },
+  // 2 — brushed gold canopy: warmer metals, higher roughness = brushed specular, gold-heavy
+  2: {
+    trunk:  { color: 0xc9a46a, metalness: 1.0, roughness: 0.32, envMapIntensity: 1.1, clearcoat: 0.18, clearcoatRoughness: 0.42, reflectivity: 0.85 },
+    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.38, envMapIntensity: 1.05, clearcoat: 0.12, clearcoatRoughness: 0.48 },
+    knee:   { color: 0xb8893c, metalness: 1.0, roughness: 0.36, envMapIntensity: 1.0, clearcoat: 0.15, clearcoatRoughness: 0.4 },
+    moss:   { color: 0xc45a20, metalness: 0.9, roughness: 0.4, envMapIntensity: 0.95, transparent: true, opacity: 0.7, depthWrite: false },
+  },
+  // 3 — cooler purple chrome: violet-silver mirrors, magenta canopy, less gold
+  3: {
+    trunk:  { color: 0xd4c2f0, metalness: 1.0, roughness: 0.05, envMapIntensity: 1.5, clearcoat: 0.65, clearcoatRoughness: 0.08, reflectivity: 1.0 },
+    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.4, clearcoat: 0.4, clearcoatRoughness: 0.16 },
+    knee:   { color: 0xc8b8e8, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.35, clearcoat: 0.5, clearcoatRoughness: 0.12 },
+    moss:   { color: 0x7a28ff, metalness: 0.95, roughness: 0.2, envMapIntensity: 1.25, transparent: true, opacity: 0.75, depthWrite: false },
+  },
+};
+const _cp = CHROME_PRESETS[chromeVariant] || CHROME_PRESETS[1];
+const cypressTrunkMat = new THREE.MeshPhysicalMaterial(_cp.trunk);
+const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage);
+const cypressKneeMat = new THREE.MeshPhysicalMaterial(_cp.knee);
+const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
 const kneeGeo = new THREE.CylinderGeometry(0.04, 0.07, 0.28, 5);
 const mossGeo = new THREE.CylinderGeometry(0.01, 0.005, 1, 4);
 
