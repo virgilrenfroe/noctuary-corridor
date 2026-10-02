@@ -899,8 +899,9 @@ window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
 // —— Stargazer high-res back band on inward sphere (not full-sphere smear) ——
-// Portrait 720×974 stays mural-sharp: planar-project onto a −Z band ≈ OUTER_W×OUTER_H,
-// cover-crop pinned to face+sky, soft fade / edge-extend elsewhere. Same VideoTexture.
+// Portrait 720×974 stays mural-sharp: planar-project onto a taller, narrower −Z band
+// (~portrait mural, not OUTER_W×OUTER_H), cover-crop biased upper-center (face+body),
+// soft fade / edge-extend elsewhere. Same VideoTexture — no full-sphere equirect smear.
 (function installStargazingDome() {
   try {
     const vid = document.createElement('video');
@@ -946,23 +947,24 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     vid.addEventListener('playing', promoteVideoMap);
 
     const videoAspect = 720 / 974;
-    // Band matches former back-wall mural aspect so texel density ≈ wall mural.
-    const bandW = OUTER_W;
-    const bandH = OUTER_H;
+    // Tall/narrow mural closer to portrait aspect so cover keeps face + torso (repY ≈ 1),
+    // not the old OUTER_W×OUTER_H strip that only showed the top ~28%.
+    const bandW = 12.0;
+    const bandH = 15.5;
     const bandAspect = bandW / bandH;
     let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
     if (videoAspect > bandAspect) {
-      // Video wider than band → crop left/right
+      // Video wider than band → crop left/right (center)
       repX = bandAspect / videoAspect;
       repY = 1.0;
       offX = (1.0 - repX) * 0.5;
       offY = 0.0;
     } else {
-      // Portrait narrower than wide band → crop top/bottom; pin TOP (face + stars)
+      // Slightly taller band → tiny top/bottom crop; bias upper-center (face + body)
       repX = 1.0;
       repY = videoAspect / bandAspect;
       offX = 0.0;
-      offY = 1.0 - repY;
+      offY = (1.0 - repY) * 0.28;
     }
 
     // Virtual mural plane in shell-local space (shell origin = SHELL_CENTER_Y).
@@ -1050,12 +1052,13 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 
     window.__stargazingWall = {
       mesh: outerShell, vid, tex, dome: true, equirect: false, highResBand: true,
+      portraitBand: true,
       cover: { repX, repY, offX, offY }, videoAspect,
       bandSize: { w: bandW, h: bandH, wallZ: wallZLocal },
       anisotropy: maxAniso,
     };
     console.info(
-      '[cubicles] stargazer high-res back band',
+      '[cubicles] stargazer portrait mural band',
       bandW.toFixed(1) + '×' + bandH.toFixed(1),
       'cover', repX.toFixed(3), repY.toFixed(3),
       'offY', offY.toFixed(3),
@@ -2355,19 +2358,20 @@ function updateLazyEmbeds() {
 
 // —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
 // Web Audio AnalyserNode on the bed drives subtle bass-reactive CSS3D lab motion.
+// Level is driven by GainNodes (HTML volume is ignored once MediaElementSource is wired).
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3';
     const VOL = 0.38; // soft bed after Enter/tap
-    const XFADE = 2.4; // seconds of overlap
+    const XFADE = 2.4; // seconds of overlap on ~25.05s MP3
     const a = new Audio(SRC);
     const b = new Audio(SRC);
     for (const el of [a, b]) {
       el.preload = 'auto';
       el.loop = false; // crossfade handles looping — avoids MP3 gap click
-      el.volume = 0;
+      el.volume = VOL; // element path fallback before/without Web Audio graph
       el.setAttribute('playsinline', '');
-      try { el.crossOrigin = 'anonymous'; } catch {}
+      // Same-origin asset; skip crossOrigin so decode into MediaElementSource is reliable
     }
     let usingA = true;
     let started = false;
@@ -2376,12 +2380,27 @@ function updateLazyEmbeds() {
     let audioCtx = null;
     let analyser = null;
     let freqData = null;
+    let gainA = null;
+    let gainB = null;
     let graphWired = false;
     let graphFailed = false;
     let bassSmooth = 0;
 
     const active = () => (usingA ? a : b);
     const idle = () => (usingA ? b : a);
+
+    function setLevels(curVol, nxtVol) {
+      if (graphWired && gainA && gainB) {
+        gainA.gain.value = usingA ? curVol : nxtVol;
+        gainB.gain.value = usingA ? nxtVol : curVol;
+        // Keep element.volume high so MediaElementSource still carries signal
+        a.volume = 1;
+        b.volume = 1;
+      } else {
+        a.volume = usingA ? curVol : nxtVol;
+        b.volume = usingA ? nxtVol : curVol;
+      }
+    }
 
     function wireAnalyser() {
       if (graphWired || graphFailed) return;
@@ -2391,22 +2410,43 @@ function updateLazyEmbeds() {
         audioCtx = audioCtx || new AC();
         const srcA = audioCtx.createMediaElementSource(a);
         const srcB = audioCtx.createMediaElementSource(b);
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.72;
-        analyser.minDecibels = -90;
-        analyser.maxDecibels = -28;
-        srcA.connect(analyser);
-        srcB.connect(analyser);
-        analyser.connect(audioCtx.destination);
-        freqData = new Uint8Array(analyser.frequencyBinCount);
+        gainA = audioCtx.createGain();
+        gainB = audioCtx.createGain();
+        gainA.gain.value = 0;
+        gainB.gain.value = 0;
+        // Speakers first: MediaElementSource steals element output, so Gain → destination
+        // must always exist. Analyser is an optional tap for beat labs.
+        srcA.connect(gainA);
+        srcB.connect(gainB);
+        gainA.connect(audioCtx.destination);
+        gainB.connect(audioCtx.destination);
         graphWired = true;
-        console.info('[cubicles] ambient AnalyserNode wired (bass → floating labs)');
+        a.volume = 1;
+        b.volume = 1;
+        try {
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.smoothingTimeConstant = 0.72;
+          analyser.minDecibels = -90;
+          analyser.maxDecibels = -28;
+          gainA.connect(analyser);
+          gainB.connect(analyser);
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+          console.info('[cubicles] ambient GainNode+Analyser wired (bass → floating labs)');
+        } catch (errA) {
+          console.warn('[cubicles] AnalyserNode tap failed — audio still plays via GainNode', errA);
+          analyser = null;
+          freqData = null;
+        }
       } catch (err) {
-        console.warn('[cubicles] AnalyserNode wire failed', err);
+        console.warn('[cubicles] Web Audio wire failed — using element.volume path', err);
         graphFailed = true;
         analyser = null;
         freqData = null;
+        gainA = null;
+        gainB = null;
+        // Element path only works if createMediaElementSource never ran; if it did,
+        // playback may stay silent — warn so Enter/pointer retry is visible in console.
       }
     }
 
@@ -2447,23 +2487,24 @@ function updateLazyEmbeds() {
         try {
           nxt.currentTime = 0;
           const p = nxt.play();
-          if (p && typeof p.catch === 'function') p.catch(() => {});
-        } catch {}
+          if (p && typeof p.catch === 'function') {
+            p.catch((err) => console.warn('[cubicles] ambient crossfade play failed', err));
+          }
+        } catch (err) {
+          console.warn('[cubicles] ambient crossfade play threw', err);
+        }
       }
       if (arming) {
-        const nxt = idle();
         const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
-        cur.volume = VOL * (1 - t);
-        nxt.volume = VOL * t;
+        setLevels(VOL * (1 - t), VOL * t);
         if (t >= 0.999 || cur.ended || cur.paused) {
           try { cur.pause(); } catch {}
-          cur.volume = 0;
-          nxt.volume = VOL;
+          setLevels(0, VOL);
           usingA = !usingA;
           arming = false;
         }
       } else {
-        cur.volume = VOL;
+        setLevels(VOL, 0);
       }
       raf = requestAnimationFrame(crossfadeTick);
     }
@@ -2472,30 +2513,45 @@ function updateLazyEmbeds() {
       const cur = active();
       if (started && !cur.paused && !arming) {
         if (audioCtx && audioCtx.state === 'suspended') {
-          try { audioCtx.resume(); } catch {}
+          audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
         }
         return;
       }
       wireAnalyser();
-      if (audioCtx && audioCtx.state === 'suspended') {
-        try { audioCtx.resume(); } catch {}
-      }
-      const p = cur.play();
-      const mark = () => {
-        started = true;
-        cur.volume = VOL;
-        if (!raf) raf = requestAnimationFrame(crossfadeTick);
+      const resumeP = (audioCtx && audioCtx.state === 'suspended')
+        ? audioCtx.resume().catch((err) => {
+            console.warn('[cubicles] AudioContext resume failed', err);
+          })
+        : Promise.resolve();
+      const kick = () => {
+        setLevels(VOL, 0);
+        let p;
+        try {
+          p = cur.play();
+        } catch (err) {
+          console.warn('[cubicles] ambient play threw', err);
+          return;
+        }
+        const mark = () => {
+          started = true;
+          setLevels(VOL, 0);
+          if (!raf) raf = requestAnimationFrame(crossfadeTick);
+          console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)');
+        };
+        if (p && typeof p.then === 'function') {
+          p.then(mark).catch((err) => console.warn('[cubicles] ambient play blocked/failed', err));
+        } else {
+          mark();
+        }
       };
-      if (p && typeof p.catch === 'function') {
-        p.then(mark).catch(() => {});
-      } else {
-        mark();
-      }
+      if (resumeP && typeof resumeP.then === 'function') resumeP.then(kick);
+      else kick();
     };
 
     window.__wormholeAmbient = {
       audio: a, audioB: b, tryPlay, vol: VOL,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
+      get graphWired() { return graphWired; },
     };
     window.addEventListener('pointerdown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
@@ -2508,12 +2564,12 @@ function updateLazyEmbeds() {
       } else if (started || window.__cubiclesEntered) {
         arming = false;
         if (audioCtx && audioCtx.state === 'suspended') {
-          try { audioCtx.resume(); } catch {}
+          audioCtx.resume().catch(() => {});
         }
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (dual crossfade + analyser)', XFADE + 's');
+    console.info('[cubicles] wormhole ambient ready (dual crossfade + gain/analyser)', XFADE + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
