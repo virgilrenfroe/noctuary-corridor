@@ -1,0 +1,13 @@
+Poly Haven HDRIs (vendored for offline Sketch C cathedral chrome)
+
+1. small_cathedral_02_1k.hdr
+   https://polyhaven.com/a/small_cathedral_02
+   Author: Sergej Majboroda
+   License: CC0 1.0 Universal
+
+2. neon_photostudio_1k.hdr
+   https://polyhaven.com/a/neon_photostudio
+   License: CC0 1.0 Universal
+   (high-chroma specular alternate; primary env is small_cathedral_02)
+
+https://creativecommons.org/publicdomain/zero/1.0/
