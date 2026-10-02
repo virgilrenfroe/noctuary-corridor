@@ -6,13 +6,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<!-- First-paint critical: Three + cathedral bg + cypress bark (not all 20 lab panels). -->
+<!-- First-paint critical: ambient bed FIRST, then Three + cathedral bg + cypress bark. -->
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambfast2" fetchpriority="high" />
 <link rel="modulepreload" href="./vendor/three/build/three.module.js" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=amb96" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -218,12 +218,13 @@
 // Runs in parallel with scene setup — never awaited before trees/labs/mural render.
 // Asset is an 8-bar / 96 BPM trim (20.000s) of wormhole-ambient, beat1@source 0.952s → after beat4.
 // Tiny dual-Audio XFADE only hides MP3 decoder padding — not a phrasing blur.
-// Primary Audio loads first (high priority); secondary buffer arms only after primary is playing
-// so mobile bandwidth isn't split / starved against stargazer + labs. Play on earliest canplay —
-// never wait for full-file download. GainNodes unlock speakers; Analyser taps bass → labs.
+// Primary Audio loads first (high priority); secondary buffer arms only after primary is
+// audible for a few seconds so mobile bandwidth isn't split. Call play() on first gesture
+// immediately — never wait for canplay / full buffer / second bed / heavy scene.
+// Element.volume unlocks first audible note; GainNode+Analyser wire right after playing.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=amb96';
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambfast2';
     const VOL = 0.46; // soft bed after Enter/tap (nudged up from 0.38)
     const BPM = 96;
     const BARS = 8;
@@ -239,6 +240,10 @@
     try { a.setAttribute('fetchpriority', 'high'); } catch {}
     a.src = SRC;
     try { a.load(); } catch {}
+    // Warm HTTP cache in parallel (prefetch pattern) — does not block play()
+    try {
+      fetch(SRC, { priority: 'high', credentials: 'same-origin', cache: 'force-cache' }).catch(() => {});
+    } catch {}
     b.preload = 'auto';
     b.loop = false;
     b.volume = 0;
@@ -254,9 +259,7 @@
     }
 
     a.addEventListener('error', () => console.warn('[cubicles] ambient media error', a.error), { once: true });
-    if (a.readyState < 2) {
-      a.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (primary)'), { once: true });
-    }
+    a.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (primary)'), { once: true });
     let usingA = true;
     let started = false;
     let raf = 0;
@@ -269,7 +272,8 @@
     let graphWired = false;
     let graphFailed = false;
     let bassSmooth = 0;
-    let playWaitBound = false;
+    let playInflight = false;
+    let secondaryTimer = 0;
 
     const active = () => (usingA ? a : b);
     const idle = () => (usingA ? b : a);
@@ -286,23 +290,44 @@
       }
     }
 
+    function ensureAudioCtx() {
+      if (audioCtx || graphFailed) return audioCtx;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { graphFailed = true; return null; }
+      try {
+        audioCtx = new AC();
+      } catch (err) {
+        console.warn('[cubicles] AudioContext create failed', err);
+        graphFailed = true;
+        return null;
+      }
+      return audioCtx;
+    }
+
+    function resumeCtx() {
+      const ctx = ensureAudioCtx();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
+      }
+      return ctx;
+    }
+
     function wireGainGraph() {
       if (graphWired || graphFailed) return;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { graphFailed = true; return; }
+      const ctx = ensureAudioCtx();
+      if (!ctx) return;
       try {
-        audioCtx = audioCtx || new AC();
         // MediaElementSource works before b has src — creates silent idle buffer
-        const srcA = audioCtx.createMediaElementSource(a);
-        const srcB = audioCtx.createMediaElementSource(b);
-        gainA = audioCtx.createGain();
-        gainB = audioCtx.createGain();
+        const srcA = ctx.createMediaElementSource(a);
+        const srcB = ctx.createMediaElementSource(b);
+        gainA = ctx.createGain();
+        gainB = ctx.createGain();
         gainA.gain.value = VOL;
         gainB.gain.value = 0;
         srcA.connect(gainA);
         srcB.connect(gainB);
-        gainA.connect(audioCtx.destination);
-        gainB.connect(audioCtx.destination);
+        gainA.connect(ctx.destination);
+        gainB.connect(ctx.destination);
         graphWired = true;
         a.volume = 1;
         b.volume = 1;
@@ -363,8 +388,8 @@
         raf = requestAnimationFrame(crossfadeTick);
         return;
       }
-      // Ensure secondary is warming well before seam
-      if (!bArmed && cur.currentTime > 0.5) armSecondary();
+      // Ensure secondary is warming well before seam (phrase-locked loop)
+      if (!bArmed && cur.currentTime > 3.0) armSecondary();
       const remain = dur - cur.currentTime;
       if (remain <= XFADE && !arming) {
         arming = true;
@@ -396,61 +421,84 @@
       raf = requestAnimationFrame(crossfadeTick);
     }
 
+    function tryWireWhenRunning() {
+      // Never createMediaElementSource while AudioContext is suspended — that mutes
+      // element.volume output. Wire only once ctx is running (gesture resume).
+      const ctx = audioCtx || ensureAudioCtx();
+      if (!ctx) return;
+      if (ctx.state !== 'running') return;
+      if (!graphWired && !graphFailed) {
+        try {
+          wireGainGraph();
+          wireAnalyserTap();
+          setLevels(VOL, 0);
+        } catch (err) {
+          console.warn('[cubicles] ambient GainNode wire failed', err);
+        }
+      } else if (graphWired && !analyser) {
+        try { wireAnalyserTap(); } catch {}
+      }
+    }
+
+    function markPlaying() {
+      if (started) return;
+      started = true;
+      playInflight = false;
+      setLevels(VOL, 0);
+      // Keep element.volume path for first audible note. Upgrade to GainNode only if
+      // AudioContext is already running (same-gesture resume); otherwise wait for next tap.
+      tryWireWhenRunning();
+      // Defer secondary bed — keep bandwidth for primary first seconds
+      if (!secondaryTimer) {
+        secondaryTimer = setTimeout(() => { armSecondary(); }, 3200);
+      }
+      if (!raf) raf = requestAnimationFrame(crossfadeTick);
+      console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)', 'readyState=' + active().readyState);
+      try {
+        window.dispatchEvent(new CustomEvent('cubicles-ambient-playing'));
+      } catch {}
+    }
+
     const tryPlay = () => {
       const cur = active();
-      if (started && !cur.paused && !arming) {
-        if (audioCtx && audioCtx.state === 'suspended') {
-          audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
-        }
-        return;
+      // Always resume on gesture — even if already started (Safari suspend)
+      const ctx = resumeCtx();
+      if (ctx && typeof ctx.addEventListener === 'function') {
+        const onState = () => {
+          if (ctx.state === 'running') {
+            tryWireWhenRunning();
+            try { ctx.removeEventListener('statechange', onState); } catch {}
+          }
+        };
+        try { ctx.addEventListener('statechange', onState); } catch {}
       }
-      // Earliest buffered play — canplay / HAVE_CURRENT_DATA; do NOT wait for full file
-      if (cur.readyState < 2) {
-        if (!playWaitBound) {
-          playWaitBound = true;
-          const kick = () => {
-            playWaitBound = false;
-            tryPlay();
-          };
-          cur.addEventListener('canplay', kick, { once: true });
-          cur.addEventListener('loadeddata', kick, { once: true });
-          console.info('[cubicles] ambient waiting for canplay (readyState=' + cur.readyState + ')');
-          // Kick once only — re-load() on every pointerdown would restart the download
-          try {
-            if (!cur.src) { cur.src = SRC; cur.load(); }
-          } catch {}
-        }
-        return;
-      }
-      wireGainGraph();
+      tryWireWhenRunning();
+      if (started && !cur.paused && !arming) return;
+      if (playInflight && !cur.paused) return;
+
+      // CRITICAL: call play() immediately — do NOT wait for canplay / full buffer.
+      // play() bumps media network priority so first bytes beat bark/HDR contention.
+      // First audible uses element.volume; GainNode arms once ctx is running.
       setLevels(VOL, 0);
+      playInflight = true;
       let p;
       try {
         p = cur.play();
       } catch (err) {
+        playInflight = false;
         console.warn('[cubicles] ambient play threw', err);
         return;
       }
-      const mark = () => {
-        started = true;
-        setLevels(VOL, 0);
-        // Arm secondary only after primary is audible — frees bandwidth for first seconds
-        armSecondary();
-        if (!raf) raf = requestAnimationFrame(crossfadeTick);
-        console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)');
-        try {
-          window.dispatchEvent(new CustomEvent('cubicles-ambient-playing'));
-        } catch {}
-      };
+      // 'playing' fires at first audible frame — faster signal than play() promise on some engines
+      cur.addEventListener('playing', markPlaying, { once: true });
       if (p && typeof p.then === 'function') {
-        p.then(mark).catch((err) => console.warn('[cubicles] ambient play blocked/failed', err));
+        p.then(() => { markPlaying(); }).catch((err) => {
+          playInflight = false;
+          console.warn('[cubicles] ambient play blocked/failed', err);
+        });
       } else {
-        mark();
+        markPlaying();
       }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
-      }
-      try { wireAnalyserTap(); } catch {}
     };
 
     window.__wormholeAmbient = {
@@ -462,6 +510,8 @@
       get secondaryArmed() { return bArmed; },
     };
     window.addEventListener('pointerdown', tryPlay, { once: false });
+    window.addEventListener('touchstart', tryPlay, { once: false, passive: true });
+    window.addEventListener('keydown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         try { a.pause(); b.pause(); } catch {}
@@ -471,13 +521,11 @@
         }
       } else if (started || window.__cubiclesEntered) {
         arming = false;
-        if (audioCtx && audioCtx.state === 'suspended') {
-          audioCtx.resume().catch(() => {});
-        }
+        resumeCtx();
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (early fetch)', BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's, xfade ' + XFADE + 's, primary-first');
+    console.info('[cubicles] wormhole ambient ready (early fetch, play-immediate)', BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's, xfade ' + XFADE + 's, primary-first');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
@@ -2619,11 +2667,11 @@ function startStargazerWhenAmbientAllows() {
     try { window.__stargazingWall?.start?.(); } catch {}
   };
   window.addEventListener('cubicles-ambient-playing', kick, { once: true });
-  // Fallback if autoplay blocked / slow — still start video after a short head-start for audio
+  // Fallback only after ambient had a long head-start — never starve the 96kbps bed
   setTimeout(() => {
     window.removeEventListener('cubicles-ambient-playing', kick);
     try { window.__stargazingWall?.start?.(); } catch {}
-  }, 2500);
+  }, 8000);
 }
 function silentEnter({ reset = true } = {}) {
   if (entered) return;
