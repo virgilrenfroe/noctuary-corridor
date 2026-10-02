@@ -1604,19 +1604,21 @@ function taxHash(i) {
 }
 
 /**
- * Instanced Taxodium grove — flared fluted buttress, blunt knees,
+ * Instanced hero Taxodium — flared fluted buttress, blunt knees,
  * ascending scaffold, feathery needle fans + alpha cards, Spanish moss separate.
+ * Single-tree path: keep rich needles/cards (n=1, no grove draw-budget thin).
  */
 function placeBaldCypresses() {
   const trees = cypressPositions;
   const n = trees.length;
-  const kneesPer = mobileLike ? 5 : 12;
-  const branchPer = mobileLike ? 5 : 11;
-  const needlePer = mobileLike ? 28 : 110;
-  const tuftPer = mobileLike ? 2 : 5;
-  const cardPer = mobileLike ? 24 : 110;
-  const crownPer = mobileLike ? 0 : 0; // disable disc sprays entirely
-  const flutePer = mobileLike ? 1 : 3; // subtle bark ribs, not pipe-bundle
+  // Rich per-tree detail OK at n=1 (mobile no longer thins needles/cards).
+  const kneesPer = mobileLike ? 10 : 14;
+  const branchPer = mobileLike ? 9 : 12;
+  const needlePer = mobileLike ? 90 : 120;
+  const tuftPer = mobileLike ? 4 : 6;
+  const cardPer = mobileLike ? 90 : 120;
+  const crownPer = 0; // disable disc sprays entirely
+  const flutePer = mobileLike ? 2 : 3; // subtle bark ribs, not pipe-bundle
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
@@ -1845,7 +1847,7 @@ function placeBaldCypresses() {
     cypressGroup.add(inst);
   }
 
-  console.info('[cubicles] cathedral chrome Taxodium instanced', n, 'trees',
+  console.info('[cubicles] cathedral chrome Taxodium hero', n, 'tree',
     { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri }, 'sketch-C bald-cypress');
   window.__sketchCTrees = {
     n,
@@ -1877,108 +1879,26 @@ function placeProceduralCypresses() {
 }
 
 /**
- * Natural irregular Taxodium grove — jittered positions / scales / yaws.
- * Prefer aisle & margin seeds so floating lab faces stay readable from foyer;
- * no straight grid rows.
+ * Single hero Taxodium — tall foyer midground focal under the cathedral vault.
+ * Chrome materials / procedural silhouette unchanged; labs stay clear of trunk.
  */
 const cypressPositions = [];
-(function buildIrregularGrove() {
-  const seeds = [];
-  // Loose aisle seeds (between columns) — then heavily jitter off the lattice
-  for (let c = 1; c < COLS; c++) {
-    const xAisle = -OUTER_W / 2 + c * CELL_W;
-    for (let b = 0; b < ROWS; b++) {
-      if (c % 2 === 0 && b === 2) continue; // spare one mid bay for sightline
-      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.15 + ((c * 5 + b * 9) % 7) * 0.04);
-      seeds.push({ x: xAisle, z: zBay, role: 'grove', hBias: (b === 0 || b === ROWS - 1) ? 0.7 : 0 });
-    }
-  }
-  // Side-margin clumps (not wall-aligned piers)
-  for (const side of [-1, 1]) {
-    for (let b = 0; b < ROWS; b++) {
-      const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.2 + (b % 3) * 0.08);
-      seeds.push({
-        x: side * (OUTER_W / 2 - 2.4),
-        z: zBay,
-        role: 'margin',
-        hBias: 0.4,
-      });
-    }
-  }
-  // Foyer grove pair — offset, not symmetric gateposts
-  seeds.push({ x: -CELL_W * 1.15, z: GRID_Z_MAX + 1.85, role: 'foyer', hBias: 0.9 });
-  seeds.push({ x: CELL_W * 0.92, z: GRID_Z_MAX + 1.35, role: 'foyer', hBias: 0.55 });
-  // Extra mid-grove fillers (natural clumps, avoid cell centers) — thinned on mobile
-  const clumpN = mobileLike ? 2 : 6;
-  for (let k = 0; k < clumpN; k++) {
-    const col = 0.5 + (k % 4) + ((k * 3) % 5) * 0.07;
-    const row = 0.4 + Math.floor(k / 2) * 0.85 + ((k * 7) % 5) * 0.05;
-    seeds.push({
-      x: -OUTER_W / 2 + col * CELL_W,
-      z: GRID_Z_MAX - row * CELL_D,
-      role: 'clump',
-      hBias: -0.35,
-    });
-  }
-
-  function nearLabFace(x, z) {
-    for (const h of hung) {
-      // Keep clear of floating lab face AABB (panel footprint + margin)
-      const dx = Math.abs(x - h.cx);
-      const dz = Math.abs(z - h.panelZ);
-      if (dx < PANEL_W * 0.72 && dz < PANEL_H * 0.22 + 0.55) return true;
-    }
-    return false;
-  }
-
-  for (let i = 0; i < seeds.length; i++) {
-    const s = seeds[i];
-    const h1 = taxHash(i * 17 + 3);
-    const h2 = taxHash(i * 29 + 11);
-    const h3 = taxHash(i * 41 + 7);
-    const h4 = taxHash(i * 53 + 19);
-    // Strong planar jitter — natural grove, not lattice rows
-    const jx = (h1 - 0.5) * CELL_W * (s.role === 'margin' ? 0.85 : 1.15);
-    const jz = (h2 - 0.5) * CELL_D * (s.role === 'foyer' ? 0.55 : 1.05);
-    let x = s.x + jx;
-    let z = s.z + jz;
-    // Nudge away from lab faces if we landed on one
-    if (nearLabFace(x, z)) {
-      x += (h3 > 0.5 ? 1 : -1) * (PANEL_W * 0.55 + h4 * 0.4);
-      z += (h1 > 0.5 ? 1 : -1) * (0.7 + h2 * 0.5);
-    }
-    // Keep inside walkable footprint with buttress clearance
-    const marginX = 1.9;
-    const marginZ = 1.35;
-    x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
-    z = Math.max(GRID_Z_MIN + marginZ, Math.min(OUTER_D / 2 - 1.2, z));
-    if (nearLabFace(x, z)) continue; // drop rather than bury a lab
-
-    // Density gaps — skip some seeds so grove reads clumpy, not regimented
-    if (s.role === 'grove' && h4 < (mobileLike ? 0.48 : 0.22)) continue;
-    if (s.role === 'clump' && h1 < (mobileLike ? 0.55 : 0.28)) continue;
-    if (s.role === 'margin' && mobileLike && h2 < 0.42) continue;
-    const hBase = 7.6 + h3 * 3.2 + (s.hBias || 0);
-    const h = Math.max(6.8, Math.min(11.6, hBase + (h4 - 0.5) * 1.4));
-    const yaw = h1 * Math.PI * 2 + h2 * 2.3 + h3 * 0.9;
-    const scale = 0.72 + h3 * 0.52; // wider per-tree scale jitter
-    cypressPositions.push({
-      x, z,
-      h: h * scale,
-      yaw,
-      role: s.role,
-    });
-  }
-  // Hard cap mobile grove so room stays thin (prefer foyer, then grove)
-  if (mobileLike && cypressPositions.length > 12) {
-    const foyer = cypressPositions.filter((p) => p.role === 'foyer');
-    const grove = cypressPositions.filter((p) => p.role === 'grove');
-    const other = cypressPositions.filter((p) => p.role !== 'foyer' && p.role !== 'grove');
-    cypressPositions.length = 0;
-    cypressPositions.push(...foyer, ...grove, ...other);
-    cypressPositions.splice(12);
-  }
-  console.info('[cubicles] irregular Taxodium grove', cypressPositions.length, 'trees (jittered pos/scale/yaw)', mobileLike ? 'mobile-thin' : 'desktop');
+(function buildHeroTaxodium() {
+  // Slight −X offset keeps center aisle readable to floating labs; z in foyer strip.
+  const x = -CELL_W * 0.28;
+  const z = GRID_Z_MAX + 1.65;
+  const h = 11.45; // tall hero under OUTER_H=12 vault
+  const yaw = 0.92;
+  cypressPositions.push({ x, z, h, yaw, role: 'hero' });
+  console.info(
+    '[cubicles] hero Taxodium',
+    cypressPositions.length,
+    'tree @',
+    x.toFixed(2),
+    z.toFixed(2),
+    'h',
+    h.toFixed(2)
+  );
 })();
 
 /**
@@ -1986,9 +1906,6 @@ const cypressPositions = [];
  * Dense enough to read as Tillandsia under HDR without burying hung panels.
  */
 function placeSpanishMossFilaments() {
-  if (mobileLike && cypressPositions.length > 18) {
-    console.info('[cubicles] moss filaments thinned for mobile');
-  }
   const strandGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
   const fiberChrome = new THREE.MeshPhysicalMaterial({
     color: chromeVariant === 2 ? 0xe8c090 : chromeVariant === 3 ? 0xd0b8f0 : 0xf0f4fa,
@@ -2010,7 +1927,7 @@ function placeSpanishMossFilaments() {
     emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.22,
     side: THREE.DoubleSide,
   });
-  const perTree = mobileLike ? 8 : 48;
+  const perTree = mobileLike ? 36 : 56; // rich filaments on single hero
   const count = cypressPositions.length * perTree;
   const chromeInst = new THREE.InstancedMesh(strandGeo, fiberChrome, count);
   const magentaInst = new THREE.InstancedMesh(strandGeo, fiberMagenta, count);
@@ -2068,7 +1985,7 @@ function placeSpanishMossFilaments() {
   }
   cypressGroup.add(chromeInst);
   cypressGroup.add(magentaInst);
-  console.info('[cubicles] spanish-moss chrome filaments', ci + mi, 'strands on', cypressPositions.length, 'trees');
+  console.info('[cubicles] spanish-moss chrome filaments', ci + mi, 'strands on', cypressPositions.length, 'hero tree');
   if (window.__sketchCTrees) {
     window.__sketchCTrees.mossStrands = ci + mi;
   } else {
