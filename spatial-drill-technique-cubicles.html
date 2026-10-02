@@ -349,7 +349,8 @@ const CELLS = [
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
+const forceDesktop = params.has('desktop') || params.get('hq') === '1' || hashParams.get('desktop') === '1';
+const mobileLike = !forceDesktop && (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches);
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
 renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1056,9 +1057,9 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.clickable = true;
 }
 
-// —— Sketch C: cathedral-scale chrome cypress silhouettes in aisle nave ——
-// Procedural flame/spire geometry is the primary look (matches concept more than
-// re-skinned GLTF alone). Optional GLTF detail can layer under ?gltf=1.
+// —— Sketch C: cathedral chrome trees via high-detail GLB (Poly Haven Quiver Tree) ——
+// Primary look is cloned/instanced GLB under magenta/gold MeshPhysicalMaterial + HDR.
+// Procedural cone stacks kept only as emergency fallback (never the default).
 const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
@@ -1067,8 +1068,8 @@ scene.add(cypressGroup);
 const CHROME_PRESETS = {
   // 1 — sketch C default: liquid chrome trunk, warm gold canopy, magenta moss
   1: {
-    trunk:  { color: 0xe8eef8, metalness: 1.0, roughness: 0.045, envMapIntensity: 1.65, clearcoat: 0.78, clearcoatRoughness: 0.05, reflectivity: 1.0 },
-    foliage:{ color: 0xf0c24b, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.45, clearcoat: 0.42, clearcoatRoughness: 0.12, emissive: 0x402008, emissiveIntensity: 0.12 },
+    trunk:  { color: 0xf2f6ff, metalness: 1.0, roughness: 0.028, envMapIntensity: 2.05, clearcoat: 1.0, clearcoatRoughness: 0.03, reflectivity: 1.0 },
+    foliage:{ color: 0xffd060, metalness: 1.0, roughness: 0.1, envMapIntensity: 1.7, clearcoat: 0.55, clearcoatRoughness: 0.08, emissive: 0x301808, emissiveIntensity: 0.06 },
     knee:   { color: 0xd8dee8, metalness: 1.0, roughness: 0.08, envMapIntensity: 1.45, clearcoat: 0.58, clearcoatRoughness: 0.09 },
     moss:   { color: 0xd040a8, metalness: 0.95, roughness: 0.18, envMapIntensity: 1.25, transparent: true, opacity: 0.72, depthWrite: false, emissive: 0x601040, emissiveIntensity: 0.35 },
   },
@@ -1092,16 +1093,8 @@ const cypressTrunkMat = new THREE.MeshPhysicalMaterial(_cp.trunk);
 const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage);
 const cypressKneeMat = new THREE.MeshPhysicalMaterial(_cp.knee);
 const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
-const kneeGeo = new THREE.CylinderGeometry(0.05, 0.09, 0.34, 6);
-const mossGeo = new THREE.CylinderGeometry(0.012, 0.004, 1, 4);
-// Shared cathedral canopy / rib geos (scaled per tree)
-const canopyConeGeo = new THREE.ConeGeometry(1, 1, 9);
-const tipConeGeo = new THREE.ConeGeometry(1, 1, 6);
-const buttressGeo = new THREE.CylinderGeometry(1, 1.85, 1, 10);
-const trunkGeo = new THREE.CylinderGeometry(0.35, 1, 1, 8);
-const ribGeo = new THREE.TorusGeometry(1, 0.12, 6, 18);
 
-/** Replace GLTF mesh mats with cathedral chrome / gold. */
+/** Replace GLTF mesh mats with cathedral chrome / gold; keep normal maps for mercurial bark. */
 function chromeifyCypressRoot(root) {
   root.traverse((o) => {
     if (!o.isMesh) return;
@@ -1109,9 +1102,33 @@ function chromeifyCypressRoot(root) {
     const mats = Array.isArray(oldMat) ? oldMat : [oldMat];
     const name = ((o.name || '') + ' ' + mats.map((m) => m?.name || '').join(' ')).toLowerCase();
     const isFoliage =
-      mats.some((m) => m && (m.transparent || (m.opacity != null && m.opacity < 0.99))) ||
-      /leaf|foliage|canopy|needle|crown|branch/i.test(name);
-    o.material = isFoliage ? cypressFoliageMat : cypressTrunkMat;
+      mats.some((m) => m && (m.transparent || m.alphaMode === 'BLEND' || (m.opacity != null && m.opacity < 0.99))) ||
+      /leaf|foliage|canopy|needle|crown|twig/i.test(name);
+    const base = isFoliage ? cypressFoliageMat : cypressTrunkMat;
+    const mat = base.clone();
+    // Preserve baked normals / AO-ish maps so chrome reads organic under HDR
+    for (const src of mats) {
+      if (!src) continue;
+      if (src.normalMap && !mat.normalMap) {
+        mat.normalMap = src.normalMap;
+        mat.normalScale = src.normalScale ? src.normalScale.clone() : new THREE.Vector2(0.85, 0.85);
+      }
+      if (src.aoMap && !mat.aoMap) {
+        mat.aoMap = src.aoMap;
+        mat.aoMapIntensity = 0.55;
+      }
+    }
+    if (isFoliage) {
+      mat.side = THREE.DoubleSide;
+      // Gold/magenta chrome canopy — slight transparency so branch chrome peeks through
+      mat.transparent = true;
+      mat.opacity = chromeVariant === 2 ? 0.92 : 0.88;
+      mat.depthWrite = true;
+    }
+    o.material = mat;
+    o.castShadow = !mobileLike;
+    o.receiveShadow = true;
+    o.raycast = () => {};
   });
 }
 
@@ -1119,115 +1136,39 @@ function disableRaycast(root) {
   root.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
 }
 
-function addKneesAndMoss(parent, height, seed) {
-  const kneeN = mobileLike ? 4 : 7;
-  for (let k = 0; k < kneeN; k++) {
-    const ang = (k / kneeN) * Math.PI * 2 + seed * 0.7;
-    const rad = height * 0.055 + ((seed * 3 + k * 5) % 7) * 0.02;
-    const knee = new THREE.Mesh(kneeGeo, cypressKneeMat);
-    const kh = 0.28 + (k % 3) * 0.1;
-    knee.scale.set(1.1 + (k % 2) * 0.35, kh / 0.34, 1.1 + ((k + 1) % 2) * 0.3);
-    knee.position.set(Math.cos(ang) * rad, kh * 0.38, Math.sin(ang) * rad);
-    knee.rotation.z = (k % 2 ? 0.22 : -0.18);
-    knee.rotation.x = (k % 3 ? 0.12 : -0.1);
-    knee.castShadow = !mobileLike;
-    knee.raycast = () => {};
-    parent.add(knee);
-  }
-  const mossN = mobileLike ? 4 : 8;
-  const hangY = height * 0.48;
-  for (let m = 0; m < mossN; m++) {
-    const mossLen = 0.55 + (m % 4) * 0.22;
-    const moss = new THREE.Mesh(mossGeo, cypressMossMat);
-    moss.scale.y = mossLen;
-    const ang = (m / mossN) * Math.PI * 2 + seed;
-    const rad = height * 0.07 + (m % 3) * 0.04;
-    moss.position.set(Math.cos(ang) * rad, hangY - mossLen * 0.45, Math.sin(ang) * rad);
-    moss.raycast = () => {};
-    parent.add(moss);
-  }
-}
-
 /**
- * Cathedral chrome cypress silhouette — flared buttress, tall chrome trunk,
- * biomechanical rib rings, stacked gold flame canopy to a spire tip.
- * This is the Sketch C geometric language (not a plain GLTF recolor).
+ * Emergency fallback only — stacked cones (the old childish cathedral props).
+ * Not used when the Quiver Tree GLB loads.
  */
 function makeCathedralCypress(height) {
   const g = new THREE.Group();
-  const segs = mobileLike ? 7 : 10;
-
-  // Flared chrome buttress / knees mass
+  const buttressGeo = new THREE.CylinderGeometry(1, 1.85, 1, 10);
+  const trunkGeo = new THREE.CylinderGeometry(0.35, 1, 1, 8);
+  const canopyConeGeo = new THREE.ConeGeometry(1, 1, 9);
+  const tipConeGeo = new THREE.ConeGeometry(1, 1, 6);
   const buttress = new THREE.Mesh(buttressGeo, cypressTrunkMat);
   buttress.scale.set(height * 0.055, height * 0.11, height * 0.055);
   buttress.position.y = height * 0.055;
-  buttress.castShadow = !mobileLike;
-  buttress.receiveShadow = true;
   g.add(buttress);
-
-  // Tall tapered chrome trunk
   const trunkH = height * 0.52;
   const trunk = new THREE.Mesh(trunkGeo, cypressTrunkMat);
   trunk.scale.set(height * 0.038, trunkH, height * 0.038);
   trunk.position.y = height * 0.11 + trunkH * 0.5;
-  trunk.castShadow = !mobileLike;
-  trunk.receiveShadow = true;
   g.add(trunk);
-
-  // Biomechanical chrome rib rings along the shaft
-  const ribN = mobileLike ? 2 : 4;
-  for (let r = 0; r < ribN; r++) {
-    const t = r / Math.max(1, ribN - 1);
-    const ring = new THREE.Mesh(ribGeo, cypressKneeMat);
-    const rad = height * (0.042 - t * 0.018);
-    ring.scale.set(rad, rad, height * 0.007);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = height * (0.2 + t * 0.28);
-    ring.castShadow = !mobileLike;
-    ring.raycast = () => {};
-    g.add(ring);
-  }
-
-  // Stacked gold/magenta chrome flame canopy (cypress spire silhouette)
   const layers = mobileLike ? 5 : 8;
   for (let L = 0; L < layers; L++) {
     const t = L / (layers - 1);
-    const coneH = height * (0.2 - t * 0.11);
-    const coneR = height * (0.12 - t * 0.095);
     const cone = new THREE.Mesh(canopyConeGeo, cypressFoliageMat);
-    cone.scale.set(Math.max(0.1, coneR), Math.max(0.28, coneH), Math.max(0.1, coneR));
+    cone.scale.set(Math.max(0.1, height * (0.12 - t * 0.095)), Math.max(0.28, height * (0.2 - t * 0.11)), Math.max(0.1, height * (0.12 - t * 0.095)));
     cone.position.y = height * (0.36 + t * 0.5);
-    // slight alternate lean for biomechanical asymmetry
-    cone.rotation.y = L * 0.35;
-    cone.rotation.z = ((L % 2) ? 0.04 : -0.03);
-    cone.castShadow = !mobileLike;
     g.add(cone);
   }
-
-  // Spire tip
   const tip = new THREE.Mesh(tipConeGeo, cypressFoliageMat);
   tip.scale.set(height * 0.018, height * 0.14, height * 0.018);
   tip.position.y = height * 0.97;
-  tip.castShadow = !mobileLike;
   g.add(tip);
-
-  // Magenta/gold vault spark at tip (emissive moss mat as jewel)
-  const jewel = new THREE.Mesh(
-    new THREE.SphereGeometry(height * 0.018, 8, 6),
-    cypressMossMat
-  );
-  jewel.position.y = height * 1.04;
-  jewel.raycast = () => {};
-  g.add(jewel);
-
-  addKneesAndMoss(g, height, height * 1.7);
   disableRaycast(g);
   return g;
-}
-
-/** Legacy cone-stack fallback alias. */
-function makeProceduralCypress(height) {
-  return makeCathedralCypress(height);
 }
 
 function placeProceduralCypresses() {
@@ -1240,7 +1181,7 @@ function placeProceduralCypresses() {
     cypressGroup.add(tree);
     n++;
   }
-  console.info('[cubicles] cathedral chrome cypresses', n, 'sketch-C silhouettes');
+  console.warn('[cubicles] FALLBACK procedural cone trees', n, '(GLB failed)');
   return n;
 }
 
@@ -1279,56 +1220,75 @@ for (const side of [-1, 1]) {
 cypressPositions.push({ x: -CELL_W * 1.05, z: GRID_Z_MAX + 1.6, h: 9.4, role: 'foyer' });
 cypressPositions.push({ x: CELL_W * 1.05, z: GRID_Z_MAX + 1.6, h: 9.2, role: 'foyer' });
 
+/**
+ * Place Sketch C chrome trees from the Quiver Tree GLB.
+ * Uses shared geometry via clone(true) (materials already chrome-shared / cloned once).
+ * Optional InstancedMesh path when mesh count is low and hardware allows.
+ */
 async function placeGltfCypresses() {
-  // Sketch C default: procedural cathedral silhouettes.
-  // Optional organic GLTF underlay when ?gltf=1 (still chrome-dressed).
-  const wantGltf = params.has('gltf') || hashParams.get('gltf') === '1';
-  placeProceduralCypresses();
-  if (!wantGltf) {
-    console.info('[cubicles] GLTF underlay skipped (use ?gltf=1); sketch C silhouettes active');
+  const forceProc = params.has('proc') || hashParams.get('proc') === '1';
+  if (forceProc) {
+    placeProceduralCypresses();
     return;
   }
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
   const proto = gltf.scene;
+  chromeifyCypressRoot(proto);
+  // Merge materials onto shared Sketch C mats where possible (clone keeps geo share)
+  proto.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(proto);
   const size = new THREE.Vector3();
   box.getSize(size);
   const modelH = Math.max(size.y, 0.001);
   const modelMinY = box.min.y;
-  chromeifyCypressRoot(proto);
+  let meshCount = 0;
+  proto.traverse((o) => { if (o.isMesh) meshCount++; });
+
+  // Build InstancedMesh per unique geometry+material (trunk / leaf), sharing GPU buffers
+  const parts = [];
+  const seen = new Set();
   proto.traverse((o) => {
-    if (!o.isMesh) return;
-    o.castShadow = !mobileLike;
-    o.receiveShadow = true;
-    o.raycast = () => {};
-    if (o.material === cypressFoliageMat) {
-      o.material = cypressFoliageMat.clone();
-      o.material.transparent = true;
-      o.material.opacity = 0.55;
-      o.material.depthWrite = false;
-      o.material.side = THREE.DoubleSide;
-    }
+    if (!o.isMesh || !o.geometry) return;
+    const key = o.geometry.uuid + '|' + (o.material && o.material.uuid);
+    if (seen.has(key)) return;
+    seen.add(key);
+    // Local matrix of this mesh relative to proto root
+    const rootInv = new THREE.Matrix4().copy(proto.matrixWorld).invert();
+    const local = new THREE.Matrix4().multiplyMatrices(rootInv, o.matrixWorld);
+    parts.push({ geometry: o.geometry, material: o.material, local });
   });
-  let extra = 0;
-  for (const p of cypressPositions) {
-    if (p.role === 'foyer') continue;
-    const tree = proto.clone(true);
-    // Under-scale so silhouette cones remain the dominant read
-    const s = (p.h * 0.55) / modelH;
-    tree.scale.setScalar(s);
-    tree.position.set(p.x, -modelMinY * s + 0.02, p.z);
-    tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
-    disableRaycast(tree);
-    cypressGroup.add(tree);
-    extra++;
+
+  const count = cypressPositions.length;
+  const dummy = new THREE.Object3D();
+  const scratch = new THREE.Matrix4();
+  for (const part of parts) {
+    const inst = new THREE.InstancedMesh(part.geometry, part.material, count);
+    inst.castShadow = !mobileLike;
+    inst.receiveShadow = true;
+    inst.frustumCulled = true;
+    inst.raycast = () => {};
+    for (let i = 0; i < count; i++) {
+      const p = cypressPositions[i];
+      const s = p.h / modelH;
+      dummy.position.set(p.x, -modelMinY * s + 0.02, p.z);
+      dummy.rotation.set(0, (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2), 0);
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      scratch.multiplyMatrices(dummy.matrix, part.local);
+      inst.setMatrixAt(i, scratch);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    cypressGroup.add(inst);
   }
-  console.info('[cubicles] gltf chrome underlay', extra, 'under cathedral silhouettes');
+  console.info('[cubicles] cathedral chrome GLB instanced', count, 'trees ×', parts.length, 'draw', 'sketch-C quiver');
+  window.__sketchCTrees = { n: count, modelH, parts: parts.length, meshes: meshCount, instanced: true, source: 'polyhaven-quiver_tree_01' };
+  return count;
 }
 
 placeGltfCypresses().catch((err) => {
-  console.error('[cubicles] cypress place failed — forcing procedural cathedral', err);
+  console.error('[cubicles] GLB cypress place failed — forcing procedural fallback', err);
   try {
     while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
     placeProceduralCypresses();

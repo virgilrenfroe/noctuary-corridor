@@ -1,5 +1,7 @@
-Bald cypress (cypress.glb)
-Source: OpenGameArt — https://opengameart.org/content/cypress-tree
-Author: David W CG
-License: Creative Commons Attribution 4.0 (CC-BY 4.0)
-Textures: author or ambientCG (CC0)
+Quiver Tree 01 (shipped as cypress.glb)
+Source: Poly Haven — https://polyhaven.com/a/quiver_tree_01
+Authors: Dario Barresi / Poly Haven contributors
+License: CC0 1.0 Universal (public domain dedication)
+  https://creativecommons.org/publicdomain/zero/1.0/
+  https://polyhaven.com/license
+Optimized locally (weld/simplify + WebP 1k textures) for web chrome PBR.
