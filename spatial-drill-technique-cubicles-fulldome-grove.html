@@ -7,9 +7,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
 <!-- First-paint critical: ambient bed FIRST, then Three + cathedral bg + cypress bark. -->
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambfast2" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambstable1" fetchpriority="high" />
 <link rel="modulepreload" href="./vendor/three/build/three.module.js" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp" crossorigin="anonymous" />
+<link rel="preload" as="image" type="image/jpeg" href="./demo-assets/sky/starscape-equirect-4k.jpg?v=starstill1" fetchpriority="high" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
@@ -215,79 +216,87 @@
 <script>
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// Kick MP3 fetch + primary Audio ASAP so music + beat analyser are ready sooner.
-// Runs in parallel with scene setup — never awaited before trees/labs/mural render.
-// Asset is an 8-bar / 96 BPM trim (20.000s) of wormhole-ambient, beat1@source 0.952s → after beat4.
-// Tiny dual-Audio XFADE only hides MP3 decoder padding — not a phrasing blur.
-// Primary Audio loads first (high priority); secondary buffer arms only after primary is
-// audible for a few seconds so mobile bandwidth isn't split. Call play() on first gesture
-// immediately — never wait for canplay / full buffer / second bed / heavy scene.
-// Element.volume unlocks first audible note; GainNode+Analyser wire right after playing.
+// Stable SINGLE bed only — no dual-A/B crossfade (seams/crackle/pitch drift).
+// Prefer AudioBufferSource loop when decode is ready at gesture; else one HTMLAudioElement.
+// NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
+// playbackRate locked to 1. Gain clamped via setTargetAtTime. Analyser in series for water beat.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambfast2';
-    const VOL = 0.46; // soft bed after Enter/tap (nudged up from 0.38)
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambstable1';
+    const VOL = 0.46;
+    const VOL_MAX = 0.55;
     const BPM = 96;
     const BARS = 8;
-    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s — start on 1, end after 4
-    const XFADE = 0.05; // ~1/12 beat; covers MP3 gap without smearing the downbeat
-    const a = new Audio();
-    const b = new Audio();
-    // Primary first — second buffer gets src only after play (avoids dual full-file fetch)
-    a.preload = 'auto';
-    a.loop = false;
-    a.volume = VOL;
-    a.setAttribute('playsinline', '');
-    try { a.setAttribute('fetchpriority', 'high'); } catch {}
-    a.src = SRC;
-    try { a.load(); } catch {}
-    // Warm HTTP cache in parallel (prefetch pattern) — does not block play()
+    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s
+
+    let audioCtx = null;
+    let buffer = null;
+    let bufferSource = null;
+    let gain = null;
+    let analyser = null;
+    let freqData = null;
+    let graphWired = false;
+    let graphFailed = false;
+    let started = false;
+    let playInflight = false;
+    let mode = 'none'; // 'buffer' | 'element'
+    let bassSmooth = 0;
+    let decodePromise = null;
+    let elementSrcWired = false;
+
+    const el = new Audio();
+    el.preload = 'auto';
+    el.loop = true;
+    el.playbackRate = 1;
+    el.defaultPlaybackRate = 1;
+    el.preservesPitch = true;
+    el.volume = VOL;
+    el.setAttribute('playsinline', '');
+    try { el.setAttribute('fetchpriority', 'high'); } catch {}
+    el.src = SRC;
+    try { el.load(); } catch {}
     try {
       fetch(SRC, { priority: 'high', credentials: 'same-origin', cache: 'force-cache' }).catch(() => {});
     } catch {}
-    b.preload = 'auto';
-    b.loop = false;
-    b.volume = 0;
-    b.setAttribute('playsinline', '');
-    // no b.src yet
-    let bArmed = false;
-    function armSecondary() {
-      if (bArmed) return;
-      bArmed = true;
-      b.src = SRC;
-      try { b.load(); } catch {}
-      console.info('[cubicles] ambient secondary buffer loading (after primary play)');
+    el.addEventListener('error', () => console.warn('[cubicles] ambient media error', el.error), { once: true });
+    el.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (element fallback)'), { once: true });
+    // Lock rate — some engines nudge playbackRate under pressure; snap back.
+    el.addEventListener('ratechange', () => {
+      if (el.playbackRate !== 1) {
+        try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
+      }
+    });
+
+    function clampGain(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return 0;
+      return Math.max(0, Math.min(VOL_MAX, n));
     }
 
-    a.addEventListener('error', () => console.warn('[cubicles] ambient media error', a.error), { once: true });
-    a.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (primary)'), { once: true });
-    let usingA = true;
-    let started = false;
-    let raf = 0;
-    let arming = false;
-    let audioCtx = null;
-    let analyser = null;
-    let freqData = null;
-    let gainA = null;
-    let gainB = null;
-    let graphWired = false;
-    let graphFailed = false;
-    let bassSmooth = 0;
-    let playInflight = false;
-    let secondaryTimer = 0;
+    function lockRate() {
+      try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
+      if (bufferSource) {
+        try { bufferSource.playbackRate.cancelScheduledValues(audioCtx ? audioCtx.currentTime : 0); } catch {}
+        try { bufferSource.playbackRate.value = 1; } catch {}
+      }
+    }
 
-    const active = () => (usingA ? a : b);
-    const idle = () => (usingA ? b : a);
-
-    function setLevels(curVol, nxtVol) {
-      if (graphWired && gainA && gainB) {
-        gainA.gain.value = usingA ? curVol : nxtVol;
-        gainB.gain.value = usingA ? nxtVol : curVol;
-        a.volume = 1;
-        b.volume = 1;
+    function setGainSmooth(v, tauSec) {
+      const target = clampGain(v);
+      const tau = tauSec == null ? 0.03 : tauSec;
+      if (graphWired && gain && audioCtx) {
+        const t = audioCtx.currentTime;
+        try {
+          gain.gain.cancelScheduledValues(t);
+          const cur = gain.gain.value;
+          gain.gain.setValueAtTime(Number.isFinite(cur) ? cur : 0, t);
+          gain.gain.setTargetAtTime(target, t, Math.max(0.008, tau));
+        } catch {
+          try { gain.gain.value = target; } catch {}
+        }
+        try { el.volume = mode === 'element' && !elementSrcWired ? target : (elementSrcWired ? 1 : 0); } catch {}
       } else {
-        a.volume = usingA ? curVol : nxtVol;
-        b.volume = usingA ? nxtVol : curVol;
+        try { el.volume = target; } catch {}
       }
     }
 
@@ -295,9 +304,8 @@
       if (audioCtx || graphFailed) return audioCtx;
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { graphFailed = true; return null; }
-      try {
-        audioCtx = new AC();
-      } catch (err) {
+      try { audioCtx = new AC(); }
+      catch (err) {
         console.warn('[cubicles] AudioContext create failed', err);
         graphFailed = true;
         return null;
@@ -313,60 +321,108 @@
       return ctx;
     }
 
-    function wireGainGraph() {
-      if (graphWired || graphFailed) return;
+    function kickDecode() {
+      if (buffer || decodePromise) return decodePromise;
       const ctx = ensureAudioCtx();
-      if (!ctx) return;
-      try {
-        // MediaElementSource works before b has src — creates silent idle buffer
-        const srcA = ctx.createMediaElementSource(a);
-        const srcB = ctx.createMediaElementSource(b);
-        gainA = ctx.createGain();
-        gainB = ctx.createGain();
-        gainA.gain.value = VOL;
-        gainB.gain.value = 0;
-        srcA.connect(gainA);
-        srcB.connect(gainB);
-        gainA.connect(ctx.destination);
-        gainB.connect(ctx.destination);
-        graphWired = true;
-        a.volume = 1;
-        b.volume = 1;
-        console.info('[cubicles] ambient GainNode wired (speakers)');
-      } catch (err) {
-        console.warn('[cubicles] Web Audio wire failed — using element.volume path', err);
-        graphFailed = true;
-        analyser = null;
-        freqData = null;
-        gainA = null;
-        gainB = null;
-      }
+      if (!ctx) return null;
+      decodePromise = fetch(SRC, { credentials: 'same-origin', cache: 'force-cache', priority: 'high' })
+        .then((r) => {
+          if (!r.ok) throw new Error('ambient fetch ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then((ab) => ctx.decodeAudioData(ab.slice(0)))
+        .then((buf) => {
+          buffer = buf;
+          console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
+          return buf;
+        })
+        .catch((err) => {
+          console.warn('[cubicles] ambient decode failed — element loop fallback', err);
+          decodePromise = null;
+          return null;
+        });
+      return decodePromise;
     }
 
-    function wireAnalyserTap() {
-      if (!graphWired || analyser || !audioCtx) return;
+    function wireGainAnalyser() {
+      if (graphWired || graphFailed) return false;
+      const ctx = ensureAudioCtx();
+      if (!ctx || ctx.state !== 'running') return false;
       try {
-        analyser = audioCtx.createAnalyser();
+        gain = ctx.createGain();
+        gain.gain.value = 0;
+        analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.72;
         analyser.minDecibels = -90;
         analyser.maxDecibels = -28;
-        gainA.connect(analyser);
-        gainB.connect(analyser);
+        // Series: gain → analyser → destination (analyser cannot steal speakers)
+        gain.connect(analyser);
+        analyser.connect(ctx.destination);
         freqData = new Uint8Array(analyser.frequencyBinCount);
-        console.info('[cubicles] ambient Analyser tap ready (bass → floating labs)');
-      } catch (errA) {
-        console.warn('[cubicles] AnalyserNode tap failed — audio still plays via GainNode', errA);
-        analyser = null;
-        freqData = null;
+        graphWired = true;
+        console.info('[cubicles] ambient Gain+Analyser series wired (speakers)');
+        return true;
+      } catch (err) {
+        console.warn('[cubicles] Web Audio wire failed — element.volume path', err);
+        graphFailed = true;
+        gain = null; analyser = null; freqData = null;
+        return false;
+      }
+    }
+
+    function stopBufferSource() {
+      if (!bufferSource) return;
+      try { bufferSource.onended = null; } catch {}
+      try { bufferSource.stop(0); } catch {}
+      try { bufferSource.disconnect(); } catch {}
+      bufferSource = null;
+    }
+
+    function startBufferSource() {
+      const ctx = audioCtx;
+      if (!ctx || !buffer || !gain) return false;
+      stopBufferSource();
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.playbackRate.value = 1; // hard lock — no tempo/pitch drift
+      const end = Math.min(LOOP_LEN, Math.max(0.5, buffer.duration));
+      src.loopStart = 0;
+      src.loopEnd = end;
+      src.connect(gain);
+      try { src.start(0); }
+      catch (err) {
+        console.warn('[cubicles] ambient BufferSource start failed', err);
+        try { src.disconnect(); } catch {}
+        return false;
+      }
+      bufferSource = src;
+      mode = 'buffer';
+      lockRate();
+      return true;
+    }
+
+    function wireElementSource() {
+      if (elementSrcWired || graphFailed || !graphWired || !gain || !audioCtx) return false;
+      try {
+        const mes = audioCtx.createMediaElementSource(el);
+        mes.connect(gain);
+        elementSrcWired = true;
+        el.volume = 1;
+        lockRate();
+        console.info('[cubicles] ambient MediaElementSource → Gain (element fallback)');
+        return true;
+      } catch (err) {
+        console.warn('[cubicles] MediaElementSource wire failed', err);
+        return false;
       }
     }
 
     function sampleBass() {
       if (!analyser || !freqData) return 0;
-      try {
-        analyser.getByteFrequencyData(freqData);
-      } catch { return 0; }
+      try { analyser.getByteFrequencyData(freqData); }
+      catch { return 0; }
       let sum = 0;
       const n = Math.min(7, freqData.length - 1);
       for (let i = 1; i <= n; i++) sum += freqData[i];
@@ -381,89 +437,64 @@
       return bassSmooth;
     }
 
-    function crossfadeTick() {
-      if (!started) return;
-      const cur = active();
-      const dur = LOOP_LEN;
-      if (!Number.isFinite(cur.duration) || cur.duration < 1) {
-        raf = requestAnimationFrame(crossfadeTick);
-        return;
-      }
-      // Ensure secondary is warming well before seam (phrase-locked loop)
-      if (!bArmed && cur.currentTime > 3.0) armSecondary();
-      const remain = dur - cur.currentTime;
-      if (remain <= XFADE && !arming) {
-        arming = true;
-        armSecondary();
-        const nxt = idle();
-        try {
-          nxt.currentTime = 0;
-          const p = nxt.play();
-          if (p && typeof p.catch === 'function') {
-            p.catch((err) => console.warn('[cubicles] ambient crossfade play failed', err));
-          }
-        } catch (err) {
-          console.warn('[cubicles] ambient crossfade play threw', err);
-        }
-      }
-      if (arming) {
-        const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
-        setLevels(VOL * (1 - t), VOL * t);
-        if (t >= 0.999 || cur.currentTime >= dur || cur.ended || cur.paused) {
-          try { cur.pause(); } catch {}
-          try { cur.currentTime = 0; } catch {}
-          setLevels(0, VOL);
-          usingA = !usingA;
-          arming = false;
-        }
-      } else {
-        setLevels(VOL, 0);
-      }
-      raf = requestAnimationFrame(crossfadeTick);
-    }
-
     function tryWireWhenRunning() {
-      // Never createMediaElementSource while AudioContext is suspended — that mutes
-      // element.volume output. Wire only once ctx is running (gesture resume).
       const ctx = audioCtx || ensureAudioCtx();
-      if (!ctx) return;
-      if (ctx.state !== 'running') return;
-      if (!graphWired && !graphFailed) {
-        try {
-          wireGainGraph();
-          wireAnalyserTap();
-          setLevels(VOL, 0);
-        } catch (err) {
-          console.warn('[cubicles] ambient GainNode wire failed', err);
-        }
-      } else if (graphWired && !analyser) {
-        try { wireAnalyserTap(); } catch {}
-      }
+      if (!ctx || ctx.state !== 'running') return;
+      if (!graphWired && !graphFailed) wireGainAnalyser();
     }
 
-    function markPlaying() {
+    function markPlaying(which) {
       if (started) return;
       started = true;
       playInflight = false;
-      setLevels(VOL, 0);
-      // Keep element.volume path for first audible note. Upgrade to GainNode only if
-      // AudioContext is already running (same-gesture resume); otherwise wait for next tap.
+      if (which) mode = which;
+      lockRate();
+      setGainSmooth(VOL, 0.02);
+      console.info('[cubicles] wormhole ambient playing', '(' + mode + ', rate=1)',
+        buffer ? ('buf=' + buffer.duration.toFixed(3) + 's') : 'buf=pending');
+      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
+    }
+
+    function startOnElement() {
+      mode = 'element';
+      lockRate();
       tryWireWhenRunning();
-      // Defer secondary bed — keep bandwidth for primary first seconds
-      if (!secondaryTimer) {
-        secondaryTimer = setTimeout(() => { armSecondary(); }, 3200);
+      if (graphWired) wireElementSource();
+      setGainSmooth(VOL, 0.02);
+      playInflight = true;
+      el.addEventListener('playing', () => markPlaying('element'), { once: true });
+      let p;
+      try { p = el.play(); }
+      catch (err) {
+        playInflight = false;
+        console.warn('[cubicles] ambient element play threw', err);
+        return;
       }
-      if (!raf) raf = requestAnimationFrame(crossfadeTick);
-      console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)', 'readyState=' + active().readyState);
-      try {
-        window.dispatchEvent(new CustomEvent('cubicles-ambient-playing'));
-      } catch {}
+      if (p && typeof p.then === 'function') {
+        p.then(() => markPlaying('element')).catch((err) => {
+          playInflight = false;
+          console.warn('[cubicles] ambient element play blocked/failed', err);
+        });
+      } else {
+        markPlaying('element');
+      }
+    }
+
+    function startOnBuffer() {
+      tryWireWhenRunning();
+      if (!graphWired || !buffer) return false;
+      if (!startBufferSource()) return false;
+      try { el.pause(); } catch {}
+      lockRate();
+      setGainSmooth(VOL, 0.015);
+      markPlaying('buffer');
+      return true;
     }
 
     const tryPlay = () => {
-      const cur = active();
-      // Always resume on gesture — even if already started (Safari suspend)
       const ctx = resumeCtx();
+      kickDecode();
+      lockRate();
       if (ctx && typeof ctx.addEventListener === 'function') {
         const onState = () => {
           if (ctx.state === 'running') {
@@ -474,63 +505,82 @@
         try { ctx.addEventListener('statechange', onState); } catch {}
       }
       tryWireWhenRunning();
-      if (started && !cur.paused && !arming) return;
-      if (playInflight && !cur.paused) return;
 
-      // CRITICAL: call play() immediately — do NOT wait for canplay / full buffer.
-      // play() bumps media network priority so first bytes beat bark/HDR contention.
-      // First audible uses element.volume; GainNode arms once ctx is running.
-      setLevels(VOL, 0);
-      playInflight = true;
-      let p;
-      try {
-        p = cur.play();
-      } catch (err) {
-        playInflight = false;
-        console.warn('[cubicles] ambient play threw', err);
-        return;
+      // Anti-thrash + no mid-play handoff (staying on the bed that started prevents pitch/crackle)
+      if (started) {
+        if (mode === 'buffer' && bufferSource && ctx && ctx.state === 'running') {
+          lockRate();
+          return;
+        }
+        if (mode === 'element' && !el.paused) {
+          lockRate();
+          return;
+        }
+        // Resume after visibility suspend — same bed, no recreate if possible
+        if (mode === 'buffer' && buffer && graphWired) {
+          if (!bufferSource) startBufferSource();
+          lockRate();
+          setGainSmooth(VOL, 0.03);
+          return;
+        }
+        if (mode === 'element') {
+          playInflight = true;
+          lockRate();
+          const p = el.play();
+          if (p && p.catch) p.catch(() => { playInflight = false; });
+          else playInflight = false;
+          setGainSmooth(VOL, 0.03);
+          return;
+        }
       }
-      // 'playing' fires at first audible frame — faster signal than play() promise on some engines
-      cur.addEventListener('playing', markPlaying, { once: true });
-      if (p && typeof p.then === 'function') {
-        p.then(() => { markPlaying(); }).catch((err) => {
-          playInflight = false;
-          console.warn('[cubicles] ambient play blocked/failed', err);
-        });
-      } else {
-        markPlaying();
+
+      if (playInflight) return;
+
+      // Prefer buffer if already decoded + ctx running (stable single-bed, rate=1)
+      if (buffer && ctx && ctx.state === 'running') {
+        if (startOnBuffer()) return;
       }
+
+      // Sync gesture path: element.play() immediately — stay on element for this session
+      // (no later buffer handoff → no dual-bed drift / pitch dip)
+      startOnElement();
     };
 
+    kickDecode();
+
     window.__wormholeAmbient = {
-      audio: a, audioB: b, tryPlay, vol: VOL,
-      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: XFADE,
+      audio: el, audioB: null, tryPlay, vol: VOL,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
       get started() { return started; },
-      get secondaryArmed() { return bArmed; },
+      get secondaryArmed() { return !!buffer; },
+      get mode() { return mode; },
+      lockRate,
     };
     window.addEventListener('pointerdown', tryPlay, { once: false });
     window.addEventListener('touchstart', tryPlay, { once: false, passive: true });
     window.addEventListener('keydown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        try { a.pause(); b.pause(); } catch {}
-        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        try { el.pause(); } catch {}
         if (audioCtx && audioCtx.state === 'running') {
           try { audioCtx.suspend(); } catch {}
         }
       } else if (started || window.__cubiclesEntered) {
-        arming = false;
         resumeCtx();
+        lockRate();
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (early fetch, play-immediate)', BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's, xfade ' + XFADE + 's, primary-first');
+    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, ambstable1)',
+      BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
 })();
+
+
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -631,14 +681,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall2' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall3' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall2' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall3' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -814,7 +864,23 @@ if (chromeVariant === 2) {
 
 // —— Visible outer box ——
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 });
-const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1a0c28, roughness: 0.55, metalness: 0.35, envMapIntensity: 0.85 });
+const STAR_EQ_URL = './demo-assets/sky/starscape-equirect-4k.jpg?v=starstill1';
+const _starCeilTex = new THREE.TextureLoader().load(STAR_EQ_URL, (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  console.info('[cubicles] grove ceiling starscape ready');
+});
+_starCeilTex.colorSpace = THREE.SRGBColorSpace;
+_starCeilTex.wrapS = THREE.RepeatWrapping;
+_starCeilTex.wrapT = THREE.RepeatWrapping;
+_starCeilTex.repeat.set(1.35, 0.85); // tiled across vault, not one stretched stamp
+_starCeilTex.anisotropy = (renderer.capabilities?.getMaxAnisotropy?.() || 1);
+const ceilMat = new THREE.MeshBasicMaterial({
+  map: _starCeilTex,
+  color: 0xffffff,
+  toneMapped: false,
+  fog: false,
+});
 
 // Swamp water floor — three.js Water addon, slowed + murkier olive/brown
 const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
@@ -1186,120 +1252,64 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
-// Sharp planar −Z mural (NOT sphere / NOT full-dome equirect smear).
-// Widen bandW toward OUTER_W cover (~24×18, ~75% wall). Cover UV crops
-// vertically (repY≈0.55); bias offY to TOP of source so face lands in strip
-// (was *0.28 mid-lower — face off-frame). Not OUTER_W×OUTER_H / not sphere.
+// —— Far/back wall stargazer STILL mural + ceiling starscape (no video) ——
+// Planar −Z portrait still. Ceiling uses starscape-equirect-4k (~0.7MB) tiled on ceilMat.
 (function installStargazingWall() {
   try {
-    const STARGAZER_MP4 = './demo-assets/backwall/stargazing.mp4?v=star2mb';
-    const vid = document.createElement('video');
-    // Poster-first — do NOT set mp4 src until ambient is audible (ambfast2).
-    vid.crossOrigin = 'anonymous';
-    vid.loop = true;
-    vid.muted = true;
-    vid.playsInline = true;
-    vid.setAttribute('playsinline', '');
-    vid.setAttribute('muted', '');
-    vid.preload = 'none';
-    vid.width = 720;
-    vid.height = 974;
-    vid.setAttribute('aria-hidden', 'true');
     const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
       ? renderer.capabilities.getMaxAnisotropy()
       : 1;
-    const tex = new THREE.VideoTexture(vid);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.LinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
-    tex.anisotropy = maxAniso;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    // Wider band toward OUTER_W; H stays mural-tall so cover crop stays moderate.
     const muralW = 24.0;
     const muralH = 18.0;
     const bandAspect = muralW / muralH;
-    const videoAspect = 720 / 974;
+    const muralAspect = 720 / 974;
     let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
-    if (videoAspect > bandAspect) {
-      // Video wider than band → crop left/right (center)
-      repX = bandAspect / videoAspect;
+    if (muralAspect > bandAspect) {
+      repX = bandAspect / muralAspect;
       repY = 1.0;
       offX = (1.0 - repX) * 0.5;
       offY = 0.0;
     } else {
-      // Band wider than portrait → crop top/bottom; pin sample to TOP of source
-      // so woman’s face is in the strip (top-half crop: offY = 1 − repY).
       repX = 1.0;
-      repY = videoAspect / bandAspect;
+      repY = muralAspect / bandAspect;
       offX = 0.0;
       offY = 1.0 - repY;
     }
-    tex.repeat.set(repX, repY);
-    tex.offset.set(offX, offY);
-    const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
-    poster.colorSpace = THREE.SRGBColorSpace;
-    poster.minFilter = THREE.LinearFilter;
-    poster.magFilter = THREE.LinearFilter;
-    poster.generateMipmaps = false;
-    poster.anisotropy = maxAniso;
-    poster.wrapS = THREE.ClampToEdgeWrapping;
-    poster.wrapT = THREE.ClampToEdgeWrapping;
-    poster.repeat.copy(tex.repeat);
-    poster.offset.copy(tex.offset);
+    const still = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-still.jpg?v=starstill1');
+    still.colorSpace = THREE.SRGBColorSpace;
+    still.minFilter = THREE.LinearFilter;
+    still.magFilter = THREE.LinearFilter;
+    still.generateMipmaps = false;
+    still.anisotropy = maxAniso;
+    still.wrapS = THREE.ClampToEdgeWrapping;
+    still.wrapT = THREE.ClampToEdgeWrapping;
+    still.repeat.set(repX, repY);
+    still.offset.set(offX, offY);
     const mat = new THREE.MeshBasicMaterial({
-      map: poster,
+      map: still,
       toneMapped: false,
       side: THREE.FrontSide,
       fog: false,
     });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(muralW, muralH), mat);
-    // Bottom near floor; top may extend past ceiling — framing aspect matters for UV, not room fit.
     mesh.position.set(0, muralH * 0.5 + 0.15, WALL_Z + 0.04);
     mesh.rotation.y = 0;
     mesh.receiveShadow = false;
     mesh.castShadow = false;
     mesh.raycast = () => {};
     scene.add(mesh);
-    const promoteVideoMap = () => {
-      if (vid.readyState < 2) return;
-      mat.map = tex;
-      tex.needsUpdate = true;
-      mat.needsUpdate = true;
-    };
-    vid.addEventListener('loadeddata', promoteVideoMap);
-    vid.addEventListener('playing', promoteVideoMap);
     const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
     rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
     scene.add(rim);
-    const tryPlay = () => {
-      if (!vid.src) return;
-      const p = vid.play();
-      if (p && typeof p.catch === 'function') p.catch(() => {});
-    };
-    let videoStarted = false;
-    const startStargazerVideo = () => {
-      if (videoStarted) { tryPlay(); return; }
-      videoStarted = true;
-      vid.preload = 'auto';
-      vid.src = STARGAZER_MP4;
-      try { vid.load(); } catch {}
-      vid.addEventListener('canplay', tryPlay, { once: true });
-      vid.addEventListener('loadeddata', tryPlay, { once: true });
-      tryPlay();
-      console.info('[cubicles] stargazer mp4 deferred start (after ambient)');
-    };
     window.__stargazingWall = {
-      mesh, vid, tex, muralW, muralH,
-      dome: false, equirect: false, highResBand: true, portraitBand: true,
-      cover: { repX, repY, offX, offY }, videoAspect,
+      mesh, vid: null, tex: still, muralW, muralH,
+      dome: false, equirect: false, highResBand: true, portraitBand: true, stillOnly: true,
+      cover: { repX, repY, offX, offY }, videoAspect: muralAspect,
       anisotropy: maxAniso,
-      start: startStargazerVideo,
+      start: () => {},
     };
     console.info(
-      '[cubicles] stargazing sharp back-wall portrait',
+      '[cubicles] stargazing still back-wall + ceiling starscape (no video)',
       muralW.toFixed(1) + '×' + muralH.toFixed(1),
       'cover', repX.toFixed(3), repY.toFixed(3),
       'offY', offY.toFixed(3),
@@ -1309,6 +1319,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     console.warn('[cubicles] stargazing wall failed', err);
   }
 })();
+
 
 function updateWallpaper(t) {
   if (!wallpaperOk || !wallpaper || reduceMotion) return;
@@ -1800,6 +1811,13 @@ const PANEL_W = Math.min(3.35, CELL_W * 0.62);
 const PANEL_H = Math.min(3.05, CELL_D * 0.66); // kept for beat helpers / legacy refs
 const PANEL_Y = EYE + 0.15;
 
+// armLab / revealLabWhenReady must be module-scoped — updateLazyEmbeds + setInteractTarget
+// call them every frame. Declaring them inside `if (!SKIP_LABS)` made them TDZ/unresolved
+// in ES-module strict mode → ReferenceError → animate dies → beige #cfc8ba void.
+let revealLabWhenReady = function revealLabWhenReady(_panel) {};
+let armLab = function armLab(_panel) {};
+let armFoyerVisibleLabs = function armFoyerVisibleLabs() {};
+
 if (!SKIP_LABS) {
 const liveById = Object.fromEntries(CELLS.filter((c) => LIVE_IDS.has(c.id)).map((c) => [c.id, c]));
 const wallLiveOrder = [
@@ -1870,8 +1888,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
   // Wall-mounted: opaque plate (HDR keeps env; god-rays keeps ink). Not transparent float.
-  iframe.style.background = '#0a0b10';
-  iframe.style.backgroundColor = '#0a0b10';
+  iframe.style.background = '#140818';
+  iframe.style.backgroundColor = '#140818';
   iframe.style.colorScheme = 'dark';
   iframe.style.pointerEvents = 'none';
   iframe.style.borderRadius = '0';
@@ -1891,7 +1909,44 @@ for (let li = 0; li < wallSpecs.length; li++) {
   cssObj.rotation.y = rotY;
   cssScene.add(cssObj);
 
-  const spot = new THREE.PointLight(0xfff6e8, 5.5, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15);
+  // Taxodium bark frame slab around the LIVE plate (glossy purple + orange leaf rim)
+  const frameDepth = 0.42;
+  const frameLip = 0.28;
+  const barkFrameMat = new THREE.MeshPhysicalMaterial({
+    color: 0x2a0c40, roughness: 0.32, metalness: 0.62,
+    emissive: new THREE.Color(0x4a1868), emissiveIntensity: 0.2,
+    clearcoat: 0.55, clearcoatRoughness: 0.18,
+  });
+  const leafRimMat = new THREE.MeshStandardMaterial({
+    color: 0xffb020, roughness: 0.4, metalness: 0.55,
+    emissive: new THREE.Color(0xff8c30), emissiveIntensity: 0.18,
+  });
+  const frameGroup = new THREE.Group();
+  const outerW = WALL_LAB_W + frameLip * 2;
+  const outerH = WALL_LAB_H + frameLip * 2;
+  // Back plate (sits behind iframe) — purple bark, opaque
+  const back = new THREE.Mesh(
+    new THREE.BoxGeometry(outerW, outerH, frameDepth * 0.55),
+    barkFrameMat
+  );
+  back.position.z = -frameDepth * 0.35;
+  frameGroup.add(back);
+  // Rim rails (orange/cream leaf accents)
+  const railT = frameLip * 0.85;
+  const rails = [
+    [outerW, railT, frameDepth, 0, (WALL_LAB_H + frameLip) * 0.5, 0],
+    [outerW, railT, frameDepth, 0, -(WALL_LAB_H + frameLip) * 0.5, 0],
+    [railT, outerH, frameDepth, (WALL_LAB_W + frameLip) * 0.5, 0, 0],
+    [railT, outerH, frameDepth, -(WALL_LAB_W + frameLip) * 0.5, 0, 0],
+  ];
+  for (const [w, h, d, x, y, z] of rails) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), leafRimMat);
+    rail.position.set(x, y, z);
+    frameGroup.add(rail);
+  }
+  group.add(frameGroup);
+
+  const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
   // Pull light slightly into the room from the wall face
   const inNx = spec.side === 'left' ? 1 : -1;
   spot.position.set(cx + inNx * 1.1, wallY + WALL_LAB_H * 0.15, panelZ);
@@ -1899,8 +1954,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
 
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall2');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall2';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall3');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall3';
 
   hung.push({
     meta, col: spec.side === 'left' ? 0 : COLS - 1, row: 1,
@@ -1911,7 +1966,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
       minZ: panelZ - WALL_LAB_W * 0.5,
       maxZ: panelZ + WALL_LAB_W * 0.5,
     },
-    group, frame: null, ghost: null, hit, cssObj, iframe, spot,
+    group, frame: frameGroup, ghost: null, hit, cssObj, iframe, spot,
     embedArmed: false,
     canInteract: false,
     embedUrl,
@@ -1930,7 +1985,7 @@ window.__hungLabs = hung;
 window.__floatingLabsSketch = false;
 window.__wallLiveLabs = true;
 /** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
-function revealLabWhenReady(panel) {
+revealLabWhenReady = function revealLabWhenReady(panel) {
   if (!panel || panel._revealWatch) return;
   panel._revealWatch = true;
   let tries = 0;
@@ -1952,7 +2007,7 @@ function revealLabWhenReady(panel) {
   requestAnimationFrame(tick);
 }
 
-function armLab(panel) {
+armLab = function armLab(panel) {
   if (!panel) return;
   if (!panel.embedArmed) {
     panel.iframe.src = panel.embedUrl;
@@ -1964,7 +2019,7 @@ function armLab(panel) {
 }
 
 /** Pre-arm both side-wall labs (MAX_ARMED=2). */
-function armFoyerVisibleLabs() {
+armFoyerVisibleLabs = function armFoyerVisibleLabs() {
   let n = 0;
   for (const h of hung) {
     if (n >= MAX_ARMED) break;
@@ -3069,8 +3124,8 @@ function updateLazyEmbeds() {
   for (const h of hung) {
     const want = armSet.has(h);
     if (want && !h.embedArmed) {
-      armLab(h);
-    } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
+      try { armLab(h); } catch (e) { console.warn('[cubicles] armLab', e); }
+    } else if (!want && h.embedArmed && !h.wallMounted && !panelPointerLock && h !== hoverPanel) {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;

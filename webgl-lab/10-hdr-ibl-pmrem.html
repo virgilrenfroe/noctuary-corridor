@@ -19,8 +19,10 @@ body.embed .hud{display:none!important} body.embed .error{display:none!important
 /* Float embed: transparent. Wall embed (?wall=1): keep opaque env/dark stage. */
 html.embed:not(.wall),body.embed:not(.wall){background:transparent!important}
 body.embed:not(.wall) canvas{background:transparent!important;background-color:transparent!important}
-html.embed.wall,body.embed.wall{background:var(--ink)!important}
-body.embed.wall canvas{background:var(--ink)!important;background-color:var(--ink)!important}
+/* Wall: Taxodium purple bark stage — never Venice-sunset beige plate. */
+html.embed.wall,body.embed.wall{background:#140818!important}
+body.embed.wall canvas{background:#140818!important;background-color:#140818!important}
+body.embed.wall{--ink:#140818;--paper:#ffe8c8;--mute:rgba(255,200,140,.55);--accent:#ff9a28;--line:rgba(200,120,255,.22)}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
@@ -112,15 +114,44 @@ if (__embed) {
   controls.update();
 }
 
+// Wall mode: Taxodium palette — glossy purple bark + orange/cream leaf metals.
+// Keep HDR for reflections only; NEVER use Venice Sunset as the visible plate (beige SaaS).
+if (__wall) {
+  renderer.setClearColor(0x140818, 1);
+  scene.background = new THREE.Color(0x140818);
+  mats.chrome.color.setHex(0xe8eef6);
+  mats.chrome.roughness = 0.06;
+  mats.gold.color.setHex(0xffb020); // orange leaf
+  mats.gold.roughness = 0.22;
+  mats.dielectric.color.setHex(0x8a40c8); // purple bark glass
+  mats.dielectric.metalness = 0.15;
+  mats.dielectric.roughness = 0.18;
+  scene.add(new THREE.AmbientLight(0x8030a8, 0.35));
+  scene.add(new THREE.DirectionalLight(0xffc060, 1.2).translateX(2).translateY(3).translateZ(2));
+  scene.add(new THREE.PointLight(0xff8c30, 14, 8).translateX(-1.2).translateY(0.6).translateZ(1.5));
+}
 new RGBELoader().load(
   'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
   (tex) => {
     const env = pmrem.fromEquirectangular(tex).texture;
-    scene.environment = env; scene.background = env; __floatClearBg(); scene.backgroundBlurriness = 0.05;
+    scene.environment = env;
+    if (__wall) {
+      // Reflections only — opaque Taxodium purple plate, not beige sunset wash
+      scene.background = new THREE.Color(0x140818);
+      scene.backgroundBlurriness = 0;
+      renderer.toneMappingExposure = 1.15;
+    } else {
+      scene.background = env;
+      __floatClearBg();
+      scene.backgroundBlurriness = 0.05;
+    }
     tex.dispose(); pmrem.dispose();
   },
   undefined,
-  (e) => { err.style.display='block'; err.textContent='HDR load failed: '+e; }
+  (e) => {
+    if (err) { err.style.display='block'; err.textContent='HDR load failed: '+e; }
+    if (__wall) scene.background = new THREE.Color(0x140818);
+  }
 );
 
 onResize(camera, renderer);

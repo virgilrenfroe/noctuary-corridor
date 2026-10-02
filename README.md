@@ -7,8 +7,8 @@ Live: https://virgilrenfroe.github.io/noctuary-corridor/
 Direct hall (no unlock): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-samuclima-beyond.html
 
 Physics room (dedicated wing): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-physics-room.html
-Technique cubicles (LIVE×2 side-wall: left HDR chrome · right god-rays · opaque · Taxodium/stargazer/ambient/water beat): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles.html?v=wall2
-Technique cubicles capture (LIVE×2 side-wall wall2 · box grove): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles-fulldome-grove.html?v=wall2
+Technique cubicles (LIVE×2 side-wall Taxodium · still ceiling starscape · ambient rate=1 ambstable1): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles.html?v=wall3
+Technique cubicles capture (wall3 · still starscape ceiling · box grove): https://virgilrenfroe.github.io/noctuary-corridor/spatial-drill-technique-cubicles-fulldome-grove.html?v=wall3
 
 Env bake (not hung panels): physics room = HDR IBL/PMREM + SSAO + soft/contact shadows + transmission glass orb; night hall physics door = stencil/glass portal aperture.
 
