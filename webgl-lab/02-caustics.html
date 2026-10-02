@@ -117,8 +117,8 @@ const __embedC = document.body.classList.contains('embed');
 const glass = new THREE.Mesh(
   new THREE.IcosahedronGeometry(0.55, 2),
   new THREE.MeshPhysicalMaterial(__embedC
-    ? { color:0xb8e8ff, roughness:0.08, metalness:0, ior:1.45, transparent:true, opacity:0.55, depthWrite:false, thickness:1.5, envMapIntensity:1.4, clearcoat:1, clearcoatRoughness:0.06 }
-    : { color:0xb8e8ff, transmission:0.92, thickness:1.5, roughness:0.08, metalness:0, ior:1.45, transparent:true })
+    ? { color:0x2f7cf6, roughness:0.12, metalness:0.05, ior:1.45, transparent:true, opacity:0.82, depthWrite:false, thickness:1.5, envMapIntensity:1.1, clearcoat:0.85, clearcoatRoughness:0.08, emissive:0x0a2a80, emissiveIntensity:0.28 }
+    : { color:0x3a8cff, transmission:0.88, thickness:1.5, roughness:0.08, metalness:0, ior:1.45, transparent:true })
 );
 glass.position.y = 0.85; glass.castShadow = true; scene.add(glass);
 

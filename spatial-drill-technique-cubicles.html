@@ -12,6 +12,7 @@
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -351,14 +352,14 @@ if (wantAisle) {
 
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=float3' },
-  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=float3' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=fix5' },
   { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=float3' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=float3' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=float3' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=float3' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=float3' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=float3' },
-  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=float3' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=fix5' },
   { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=float4' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=float3' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=float3' },
@@ -368,8 +369,8 @@ const CELLS = [
   { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=float3' },
   { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=float3' },
   { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=float3' },
-  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=float3' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float4' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=fix5' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=fix5' },
 ];
 
 const stage = document.getElementById('stage');
@@ -1325,11 +1326,12 @@ for (let i = 0; i < CELLS.length; i++) {
   // No wooden frame, ghost plate, or floor contact disk — only the lab iframe floats.
   // Invisible hit plane for raycasting / click (does not draw).
 
+  // Slightly oversized vs visual so beat-pulse / CSS3D projection drift still hits.
   const hit = new THREE.Mesh(
-    new THREE.PlaneGeometry(PANEL_W, PANEL_H),
+    new THREE.PlaneGeometry(PANEL_W * 1.14, PANEL_H * 1.14),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })
   );
-  hit.position.z = 0.04;
+  hit.position.z = 0.02; // match cssObj z so scale/bob stay aligned
   hit.userData.cellIndex = i;
   hit.userData.clickable = true;
   group.add(hit);
@@ -2259,6 +2261,25 @@ function hungPickMeshes() {
   return meshes;
 }
 
+/** CSS3D iframe screen AABB — matches what the user sees (beat pulse / projection). */
+function panelFromDomPoint(clientX, clientY, maxDistScale) {
+  const scale = maxDistScale == null ? 1.35 : maxDistScale;
+  let best = null;
+  let bestArea = Infinity;
+  for (const h of hung) {
+    if (!h.iframe || !h.embedArmed) continue;
+    if (h.iframe.style.opacity === '0') continue;
+    const r = h.iframe.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) continue;
+    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
+    if (panelDist(h) > interactDistFor(h) * scale) continue;
+    const area = r.width * r.height;
+    // Prefer smaller AABB when panels overlap on screen (nearer / more face-on).
+    if (area < bestArea) { best = h; bestArea = area; }
+  }
+  return best;
+}
+
 function facingPanelWithin(maxDistScale) {
   raycaster.setFromCamera(centerNDC, camera);
   const hits = raycaster.intersectObjects(hungPickMeshes(), false);
@@ -2282,6 +2303,9 @@ function raycastPanels(e) {
 }
 
 function panelUnderPointer(e) {
+  // DOM AABB first — CSS3D/beat-pulse stay in sync with the painted iframe.
+  const fromDom = panelFromDomPoint(e.clientX, e.clientY, 1.35);
+  if (fromDom) return fromDom;
   eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
   const hits = raycaster.intersectObjects(hungPickMeshes(), false);
@@ -2377,6 +2401,12 @@ function updateLazyEmbeds() {
       el.volume = VOL; // element path fallback before/without Web Audio graph
       el.setAttribute('playsinline', '');
       // Same-origin asset; skip crossOrigin so decode into MediaElementSource is reliable
+      try { el.load(); } catch {}
+    }
+    // Warm buffer ASAP so Enter/tap can start without a long stall
+    a.addEventListener('error', () => console.warn('[cubicles] ambient media error', a.error), { once: true });
+    if (a.readyState < 2) {
+      a.addEventListener('canplay', () => console.info('[cubicles] ambient canplay'), { once: true });
     }
     let usingA = true;
     let started = false;
@@ -2407,7 +2437,7 @@ function updateLazyEmbeds() {
       }
     }
 
-    function wireAnalyser() {
+    function wireGainGraph() {
       if (graphWired || graphFailed) return;
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { graphFailed = true; return; }
@@ -2417,10 +2447,11 @@ function updateLazyEmbeds() {
         const srcB = audioCtx.createMediaElementSource(b);
         gainA = audioCtx.createGain();
         gainB = audioCtx.createGain();
-        gainA.gain.value = 0;
+        // Start audible immediately — setLevels runs right after wire in tryPlay
+        gainA.gain.value = VOL;
         gainB.gain.value = 0;
         // Speakers first: MediaElementSource steals element output, so Gain → destination
-        // must always exist. Analyser is an optional tap for beat labs.
+        // must always exist. Analyser is an optional non-blocking tap for beat labs.
         srcA.connect(gainA);
         srcB.connect(gainB);
         gainA.connect(audioCtx.destination);
@@ -2428,21 +2459,7 @@ function updateLazyEmbeds() {
         graphWired = true;
         a.volume = 1;
         b.volume = 1;
-        try {
-          analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 256;
-          analyser.smoothingTimeConstant = 0.72;
-          analyser.minDecibels = -90;
-          analyser.maxDecibels = -28;
-          gainA.connect(analyser);
-          gainB.connect(analyser);
-          freqData = new Uint8Array(analyser.frequencyBinCount);
-          console.info('[cubicles] ambient GainNode+Analyser wired (bass → floating labs)');
-        } catch (errA) {
-          console.warn('[cubicles] AnalyserNode tap failed — audio still plays via GainNode', errA);
-          analyser = null;
-          freqData = null;
-        }
+        console.info('[cubicles] ambient GainNode wired (speakers)');
       } catch (err) {
         console.warn('[cubicles] Web Audio wire failed — using element.volume path', err);
         graphFailed = true;
@@ -2450,8 +2467,25 @@ function updateLazyEmbeds() {
         freqData = null;
         gainA = null;
         gainB = null;
-        // Element path only works if createMediaElementSource never ran; if it did,
-        // playback may stay silent — warn so Enter/pointer retry is visible in console.
+      }
+    }
+
+    function wireAnalyserTap() {
+      if (!graphWired || analyser || !audioCtx) return;
+      try {
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.72;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -28;
+        gainA.connect(analyser);
+        gainB.connect(analyser);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        console.info('[cubicles] ambient Analyser tap ready (bass → floating labs)');
+      } catch (errA) {
+        console.warn('[cubicles] AnalyserNode tap failed — audio still plays via GainNode', errA);
+        analyser = null;
+        freqData = null;
       }
     }
 
@@ -2524,35 +2558,32 @@ function updateLazyEmbeds() {
         }
         return;
       }
-      wireAnalyser();
-      const resumeP = (audioCtx && audioCtx.state === 'suspended')
-        ? audioCtx.resume().catch((err) => {
-            console.warn('[cubicles] AudioContext resume failed', err);
-          })
-        : Promise.resolve();
-      const kick = () => {
+      // Speakers only first — never block play on Analyser / resume awaiting.
+      wireGainGraph();
+      setLevels(VOL, 0);
+      let p;
+      try {
+        p = cur.play();
+      } catch (err) {
+        console.warn('[cubicles] ambient play threw', err);
+        return;
+      }
+      const mark = () => {
+        started = true;
         setLevels(VOL, 0);
-        let p;
-        try {
-          p = cur.play();
-        } catch (err) {
-          console.warn('[cubicles] ambient play threw', err);
-          return;
-        }
-        const mark = () => {
-          started = true;
-          setLevels(VOL, 0);
-          if (!raf) raf = requestAnimationFrame(crossfadeTick);
-          console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)');
-        };
-        if (p && typeof p.then === 'function') {
-          p.then(mark).catch((err) => console.warn('[cubicles] ambient play blocked/failed', err));
-        } else {
-          mark();
-        }
+        if (!raf) raf = requestAnimationFrame(crossfadeTick);
+        console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)');
       };
-      if (resumeP && typeof resumeP.then === 'function') resumeP.then(kick);
-      else kick();
+      if (p && typeof p.then === 'function') {
+        p.then(mark).catch((err) => console.warn('[cubicles] ambient play blocked/failed', err));
+      } else {
+        mark();
+      }
+      // Parallel: unlock AudioContext + attach bass tap (must not gate start)
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
+      }
+      try { wireAnalyserTap(); } catch {}
     };
 
     window.__wormholeAmbient = {
@@ -2592,10 +2623,10 @@ function updateBeatLabs(t) {
     // Rest pose when no audio graph yet
     for (const h of hung) {
       if (h._beatApplied) {
-        h.group.position.y = h.baseY;
+        h.group.position.set(h.cx, h.baseY, h.panelZ);
         h.group.rotation.y = 0;
         h.group.scale.set(1, 1, 1);
-        h.cssObj.position.y = h.baseY;
+        h.cssObj.position.set(h.cx, h.baseY, h.panelZ + 0.02);
         h.cssObj.rotation.y = 0;
         h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
         if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55;
@@ -2615,10 +2646,14 @@ function updateBeatLabs(t) {
     const bob = local * AMP_Y * (0.85 + 0.15 * Math.sin(t * 2.3 + ph * 1.3));
     const yawOff = local * AMP_YAW * Math.sin(t * 1.1 + ph);
     const s = 1 + local * AMP_SCALE;
-    h.group.position.y = h.baseY + bob;
+    // Keep hit-plane group and CSS3D iframe on the same center (panelZ+0.02)
+    // so raycast / DOM AABB stay under the painted lab during the pulse.
+    const y = h.baseY + bob;
+    const z = h.panelZ + 0.02;
+    h.group.position.set(h.cx, y, h.panelZ);
     h.group.rotation.y = yawOff;
     h.group.scale.set(s, s, s);
-    h.cssObj.position.y = h.baseY + bob;
+    h.cssObj.position.set(h.cx, y, z);
     h.cssObj.rotation.y = yawOff;
     const cs = h.cssBaseScale * s;
     h.cssObj.scale.set(cs, cs, cs);

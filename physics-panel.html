@@ -212,6 +212,10 @@ if (embed && (demo === 'cloth' || demo === 'particles')) {
   camera.fov = demo === 'particles' ? 34 : 38;
   camera.position.set(0, demo === 'cloth' ? 1.45 : 1.5, demo === 'cloth' ? 4.4 : 5.8);
   camera.lookAt(0, demo === 'cloth' ? 1.35 : 1.45, 0);
+} else if (embed && demo === 'constraints') {
+  camera.fov = 36;
+  camera.position.set(0.35, 1.55, 4.6);
+  camera.lookAt(0.55, 1.45, 0);
 } else {
   camera.position.set(0, 1.55, 5.2);
   camera.lookAt(0, 0.9, 0);
@@ -607,11 +611,14 @@ function buildConstraints() {
   const anchorBody = new CANNON.Body({ mass: 0, position: new CANNON.Vec3(1.2, 2.35, 0) });
   world.addBody(anchorBody);
 
-  const lampMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 16), makeMat(ACCENT, {
-    roughness: 0.25, emissive: ACCENT, emissiveIntensity: 0.35,
+  // Vivid blue bob — prior ACCENT+hot PointLight washed the sphere to pale white under embed lights.
+  const CONSTRAINT_BLUE = 0x2f7cf6;
+  const lampMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 16), makeMat(CONSTRAINT_BLUE, {
+    roughness: 0.34, metalness: 0.1,
+    emissive: 0x1a4fd0, emissiveIntensity: embed ? 0.62 : 0.45,
   }));
   scene.add(lampMesh);
-  const lampLight = new THREE.PointLight(ACCENT, 10, 8);
+  const lampLight = new THREE.PointLight(0x5a9bff, embed ? 4.5 : 6.5, 7);
   lampMesh.add(lampLight);
 
   const lampBody = new CANNON.Body({
