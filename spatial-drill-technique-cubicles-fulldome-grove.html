@@ -2671,56 +2671,81 @@ function placeBaldCypresses() {
     inst: kneeInst,
     bases: kneeBases,
     dummy: new THREE.Object3D(),
-    faces: hillbillyKnees(kneeBases, kneeInst),
+    faces: hillbillyKnees(kneeBases),
   };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return n;
 }
 
 
-function hillbillyKnees(bases, inst) {
+function hillbillyCanvas(i) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 384;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 256, 384);
+  const skins = ['#e7c39a','#c4926a','#a87556','#f0d2ae','#8d5a3c','#d7a574','#f3dcc0','#6b4632'];
+  const cloth = ['#2f4d86','#6b3a1f','#245c3a','#8a4b22','#3d4a63','#5a3424','#16325c','#4e5a3a'];
+  const hats = ['#e6d2a2','#8d6b4a','#f4ead0','#5c4638','#c4a574','#2a2724','#b08968','#f7f1e4'];
+  g.fillStyle = cloth[i % 8];
+  g.beginPath();
+  g.moveTo(58, 250); g.lineTo(198, 250); g.lineTo(214, 372); g.lineTo(42, 372); g.closePath();
+  g.fill();
+  g.fillStyle = '#1a120c';
+  g.fillRect(118, 248, 18, 124);
+  // arms out of the dome
+  g.strokeStyle = skins[i % 8];
+  g.lineWidth = 16;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(70, 270); g.lineTo(28 + (i % 3) * 8, 210 - (i % 4) * 10);
+  g.moveTo(186, 270); g.lineTo(228 - (i % 3) * 8, 200 - ((i + 1) % 4) * 8);
+  g.stroke();
+  g.fillStyle = skins[i % 8];
+  g.beginPath(); g.ellipse(128, 168, 58, 70, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = hats[i % 8];
+  g.fillRect(62, 78, 132, 36);
+  g.beginPath(); g.ellipse(128, 112, 96, 18, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#14110e';
+  const eyeY = 158 + (i % 3) * 4;
+  g.beginPath();
+  g.arc(104, eyeY, 6, 0, Math.PI * 2);
+  g.arc(152, eyeY, 6, 0, Math.PI * 2);
+  g.fill();
+  if (i % 2 === 0) {
+    g.fillStyle = '#3a2a22';
+    g.beginPath(); g.ellipse(128, 198, 34, 26 + (i % 4) * 4, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.strokeStyle = '#14110e'; g.lineWidth = 4;
+  g.beginPath(); g.arc(128, 186, 12 + (i % 3) * 3, 0.15, Math.PI - 0.15); g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+function hillbillyKnees(bases) {
   const faces = [];
   if (!bases.length) return faces;
-  const loader = new THREE.TextureLoader();
-  const mats = [];
-  for (let i = 0; i < 6; i++) {
-    const map = loader.load('./demo-assets/knees/bust-' + i + '.png?v=bustdome1');
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = 8;
-    mats.push(new THREE.MeshPhysicalMaterial({
-      map,
-      roughness: 0.42,
-      metalness: 0.08,
-      clearcoat: 0.35,
-      clearcoatRoughness: 0.28,
-      envMapIntensity: 0.55,
-    }));
-  }
-  // Cap only: texture center (u=0.5) lands on local +X, the face of the dome.
-  const geo = new THREE.SphereGeometry(0.92, 32, 20, 0, Math.PI * 2, 0.12, Math.PI * 0.62);
-  const dummy = new THREE.Object3D();
-  let f = 0;
-  for (let i = 0; i < bases.length; i += 3) {
+  const geo = new THREE.PlaneGeometry(0.95, 1.55);
+  for (let i = 0; i < bases.length; i++) {
     const b = bases[i];
-    const mesh = new THREE.Mesh(geo, mats[f % mats.length]);
+    const mat = new THREE.MeshBasicMaterial({
+      map: hillbillyCanvas(i),
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
     const g = new THREE.Group();
+    mesh.position.y = 0.78;
     g.add(mesh);
-    const y0 = 0.02 - 0.22;
-    g.position.set(b.px, y0, b.pz);
-    g.rotation.y = Math.atan2(b.pz, -b.px);
+    g.position.set(b.px, b.py + b.sy * 0.85, b.pz);
+    g.rotation.y = Math.atan2(-b.px, -b.pz);
     g.raycast = () => {};
     mesh.raycast = () => {};
     cypressGroup.add(g);
-    faces.push({ mesh: g, base: b, y0 });
-    dummy.position.set(b.px, b.py, b.pz);
-    dummy.rotation.set(b.rx, b.ry, b.rz);
-    dummy.scale.set(0.001, 0.001, 0.001);
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
-    f++;
+    faces.push({ mesh: g, base: b, y0: g.position.y });
   }
-  inst.instanceMatrix.needsUpdate = true;
-  console.info('[cubicles] hillbilly dome busts', faces.length);
+  console.info('[cubicles] hillbilly knees', faces.length);
   return faces;
 }
 
