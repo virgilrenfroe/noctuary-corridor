@@ -1331,6 +1331,10 @@ for (let i = 0; i < CELLS.length; i++) {
     embedArmed: false,
     canInteract: false,
     embedUrl: meta.src,
+    // Rest pose for beat-reactive float (AnalyserNode → scale/bob/yaw)
+    cssBaseScale: scale,
+    baseY: PANEL_Y,
+    beatPhase: i * 1.618 + col * 0.37 + row * 0.21,
   });
 }
 window.__hungLabs = hung;
@@ -2311,6 +2315,7 @@ function updateLazyEmbeds() {
 
 
 // —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
+// Web Audio AnalyserNode on the bed drives subtle bass-reactive CSS3D lab motion.
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3';
@@ -2323,14 +2328,70 @@ function updateLazyEmbeds() {
       el.loop = false; // crossfade handles looping — avoids MP3 gap click
       el.volume = 0;
       el.setAttribute('playsinline', '');
+      try { el.crossOrigin = 'anonymous'; } catch {}
     }
     let usingA = true;
     let started = false;
     let raf = 0;
     let arming = false;
+    let audioCtx = null;
+    let analyser = null;
+    let freqData = null;
+    let graphWired = false;
+    let graphFailed = false;
+    let bassSmooth = 0;
 
     const active = () => (usingA ? a : b);
     const idle = () => (usingA ? b : a);
+
+    function wireAnalyser() {
+      if (graphWired || graphFailed) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { graphFailed = true; return; }
+      try {
+        audioCtx = audioCtx || new AC();
+        const srcA = audioCtx.createMediaElementSource(a);
+        const srcB = audioCtx.createMediaElementSource(b);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.72;
+        analyser.minDecibels = -90;
+        analyser.maxDecibels = -28;
+        srcA.connect(analyser);
+        srcB.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        graphWired = true;
+        console.info('[cubicles] ambient AnalyserNode wired (bass → floating labs)');
+      } catch (err) {
+        console.warn('[cubicles] AnalyserNode wire failed', err);
+        graphFailed = true;
+        analyser = null;
+        freqData = null;
+      }
+    }
+
+    function sampleBass() {
+      if (!analyser || !freqData) return 0;
+      try {
+        analyser.getByteFrequencyData(freqData);
+      } catch { return 0; }
+      // Low bins ≈ sub/bass (~86–500 Hz @ 44.1 kHz, fft 256)
+      let sum = 0;
+      const n = Math.min(7, freqData.length - 1);
+      for (let i = 1; i <= n; i++) sum += freqData[i];
+      const avg = sum / n / 255;
+      // Soft knee so quiet beds still nudge, loud peaks don't slam
+      return Math.min(1, Math.pow(avg, 0.85) * 1.15);
+    }
+
+    function getBass() {
+      const raw = sampleBass();
+      // Fast attack / slower release — reads as beat without jitter
+      const k = raw > bassSmooth ? 0.38 : 0.09;
+      bassSmooth += (raw - bassSmooth) * k;
+      return bassSmooth;
+    }
 
     function crossfadeTick() {
       if (!started) return;
@@ -2370,7 +2431,16 @@ function updateLazyEmbeds() {
 
     const tryPlay = () => {
       const cur = active();
-      if (started && !cur.paused && !arming) return;
+      if (started && !cur.paused && !arming) {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { audioCtx.resume(); } catch {}
+        }
+        return;
+      }
+      wireAnalyser();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { audioCtx.resume(); } catch {}
+      }
       const p = cur.play();
       const mark = () => {
         started = true;
@@ -2384,22 +2454,75 @@ function updateLazyEmbeds() {
       }
     };
 
-    window.__wormholeAmbient = { audio: a, audioB: b, tryPlay, vol: VOL };
+    window.__wormholeAmbient = {
+      audio: a, audioB: b, tryPlay, vol: VOL,
+      getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
+    };
     window.addEventListener('pointerdown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         try { a.pause(); b.pause(); } catch {}
         if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        if (audioCtx && audioCtx.state === 'running') {
+          try { audioCtx.suspend(); } catch {}
+        }
       } else if (started || window.__cubiclesEntered) {
         arming = false;
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { audioCtx.resume(); } catch {}
+        }
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (dual crossfade)', XFADE + 's');
+    console.info('[cubicles] wormhole ambient ready (dual crossfade + analyser)', XFADE + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
 })();
+
+/** Subtle bass-reactive scale / bob / yaw on floating CSS3D labs — small amplitude. */
+function updateBeatLabs(t) {
+  if (reduceMotion) return;
+  const bed = window.__wormholeAmbient;
+  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
+  if (bass < 0.002 && !bed?.analyser) {
+    // Rest pose when no audio graph yet
+    for (const h of hung) {
+      if (h._beatApplied) {
+        h.group.position.y = h.baseY;
+        h.group.rotation.y = 0;
+        h.group.scale.set(1, 1, 1);
+        h.cssObj.position.y = h.baseY;
+        h.cssObj.rotation.y = 0;
+        h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
+        if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55;
+        h._beatApplied = false;
+      }
+    }
+    return;
+  }
+  // Elegant caps — never fight walk/look
+  const AMP_Y = 0.055;      // ~5.5 cm bob
+  const AMP_SCALE = 0.022;  // ±2.2% scale
+  const AMP_YAW = 0.018;    // ~1° yaw
+  for (const h of hung) {
+    const ph = h.beatPhase || 0;
+    // Staggered micro-phase so the field breathes, not marches in lockstep
+    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
+    const bob = local * AMP_Y * (0.85 + 0.15 * Math.sin(t * 2.3 + ph * 1.3));
+    const yawOff = local * AMP_YAW * Math.sin(t * 1.1 + ph);
+    const s = 1 + local * AMP_SCALE;
+    h.group.position.y = h.baseY + bob;
+    h.group.rotation.y = yawOff;
+    h.group.scale.set(s, s, s);
+    h.cssObj.position.y = h.baseY + bob;
+    h.cssObj.rotation.y = yawOff;
+    const cs = h.cssBaseScale * s;
+    h.cssObj.scale.set(cs, cs, cs);
+    if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55 + bob * 0.6;
+    h._beatApplied = true;
+  }
+}
 
 // —— Controls ——
 const move = { f: false, b: false, l: false, r: false };
@@ -2937,6 +3060,7 @@ function frame() {
     }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
+    updateBeatLabs(_tSpark);
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
