@@ -45,8 +45,7 @@
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
   }
-  /* Opaque WebGL covers the CSS3D layer (that layer is the dblclick hit target only).
-     The visible mural is a wall mesh textured from the live iframe. */
+  /* Opaque WebGL covers the CSS3D hit target. The mural is the wall mesh. */
   #stage > canvas { z-index: 2; pointer-events: none; }
   #stage > div { z-index: 1; }
   .veil {
@@ -687,14 +686,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wallpaint1' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wallshow1' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wallpaint1' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wallshow1' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -1208,7 +1207,7 @@ function addOuterWall(w, h, x, y, z, rotY) {
 // ±X only — far (−Z) stays open for stargazer dome + wallpaper; near (+Z) foyer open.
 addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
 addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
-console.info('[cubicles] ±X outer wall planes for flush LIVE (wallpaint1)');
+console.info('[cubicles] ±X outer wall planes for flush LIVE (wallshow1)');
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -2021,27 +2020,41 @@ function updateWallLiveTextures() {
       if (!src || src.width < 2) continue;
       h._liveCanvas = src;
     }
-    // Copy into a 2D canvas. A 2×2 CanvasTexture resized onto the iframe's
-    // WebGL canvas uploads with texSubImage and stays blank (GL_INVALID_VALUE).
-    if (!h._liveCopy || h._liveCopy.width !== src.width || h._liveCopy.height !== src.height) {
+    // CanvasTexture of the iframe's WebGL canvas uploads blank. Read pixels
+    // into a DataTexture the wall mesh can actually show.
+    const dw = 768;
+    const dh = Math.max(2, Math.round(dw * src.height / src.width));
+    if (!h._liveCopy || h._liveCopy.width !== dw || h._liveCopy.height !== dh) {
       const copy = document.createElement('canvas');
-      copy.width = src.width;
-      copy.height = src.height;
+      copy.width = dw;
+      copy.height = dh;
       h._liveCopy = copy;
-      const tex = new THREE.CanvasTexture(copy);
+    }
+    const ctx = h._liveCopy.getContext('2d', { willReadFrequently: true });
+    try { ctx.drawImage(src, 0, 0, dw, dh); }
+    catch (e) { continue; }
+    let pixels;
+    try { pixels = ctx.getImageData(0, 0, dw, dh).data; }
+    catch (e) { continue; }
+    let lit = 0;
+    for (let i = 0; i < pixels.length; i += 64) lit += pixels[i] + pixels[i + 1] + pixels[i + 2];
+    if (lit < 8) continue;
+    if (!h.liveTex || !h.liveTex.isDataTexture || h.liveTex.image.width !== dw || h.liveTex.image.height !== dh) {
+      const tex = new THREE.DataTexture(new Uint8Array(pixels), dw, dh, THREE.RGBAFormat);
       tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = true;
       tex.minFilter = THREE.LinearFilter;
       tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
+      tex.needsUpdate = true;
       if (h.liveTex) h.liveTex.dispose();
       h.liveTex = tex;
       h.liveMat.map = tex;
       h.liveMat.needsUpdate = true;
+    } else {
+      h.liveTex.image.data.set(pixels);
+      h.liveTex.needsUpdate = true;
     }
-    const ctx = h._liveCopy.getContext('2d', { alpha: false });
-    try { ctx.drawImage(src, 0, 0, h._liveCopy.width, h._liveCopy.height); }
-    catch (e) { continue; }
-    h.liveTex.needsUpdate = true;
   }
 }
 
@@ -2109,8 +2122,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const scale = WALL_LAB_W / cssW;
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wallpaint1');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wallpaint1';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wallshow1');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wallshow1';
   if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
 
   // matrix3d on the <iframe> itself is flattened by the browser (exact ±90° wall
@@ -4135,7 +4148,7 @@ function frame() {
   }
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
-    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (wallpaint1)
+    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (wallshow1)
     const _bed = window.__wormholeAmbient;
     const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
     updateBeatKneesWater(_tSpark, dt, _bass);
