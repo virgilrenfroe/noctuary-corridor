@@ -257,7 +257,6 @@
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { Water } from 'three/addons/objects/Water.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
@@ -869,18 +868,25 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.clickable = true;
 }
 
-// —— GLTF bald cypresses in cell aisles / divider lines (not on panel faces) ——
-// Model: demo-assets/cypress/cypress.glb (OpenGameArt / David W CG, CC-BY 4.0)
+// —— Bald cypresses in cell aisles / divider lines (not on panel faces) ——
+// Prefer GLTF (demo-assets/cypress/cypress.glb, OpenGameArt / David W CG, CC-BY 4.0).
+// GLTFLoader is dynamic-imported so a missing vendor file or 404 GLB never blocks WebGL boot.
 const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
 
-/** Shared knee / moss materials (cheap extras around the loaded trunk). */
+/** Shared knee / moss materials (cheap extras around trunks). */
 const cypressKneeMat = new THREE.MeshStandardMaterial({
   color: 0x3a2e22, roughness: 0.94, metalness: 0.02,
 });
 const cypressMossMat = new THREE.MeshStandardMaterial({
   color: 0x6a7a58, roughness: 1, metalness: 0, transparent: true, opacity: 0.68, depthWrite: false,
+});
+const cypressTrunkMat = new THREE.MeshStandardMaterial({
+  color: 0x3a2e22, roughness: 0.92, metalness: 0.02,
+});
+const cypressFoliageMat = new THREE.MeshStandardMaterial({
+  color: 0x1e3a22, roughness: 0.88, metalness: 0.0,
 });
 const kneeGeo = new THREE.CylinderGeometry(0.04, 0.07, 0.28, 5);
 const mossGeo = new THREE.CylinderGeometry(0.01, 0.005, 1, 4);
@@ -920,6 +926,55 @@ function addKneesAndMoss(parent, height, seed) {
   }
 }
 
+/** Procedural cone-stack cypress — used if GLTFLoader or cypress.glb fails. */
+function makeProceduralCypress(height) {
+  const g = new THREE.Group();
+  const trunkH = height * 0.7;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.11, trunkH, 6),
+    cypressTrunkMat
+  );
+  trunk.position.y = trunkH * 0.5;
+  trunk.castShadow = !mobileLike;
+  trunk.receiveShadow = true;
+  g.add(trunk);
+  const knee = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.18, 0.22, 6),
+    cypressTrunkMat
+  );
+  knee.position.y = 0.1;
+  g.add(knee);
+  const layers = 3;
+  for (let L = 0; L < layers; L++) {
+    const t = L / (layers - 1);
+    const coneH = height * (0.28 - t * 0.06);
+    const coneR = 0.38 - t * 0.12;
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(coneR, coneH, 7),
+      cypressFoliageMat
+    );
+    cone.position.y = trunkH * 0.42 + L * height * 0.18 + coneH * 0.35;
+    cone.castShadow = !mobileLike;
+    g.add(cone);
+  }
+  addKneesAndMoss(g, height, height * 1.7);
+  disableRaycast(g);
+  return g;
+}
+
+function placeProceduralCypresses() {
+  let n = 0;
+  for (const p of cypressPositions) {
+    const tree = makeProceduralCypress(p.h);
+    tree.position.set(p.x, 0.02, p.z);
+    tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+    cypressGroup.add(tree);
+    n++;
+  }
+  console.info('[cubicles] procedural cypresses', n);
+  return n;
+}
+
 /** Grid divider positions: column aisles × row aisles (between cells, clear of panel faces). */
 const cypressPositions = [];
 for (let c = 1; c < COLS; c++) {
@@ -947,6 +1002,7 @@ for (const side of [-1, 1]) {
 }
 
 async function placeGltfCypresses() {
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
   const proto = gltf.scene;
@@ -992,7 +1048,13 @@ async function placeGltfCypresses() {
 }
 
 placeGltfCypresses().catch((err) => {
-  console.error('[cubicles] cypress GLB failed', err);
+  console.error('[cubicles] cypress GLB failed — using procedural fallback', err);
+  try {
+    while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
+    placeProceduralCypresses();
+  } catch (fallbackErr) {
+    console.error('[cubicles] procedural cypress fallback failed', fallbackErr);
+  }
 });
 
 function resetToFoyer() {
