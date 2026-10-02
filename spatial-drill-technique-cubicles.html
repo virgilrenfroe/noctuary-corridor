@@ -3420,7 +3420,8 @@ function setInteractTarget(panel) {
   // Side-wall LIVE: pointer-events ONLY when intentionally focused (dblclick).
   // Otherwise always route drag-look / walkpad yaw to the parent.
   if (panel.wallMounted && wallLabFocus !== panel) {
-    stage.classList.remove('panel-hover');
+    // Pointer over the plate, grab hand everywhere else. Don't enable iframe hits.
+    stage.classList.add('panel-hover');
     return;
   }
   panel.canInteract = true;
