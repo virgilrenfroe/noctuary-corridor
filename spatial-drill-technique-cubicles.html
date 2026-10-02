@@ -317,10 +317,10 @@ const wantAisle = params.has('aisle') || params.get('view') === 'aisle' || hashP
 if (wantAisle) {
   // Foyer edge looking −Z into a column aisle of cathedral chrome cypresses
   const aisleX = -OUTER_W / 2 + CELL_W * 1.0;
-  SPAWN.x = aisleX + 1.15; // clear of trunks, panels to the side
-  SPAWN.z = GRID_Z_MAX + 2.4; // still in foyer, not inside a cell AABB
-  SPAWN.yaw = 0.18;
-  SPAWN.pitch = 0.22; // glance up at mercury vault / gold canopy
+  SPAWN.x = aisleX + 2.05;
+  SPAWN.z = GRID_Z_MAX + 3.4; // foyer edge — full Taxodium midground
+  SPAWN.yaw = 0.16;
+  SPAWN.pitch = 0.2; // knees + feathery gold canopy + moss
   console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw, 'pitch', SPAWN.pitch);
 }
 
@@ -355,10 +355,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
 renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = chromeVariant === 2 ? 0.98 : chromeVariant === 3 ? 0.9 : 0.82;
+renderer.toneMappingExposure = chromeVariant === 2 ? 0.88 : chromeVariant === 3 ? 0.82 : 0.72;
 if (wantAisle) {
   // Aisle: preserve mercury contrast — avoid bloom-crushed white wash
-  renderer.toneMappingExposure = chromeVariant === 2 ? 0.88 : chromeVariant === 3 ? 0.8 : 0.72;
+  renderer.toneMappingExposure = chromeVariant === 2 ? 0.78 : chromeVariant === 3 ? 0.72 : 0.6;
 }
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -402,7 +402,7 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x1a0820, 22, 62); // farther fog so mercury chrome reads in nave
+scene.fog = new THREE.Fog(0x14061a, 28, 72); // farther fog so mercury chrome reads in nave
 scene.background = new THREE.Color(0x1a0820);
 const cssScene = new THREE.Scene();
 
@@ -412,8 +412,8 @@ const pitch = { value: SPAWN.pitch };
 const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
 
 // Sketch C — magenta / gold cathedral cross-light (liquid mercury chrome drinks this)
-scene.add(new THREE.HemisphereLight(0xd060ff, 0x120818, 0.42));
-const key = new THREE.DirectionalLight(0xffd078, 2.05); // warm gold key — hard specular on chrome
+scene.add(new THREE.HemisphereLight(0xc090ff, 0x0a0610, 0.22));
+const key = new THREE.DirectionalLight(0xffd090, 2.55); // warm gold key — hard specular on chrome
 key.position.set(8, 24, 5);
 key.castShadow = true;
 key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
@@ -430,12 +430,12 @@ if (chromeVariant === 3) { key.color.setHex(0xe8c8ff); key.intensity = 1.85; }
 scene.add(key);
 const magentaFill = new THREE.DirectionalLight(
   chromeVariant === 2 ? 0xd06050 : chromeVariant === 3 ? 0x9030ff : 0xff2ab8,
-  chromeVariant === 3 ? 1.35 : chromeVariant === 2 ? 0.95 : 1.15
-); // magenta / warm / violet cross-fill — colored chrome bounce
+  chromeVariant === 3 ? 1.1 : chromeVariant === 2 ? 0.75 : 0.55
+); // magenta / warm / violet cross-fill — dialed so gold key wins on chrome
 magentaFill.position.set(-10, 7, -5);
 scene.add(magentaFill);
 // High gold rim from vault (cathedral clerestory)
-const goldRim = new THREE.DirectionalLight(0xffc040, chromeVariant === 3 ? 0.55 : 1.15);
+const goldRim = new THREE.DirectionalLight(0xffc040, chromeVariant === 3 ? 0.7 : 1.65);
 goldRim.position.set(-3, 28, -8);
 scene.add(goldRim);
 if (chromeVariant === 2) {
@@ -525,10 +525,10 @@ function makeMagentaGoldEquirect(size = 512, variant = chromeVariant) {
         g = 0.03 + gold * 0.7 + magenta * 0.25 + coolBand * 0.35;
         b = 0.22 + magenta * 3.8 + coolBand * 2.8 + vault * 2.2 + gold * 0.15 + winB * 1.4 + winC * 0.5;
       } else {
-        // Liquid mercury cathedral: hot gold + magenta lobes
-        r = 0.10 + gold * 4.0 + gold2 * 2.0 + magenta * 1.35 + vault * 0.45 + winA * 1.1 + winC * 0.9;
-        g = 0.03 + gold * 2.35 + gold2 * 1.1 + magenta * 0.1 + winA * 0.7 + winC * 0.55;
-        b = 0.16 + magenta * 3.4 + vault * 1.9 + gold * 0.3 + winB * 1.6 + winC * 0.35;
+        // Dark cathedral vault + hot gold/magenta specular windows (mercury beads)
+        r = 0.03 + gold * 2.2 + gold2 * 1.1 + magenta * 0.35 + vault * 0.15 + winA * 3.8 + winC * 2.8;
+        g = 0.015 + gold * 1.4 + gold2 * 0.7 + winA * 2.4 + winC * 1.8;
+        b = 0.04 + magenta * 1.1 + vault * 0.7 + gold * 0.15 + winB * 2.6 + winC * 0.5;
       }
       data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 1;
     }
@@ -618,7 +618,7 @@ async function setupCathedralEnvAndBloom() {
     const synth = makeMagentaGoldEquirect(mobileLike ? 256 : 512, chromeVariant);
     const env = pmrem.fromEquirectangular(synth).texture;
     scene.environment = env;
-    scene.environmentIntensity = chromeVariant === 2 ? 1.25 : chromeVariant === 3 ? 1.55 : 1.75;
+    scene.environmentIntensity = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 1.25 : 1.2;
     if (!scene.background || scene.background.isColor) {
       scene.background = env;
       scene.backgroundBlurriness = 0.48;
@@ -681,9 +681,9 @@ async function setupCathedralEnvAndBloom() {
     // Mercury bloom: moderate strength, tight radius, mid-high threshold → specular beads not trunk wash
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(innerWidth, innerHeight),
-      wantAisle ? 0.22 : 0.3,
-      wantAisle ? 0.22 : 0.28,
-      wantAisle ? 0.86 : 0.8
+      wantAisle ? 0.08 : 0.11,
+      wantAisle ? 0.12 : 0.15,
+      wantAisle ? 0.95 : 0.92
     );
     composer.addPass(bloomPass);
     composer.addPass(new OutputPass());
@@ -1139,9 +1139,10 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.clickable = true;
 }
 
-// —— Sketch C: cathedral chrome trees via high-detail GLB (Poly Haven Quiver Tree) ——
-// Primary look is cloned/instanced GLB under magenta/gold MeshPhysicalMaterial + HDR.
-// Procedural cone stacks kept only as emergency fallback (never the default).
+// —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
+// True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
+// dense Spanish-moss filaments under MeshPhysical mercury chrome + magenta/gold HDR.
+// Low-poly OpenGameArt GLB kept as ?glb=1 opt-in (billboard canopy chrome-washes).
 const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
@@ -1150,33 +1151,80 @@ scene.add(cypressGroup);
 const CHROME_PRESETS = {
   // 1 — sketch C default: liquid mercury trunk, gold canopy, magenta filament moss
   1: {
-    trunk:  { color: 0xf0f3f8, metalness: 1.0, roughness: 0.014, envMapIntensity: 2.65, clearcoat: 1.0, clearcoatRoughness: 0.018, reflectivity: 1.0, ior: 2.2, specularIntensity: 1.0 },
-    foliage:{ color: 0xffc848, metalness: 1.0, roughness: 0.06, envMapIntensity: 2.05, clearcoat: 0.85, clearcoatRoughness: 0.04, emissive: 0x281408, emissiveIntensity: 0.04, reflectivity: 1.0 },
-    knee:   { color: 0xdce2ea, metalness: 1.0, roughness: 0.035, envMapIntensity: 2.4, clearcoat: 0.9, clearcoatRoughness: 0.04 },
-    moss:   { color: 0xe050b8, metalness: 1.0, roughness: 0.08, envMapIntensity: 2.1, transparent: true, opacity: 0.82, depthWrite: false, emissive: 0x501028, emissiveIntensity: 0.28, clearcoat: 0.7, clearcoatRoughness: 0.06 },
+    trunk:  { color: 0x2e3540, metalness: 1.0, roughness: 0.1, envMapIntensity: 2.35, clearcoat: 0.85, clearcoatRoughness: 0.08, reflectivity: 1.0, ior: 1.35, specularIntensity: 1.0, specularColor: 0xffffff },
+    foliage:{ color: 0xb07818, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.45, clearcoat: 0.4, clearcoatRoughness: 0.18, emissive: 0x181004, emissiveIntensity: 0.025, reflectivity: 1.0, specularColor: 0xffd080 },
+    knee:   { color: 0x343c48, metalness: 1.0, roughness: 0.14, envMapIntensity: 2.0, clearcoat: 0.8, clearcoatRoughness: 0.07, specularColor: 0xe8eef6 },
+    moss:   { color: 0xd060b8, metalness: 1.0, roughness: 0.2, envMapIntensity: 1.4, transparent: true, opacity: 0.85, depthWrite: false, emissive: 0x180610, emissiveIntensity: 0.04, clearcoat: 0.4, clearcoatRoughness: 0.14 },
   },
   // 2 — brushed gold canopy: warmer metals, higher roughness = brushed specular, gold-heavy
   2: {
-    trunk:  { color: 0xc9a46a, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.45, clearcoat: 0.28, clearcoatRoughness: 0.35, reflectivity: 0.9 },
-    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.32, envMapIntensity: 1.35, clearcoat: 0.2, clearcoatRoughness: 0.4, emissive: 0x503010, emissiveIntensity: 0.08 },
-    knee:   { color: 0xb8893c, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.25, clearcoat: 0.22, clearcoatRoughness: 0.35 },
-    moss:   { color: 0xc45a20, metalness: 0.95, roughness: 0.32, envMapIntensity: 1.15, transparent: true, opacity: 0.72, depthWrite: false },
+    trunk:  { color: 0xc9a46a, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.35, clearcoat: 0.28, clearcoatRoughness: 0.35, reflectivity: 0.9 },
+    foliage:{ color: 0xffb020, metalness: 1.0, roughness: 0.32, envMapIntensity: 1.25, clearcoat: 0.2, clearcoatRoughness: 0.4, emissive: 0x503010, emissiveIntensity: 0.08 },
+    knee:   { color: 0xb8893c, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.2, clearcoat: 0.22, clearcoatRoughness: 0.35 },
+    moss:   { color: 0xc45a20, metalness: 0.95, roughness: 0.32, envMapIntensity: 1.1, transparent: true, opacity: 0.72, depthWrite: false },
   },
   // 3 — cooler purple chrome: violet-silver mirrors, magenta canopy, less gold
   3: {
-    trunk:  { color: 0xd8c8f4, metalness: 1.0, roughness: 0.022, envMapIntensity: 2.55, clearcoat: 0.92, clearcoatRoughness: 0.035, reflectivity: 1.0, ior: 2.0 },
-    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.08, envMapIntensity: 2.2, clearcoat: 0.65, clearcoatRoughness: 0.08, emissive: 0x280850, emissiveIntensity: 0.12 },
-    knee:   { color: 0xc8b8e8, metalness: 1.0, roughness: 0.045, envMapIntensity: 2.1, clearcoat: 0.75, clearcoatRoughness: 0.06 },
-    moss:   { color: 0x8a30ff, metalness: 1.0, roughness: 0.1, envMapIntensity: 1.9, transparent: true, opacity: 0.8, depthWrite: false, clearcoat: 0.6, clearcoatRoughness: 0.08 },
+    trunk:  { color: 0xd8c8f4, metalness: 1.0, roughness: 0.035, envMapIntensity: 2.1, clearcoat: 0.9, clearcoatRoughness: 0.04, reflectivity: 1.0, ior: 1.8 },
+    foliage:{ color: 0xb060e8, metalness: 1.0, roughness: 0.1, envMapIntensity: 1.85, clearcoat: 0.6, clearcoatRoughness: 0.08, emissive: 0x280850, emissiveIntensity: 0.1 },
+    knee:   { color: 0xc8b8e8, metalness: 1.0, roughness: 0.05, envMapIntensity: 1.9, clearcoat: 0.7, clearcoatRoughness: 0.06 },
+    moss:   { color: 0x8a30ff, metalness: 1.0, roughness: 0.12, envMapIntensity: 1.7, transparent: true, opacity: 0.82, depthWrite: false, clearcoat: 0.55, clearcoatRoughness: 0.08 },
   },
 };
 const _cp = CHROME_PRESETS[chromeVariant] || CHROME_PRESETS[1];
 const cypressTrunkMat = new THREE.MeshPhysicalMaterial(_cp.trunk);
-const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage);
+const cypressFoliageMat = new THREE.MeshPhysicalMaterial(_cp.foliage); // solid gold chrome canopy mass
 const cypressKneeMat = new THREE.MeshPhysicalMaterial(_cp.knee);
 const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
-const cypressChromeMats = [cypressTrunkMat, cypressFoliageMat, cypressKneeMat, cypressMossMat];
+// Alpha cards ONLY — do NOT put alphaMap on solid foliage (would punch crown/needles invisible)
+const cypressCardMat = new THREE.MeshPhysicalMaterial({
+  ..._cp.foliage,
+  color: 0xe8a030,
+  roughness: 0.28,
+  envMapIntensity: 1.55,
+  side: THREE.DoubleSide,
+  transparent: false,
+  alphaTest: 0.22,
+  depthWrite: true,
+});
+const cypressChromeMats = [cypressTrunkMat, cypressFoliageMat, cypressKneeMat, cypressMossMat, cypressCardMat];
 window.__sketchCChromeMats = cypressChromeMats;
+
+// Bark normals + canopy alpha cards — break mercury into specular beads (not plastic wash)
+(() => {
+  const loader = new THREE.TextureLoader();
+  const barkN = loader.load('./demo-assets/cypress/bark_normal.png', (t) => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2.2, 4.5);
+    t.colorSpace = THREE.NoColorSpace;
+    cypressTrunkMat.normalMap = t;
+    cypressTrunkMat.normalScale = new THREE.Vector2(1.55, 1.55);
+    cypressTrunkMat.needsUpdate = true;
+    cypressKneeMat.normalMap = t;
+    cypressKneeMat.normalScale = new THREE.Vector2(1.25, 1.25);
+    cypressKneeMat.needsUpdate = true;
+  });
+  const barkR = loader.load('./demo-assets/cypress/bark_roughness.png', (t) => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3.2, 6.5);
+    t.colorSpace = THREE.NoColorSpace;
+    cypressTrunkMat.roughnessMap = t;
+    cypressTrunkMat.needsUpdate = true;
+    cypressKneeMat.roughnessMap = t;
+    cypressKneeMat.needsUpdate = true;
+  });
+  window.__sketchCBark = { barkN, barkR };
+  const leaf = loader.load('./demo-assets/cypress/needle_spray.png', (t) => {
+    // Alpha silhouette only — do NOT bind as color map (albedo is dark green, kills gold chrome)
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    cypressCardMat.alphaMap = t;
+    cypressCardMat.map = null;
+    cypressCardMat.alphaTest = 0.12;
+    cypressCardMat.needsUpdate = true;
+  });
+  window.__sketchCLeaf = leaf;
+})();
 
 /** Replace GLTF mesh mats with cathedral chrome / gold; keep normal maps for mercurial bark. */
 function chromeifyCypressRoot(root) {
@@ -1187,32 +1235,28 @@ function chromeifyCypressRoot(root) {
     const name = ((o.name || '') + ' ' + mats.map((m) => m?.name || '').join(' ')).toLowerCase();
     const isFoliage =
       mats.some((m) => m && (m.transparent || m.alphaMode === 'BLEND' || (m.opacity != null && m.opacity < 0.99))) ||
-      /leaf|foliage|canopy|needle|crown|twig/i.test(name);
-    const base = isFoliage ? cypressFoliageMat : cypressTrunkMat;
+      /leaf|foliage|canopy|needle|crown|twig|plane/i.test(name);
+    const isKnee = /knee|pneumatophore|buttress/i.test(name);
+    const base = isFoliage ? cypressFoliageMat : (isKnee ? cypressKneeMat : cypressTrunkMat);
     const mat = base.clone();
-    // Preserve baked normals / AO-ish maps so chrome reads organic under HDR
     for (const src of mats) {
       if (!src) continue;
       if (src.normalMap && !mat.normalMap) {
         mat.normalMap = src.normalMap;
-        mat.normalScale = src.normalScale ? src.normalScale.clone() : new THREE.Vector2(0.85, 0.85);
+        mat.normalScale = src.normalScale ? src.normalScale.clone() : new THREE.Vector2(0.55, 0.55);
       }
       if (src.aoMap && !mat.aoMap) {
         mat.aoMap = src.aoMap;
-        // Keep AO subtle — heavy AO kills liquid-mercury specular under HDR
-        mat.aoMapIntensity = 0.22;
+        mat.aoMapIntensity = 0.18;
       }
     }
-    if (mat.normalMap) {
-      // Soften baked normals so chrome stays mercurial (not chalky bark)
-      mat.normalScale = new THREE.Vector2(0.28, 0.28);
-    }
+    if (mat.normalMap) mat.normalScale = new THREE.Vector2(0.35, 0.35);
     if (isFoliage) {
       mat.side = THREE.DoubleSide;
-      // Gold/magenta chrome canopy — mostly opaque so specular reads solid
-      mat.transparent = true;
-      mat.opacity = chromeVariant === 2 ? 0.95 : 0.94;
+      mat.transparent = false;
+      mat.opacity = 1;
       mat.depthWrite = true;
+      mat.alphaTest = 0.35;
     }
     o.material = mat;
     cypressChromeMats.push(mat);
@@ -1226,54 +1270,314 @@ function disableRaycast(root) {
   root.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
 }
 
-/**
- * Emergency fallback only — stacked cones (the old childish cathedral props).
- * Not used when the Quiver Tree GLB loads.
- */
-function makeCathedralCypress(height) {
-  const g = new THREE.Group();
-  const buttressGeo = new THREE.CylinderGeometry(1, 1.85, 1, 10);
-  const trunkGeo = new THREE.CylinderGeometry(0.35, 1, 1, 8);
-  const canopyConeGeo = new THREE.ConeGeometry(1, 1, 9);
-  const tipConeGeo = new THREE.ConeGeometry(1, 1, 6);
-  const buttress = new THREE.Mesh(buttressGeo, cypressTrunkMat);
-  buttress.scale.set(height * 0.055, height * 0.11, height * 0.055);
-  buttress.position.y = height * 0.055;
-  g.add(buttress);
-  const trunkH = height * 0.52;
-  const trunk = new THREE.Mesh(trunkGeo, cypressTrunkMat);
-  trunk.scale.set(height * 0.038, trunkH, height * 0.038);
-  trunk.position.y = height * 0.11 + trunkH * 0.5;
-  g.add(trunk);
-  const layers = mobileLike ? 5 : 8;
-  for (let L = 0; L < layers; L++) {
-    const t = L / (layers - 1);
-    const cone = new THREE.Mesh(canopyConeGeo, cypressFoliageMat);
-    cone.scale.set(Math.max(0.1, height * (0.12 - t * 0.095)), Math.max(0.28, height * (0.2 - t * 0.11)), Math.max(0.1, height * (0.12 - t * 0.095)));
-    cone.position.y = height * (0.36 + t * 0.5);
-    g.add(cone);
+/** Deterministic 0–1 RNG from integer seed. */
+function cypressRand(seed) {
+  let t = (seed >>> 0) + 0x6d2b79f5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Shared Taxodium geos — InstancedMesh grove (SwiftShader-safe draw count)
+const _taxTrunkProfiles = (() => {
+  const pts = [];
+  for (let i = 0; i <= 28; i++) {
+    const t = i / 28;
+    let r;
+    if (t < 0.12) {
+      const u = t / 0.12;
+      // Wide buttress flare (Taxodium)
+      r = 0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38);
+    } else if (t < 0.52) {
+      const u = (t - 0.12) / 0.4;
+      r = THREE.MathUtils.lerp(0.058, 0.034, u);
+    } else {
+      const u = (t - 0.52) / 0.48;
+      // Keep upper stem thicker — crown shelf sits on this, not a quiver spike
+      r = THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+    }
+    pts.push(new THREE.Vector2(r, t));
   }
-  const tip = new THREE.Mesh(tipConeGeo, cypressFoliageMat);
-  tip.scale.set(height * 0.018, height * 0.14, height * 0.018);
-  tip.position.y = height * 0.97;
-  g.add(tip);
+  return pts;
+})();
+const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 : 20);
+// Flute the bark in vertex space so chrome beads on ridges
+(() => {
+  const pos = taxTrunkGeo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const ang = Math.atan2(v.x, v.z);
+    const flut = 1 + 0.045 * Math.sin(ang * 7) + 0.025 * Math.sin(ang * 13 + v.y * 8);
+    v.x *= flut;
+    v.z *= flut;
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  pos.needsUpdate = true;
+  taxTrunkGeo.computeVertexNormals();
+})();
+// Blunt pneumatophore knees (not ice-cream cones)
+// Cypress knee mound — hemisphere (blunt dome, never a cone tip)
+const taxKneeGeo = new THREE.SphereGeometry(1, mobileLike ? 8 : 12, mobileLike ? 6 : 8, 0, Math.PI * 2, 0, Math.PI * 0.55);
+const taxBranchGeo = new THREE.CylinderGeometry(0.35, 1, 1, mobileLike ? 5 : 6);
+// Thin needle shafts for feathery sprays (NOT fat cones)
+const taxNeedleGeo = new THREE.CylinderGeometry(0.05, 0.18, 1, 3);
+// Soft oval tuft
+const taxTuftGeo = new THREE.SphereGeometry(1, mobileLike ? 4 : 6, mobileLike ? 3 : 4);
+taxTuftGeo.scale(0.7, 1.6, 0.28);
+// Alpha card for feathery canopy planes
+const taxCardGeo = new THREE.PlaneGeometry(1.1, 1.55);
+// Feathery crown spray — elongated oval (NOT flat gold disc / mushroom)
+const taxCrownGeo = new THREE.SphereGeometry(1, mobileLike ? 5 : 7, mobileLike ? 4 : 5);
+taxCrownGeo.scale(0.45, 1.55, 0.35); // hanging spray, vertical bias
+
+function taxHash(i) {
+  let t = (i >>> 0) + 0x6d2b79f5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+/**
+ * Instanced Taxodium grove — flared fluted buttress, blunt knees,
+ * ascending scaffold, feathery needle fans + alpha cards, Spanish moss separate.
+ */
+function placeBaldCypresses() {
+  const trees = cypressPositions;
+  const n = trees.length;
+  const kneesPer = mobileLike ? 8 : 12;
+  const branchPer = mobileLike ? 8 : 11;
+  const needlePer = mobileLike ? 60 : 110;
+  const tuftPer = mobileLike ? 3 : 5;
+  const cardPer = mobileLike ? 60 : 110;
+  const crownPer = mobileLike ? 0 : 0; // disable disc sprays entirely
+  const flutePer = mobileLike ? 2 : 3; // subtle bark ribs, not pipe-bundle
+
+  const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
+  const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
+  const branchInst = new THREE.InstancedMesh(taxBranchGeo, cypressTrunkMat, n * (branchPer + flutePer));
+  const needleInst = new THREE.InstancedMesh(taxNeedleGeo, cypressFoliageMat, n * needlePer);
+  const tuftInst = new THREE.InstancedMesh(taxTuftGeo, cypressFoliageMat, n * tuftPer);
+  const cardInst = new THREE.InstancedMesh(taxCardGeo, cypressCardMat, n * cardPer);
+  const crownInst = new THREE.InstancedMesh(taxCrownGeo, cypressFoliageMat, Math.max(1, n * crownPer));
+  for (const inst of [trunkInst, kneeInst, branchInst, needleInst, tuftInst, cardInst, crownInst]) {
+    inst.castShadow = !mobileLike;
+    inst.receiveShadow = true;
+    inst.frustumCulled = true;
+    inst.raycast = () => {};
+  }
+
+  const dummy = new THREE.Object3D();
+  let ki = 0, bi = 0, ni = 0, ti = 0, ci = 0, cri = 0;
+
+  for (let i = 0; i < n; i++) {
+    const p = trees[i];
+    const h = p.h;
+    const yaw = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+    const base = i * 97 + 11;
+
+    dummy.position.set(p.x, 0.02, p.z);
+    dummy.rotation.set(0, yaw, 0);
+    dummy.scale.set(h, h, h);
+    dummy.updateMatrix();
+    trunkInst.setMatrixAt(i, dummy.matrix);
+
+    // Vertical bark ridges (chrome catches edges)
+    for (let f = 0; f < flutePer; f++) {
+      const ang = yaw + (f / flutePer) * Math.PI * 2 + taxHash(base + f) * 0.1;
+      const rh = h * (0.38 + taxHash(base + 20 + f) * 0.2);
+      dummy.position.set(p.x + Math.cos(ang) * h * 0.052, rh * 0.48, p.z + Math.sin(ang) * h * 0.052);
+      dummy.rotation.set(-Math.sin(ang - yaw) * 0.06, ang, Math.cos(ang - yaw) * 0.06);
+      dummy.scale.set(h * 0.009, rh, h * 0.014);
+      dummy.updateMatrix();
+      branchInst.setMatrixAt(bi++, dummy.matrix);
+    }
+
+    // Woody cypress knees — stubby tapered pegs around flare
+    for (let k = 0; k < kneesPer; k++) {
+      const ang = yaw + (k / kneesPer) * Math.PI * 2 + taxHash(base + 40 + k) * 0.45;
+      const rad = h * (0.12 + taxHash(base + 50 + k) * 0.14);
+      const rKnee = h * (0.032 + taxHash(base + 60 + k) * 0.028); // dome radius
+      // Sit on floor — hemisphere opens upward
+      dummy.position.set(p.x + Math.cos(ang) * rad, 0.01, p.z + Math.sin(ang) * rad);
+      dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.25, ang, (taxHash(base + 90 + k) - 0.5) * 0.25);
+      dummy.scale.set(rKnee * (0.9 + taxHash(base + 70 + k) * 0.35), rKnee * (0.7 + taxHash(base + 75 + k) * 0.35), rKnee * (0.85 + taxHash(base + 77 + k) * 0.3));
+      dummy.updateMatrix();
+      kneeInst.setMatrixAt(ki++, dummy.matrix);
+    }
+
+    const tips = [];
+    for (let b = 0; b < branchPer; b++) {
+      const tAttach = 0.32 + (b / Math.max(1, branchPer - 1)) * 0.52;
+      const ang = yaw + b * 2.399 + taxHash(base + 100 + b) * 0.65;
+      const len = h * (0.18 + (1 - tAttach) * 0.28 + taxHash(base + 110 + b) * 0.1);
+      const thick = h * (0.01 + (1 - tAttach) * 0.01);
+      const up = 0.42 + taxHash(base + 120 + b) * 0.38;
+      const attachY = h * tAttach;
+      const out = len * 0.55;
+      dummy.position.set(
+        p.x + Math.cos(ang) * out * 0.42,
+        attachY + len * up * 0.2,
+        p.z + Math.sin(ang) * out * 0.42
+      );
+      dummy.rotation.set(-Math.sin(ang - yaw) * 0.4 * up, ang, Math.cos(ang - yaw) * 0.32);
+      dummy.scale.set(thick, len, thick);
+      dummy.updateMatrix();
+      branchInst.setMatrixAt(bi++, dummy.matrix);
+      tips.push({
+        x: p.x + Math.cos(ang) * len * 0.9,
+        y: attachY + len * up * 0.65,
+        z: p.z + Math.sin(ang) * len * 0.9,
+        ang,
+      });
+    }
+
+    // Feathery needle fans — thin shafts clustered at tips + crown envelope
+    for (let s = 0; s < needlePer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 200 + s);
+      const hh2 = taxHash(base + 300 + s);
+      let cx, cy, cz, ang;
+      if (s % 5 !== 4) {
+        // Fan around branch tip
+        const fan = (s % 7) / 7 * Math.PI * 1.4 - 0.7;
+        ang = tip.ang + fan;
+        const spread = h * (0.02 + hh * 0.06);
+        cx = tip.x + Math.cos(ang) * spread;
+        cy = tip.y + (hh2 - 0.35) * h * 0.05;
+        cz = tip.z + Math.sin(ang) * spread;
+      } else {
+        ang = hh * Math.PI * 2 + yaw;
+        // Mid canopy shelf — flat-topped mature Taxodium, not a spike tip
+        const yNorm = 0.5 + hh2 * 0.38;
+        const crownFlat = yNorm > 0.78 ? 0.75 : 1.05;
+        const rad = h * (0.3 * (1 - yNorm * 0.55) + 0.05) * crownFlat * (0.65 + hh * 0.4);
+        cx = p.x + Math.cos(ang) * rad;
+        cy = h * yNorm;
+        cz = p.z + Math.sin(ang) * rad;
+      }
+      const nh = h * (0.09 + hh * 0.12);
+      const nr = h * (0.0028 + hh2 * 0.0035); // hair-thin feather shaft
+      dummy.position.set(cx, cy, cz);
+      const droop = 1.15 + hh * 0.5;
+      dummy.rotation.set(droop, ang, (hh2 - 0.5) * 0.45);
+      dummy.scale.set(nr, nh, nr);
+      dummy.updateMatrix();
+      needleInst.setMatrixAt(ni++, dummy.matrix);
+    }
+
+    // Soft tufts
+    for (let s = 0; s < tuftPer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 500 + s);
+      const hh2 = taxHash(base + 600 + s);
+      const ang = hh * Math.PI * 2 + yaw;
+      const yNorm = 0.5 + hh2 * 0.42;
+      const rad = h * (0.16 * (1 - yNorm * 0.6) + 0.025) * (0.55 + hh * 0.5);
+      const ts = h * (0.028 + hh * 0.032);
+      dummy.position.set(
+        (s % 2 ? tip.x : p.x + Math.cos(ang) * rad),
+        s % 2 ? tip.y : h * yNorm,
+        s % 2 ? tip.z : p.z + Math.sin(ang) * rad
+      );
+      dummy.rotation.set((hh - 0.5) * 0.4, hh * Math.PI, (hh2 - 0.5) * 0.4);
+      dummy.scale.set(ts * (0.7 + hh * 0.5), ts * (1.1 + hh2 * 0.5), ts * (0.45 + hh * 0.35));
+      dummy.updateMatrix();
+      tuftInst.setMatrixAt(ti++, dummy.matrix);
+    }
+
+    // Alpha canopy cards — feathery Taxodium leaf planes (branch_cypress.png)
+    for (let s = 0; s < cardPer; s++) {
+      const tip = tips[s % tips.length];
+      const hh = taxHash(base + 700 + s);
+      const hh2 = taxHash(base + 800 + s);
+      const ang = tip.ang + (hh - 0.5) * 1.4;
+      const yNorm = 0.48 + hh2 * 0.38;
+      const useTip = s % 3 !== 2;
+      const rad = h * (0.16 + hh * 0.18) * (1.05 - yNorm * 0.4);
+      const cx = useTip ? tip.x + Math.cos(ang) * h * 0.06 : p.x + Math.cos(ang) * rad;
+      const cy = useTip ? tip.y + (hh - 0.4) * h * 0.05 : h * yNorm;
+      const cz = useTip ? tip.z + Math.sin(ang) * h * 0.06 : p.z + Math.sin(ang) * rad;
+      const cs = h * (0.05 + hh * 0.045);
+      dummy.position.set(cx, cy, cz);
+      dummy.rotation.set(0.65 + hh * 0.85, ang + Math.PI * (0.25 + hh2 * 0.8), (hh2 - 0.5) * 1.2);
+      dummy.scale.set(cs * (0.8 + hh * 0.5), cs * (1.35 + hh2 * 0.55), 1);
+      dummy.updateMatrix();
+      cardInst.setMatrixAt(ci++, dummy.matrix);
+    }
+
+    // Feathery Taxodium crown — drooping gold sprays (NOT plate discs / mushrooms)
+    for (let s = 0; s < crownPer; s++) {
+      const hh = taxHash(base + 900 + s);
+      const hh2 = taxHash(base + 950 + s);
+      const ang = yaw + (s / crownPer) * Math.PI * 2 + hh * 0.5;
+      // Irregular flat-topped envelope: wider mid-canopy, soft top
+      const yNorm = 0.55 + hh2 * 0.28;
+      const widen = yNorm > 0.78 ? 0.7 : 1.15;
+      const rad = h * (0.14 + hh * 0.22) * widen;
+      const cs = h * (0.07 + hh * 0.05);
+      dummy.position.set(
+        p.x + Math.cos(ang) * rad,
+        h * yNorm,
+        p.z + Math.sin(ang) * rad
+      );
+      // Hang outward-down like Taxodium needle sprays
+      dummy.rotation.set(0.85 + hh * 0.55, ang, (hh2 - 0.5) * 0.4);
+      dummy.scale.set(cs * (0.55 + hh * 0.35), cs * (1.4 + hh2 * 0.6), cs * (0.4 + hh * 0.3));
+      dummy.updateMatrix();
+      crownInst.setMatrixAt(cri++, dummy.matrix);
+    }
+  }
+
+  const zero = new THREE.Object3D();
+  zero.scale.set(0, 0, 0);
+  zero.updateMatrix();
+  for (let i = ki; i < kneeInst.count; i++) kneeInst.setMatrixAt(i, zero.matrix);
+  for (let i = bi; i < branchInst.count; i++) branchInst.setMatrixAt(i, zero.matrix);
+  for (let i = ni; i < needleInst.count; i++) needleInst.setMatrixAt(i, zero.matrix);
+  for (let i = ti; i < tuftInst.count; i++) tuftInst.setMatrixAt(i, zero.matrix);
+  for (let i = ci; i < cardInst.count; i++) cardInst.setMatrixAt(i, zero.matrix);
+  for (let i = cri; i < crownInst.count; i++) crownInst.setMatrixAt(i, zero.matrix);
+  kneeInst.count = ki;
+  branchInst.count = bi;
+  needleInst.count = ni;
+  tuftInst.count = ti;
+  cardInst.count = ci;
+  crownInst.count = cri;
+  for (const inst of [trunkInst, kneeInst, branchInst, needleInst, tuftInst, cardInst, crownInst]) {
+    inst.instanceMatrix.needsUpdate = true;
+    cypressGroup.add(inst);
+  }
+
+  console.info('[cubicles] cathedral chrome Taxodium instanced', n, 'trees',
+    { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri }, 'sketch-C bald-cypress');
+  window.__sketchCTrees = {
+    n,
+    modelH: 1,
+    parts: 7,
+    meshes: { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri },
+    instanced: true,
+    source: 'procedural-bald-cypress-taxodium',
+  };
+  try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
+  return n;
+}
+
+function makeBaldCypress(height, seed = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(taxTrunkGeo, cypressTrunkMat);
+  trunk.scale.set(height, height, height);
+  g.add(trunk);
   disableRaycast(g);
   return g;
 }
 
+function makeCathedralCypress(height) {
+  return makeBaldCypress(height, Math.floor(height * 100));
+}
+
 function placeProceduralCypresses() {
-  let n = 0;
-  for (const p of cypressPositions) {
-    const tree = makeCathedralCypress(p.h);
-    tree.position.set(p.x, 0.02, p.z);
-    tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
-    tree.userData.cathedral = true;
-    cypressGroup.add(tree);
-    n++;
-  }
-  console.warn('[cubicles] FALLBACK procedural cone trees', n, '(GLB failed)');
-  try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
-  return n;
+  return placeBaldCypresses();
 }
 
 /**
@@ -1315,34 +1619,34 @@ cypressPositions.push({ x: CELL_W * 1.05, z: GRID_Z_MAX + 1.55, h: 10.6, role: '
 
 /**
  * Spanish-moss chrome filaments — hanging mercury/magenta fiber strands from canopy.
- * Reads as Sketch C "broken under HDR" tendrils without burying hung panels.
+ * Dense enough to read as Tillandsia under HDR without burying hung panels.
  */
 function placeSpanishMossFilaments() {
   if (mobileLike && cypressPositions.length > 18) {
     console.info('[cubicles] moss filaments thinned for mobile');
   }
-  const strandGeo = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true);
+  const strandGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
   const fiberChrome = new THREE.MeshPhysicalMaterial({
-    color: chromeVariant === 2 ? 0xe8c090 : chromeVariant === 3 ? 0xd0b8f0 : 0xf2f6fc,
+    color: chromeVariant === 2 ? 0xe8c090 : chromeVariant === 3 ? 0xd0b8f0 : 0xf0f4fa,
     metalness: 1.0,
-    roughness: chromeVariant === 2 ? 0.22 : 0.04,
-    envMapIntensity: chromeVariant === 2 ? 1.4 : 2.9,
-    clearcoat: chromeVariant === 2 ? 0.25 : 1.0,
-    clearcoatRoughness: chromeVariant === 2 ? 0.35 : 0.025,
+    roughness: chromeVariant === 2 ? 0.22 : 0.055,
+    envMapIntensity: chromeVariant === 2 ? 1.35 : 2.35,
+    clearcoat: chromeVariant === 2 ? 0.25 : 0.95,
+    clearcoatRoughness: chromeVariant === 2 ? 0.35 : 0.04,
     side: THREE.DoubleSide,
   });
   const fiberMagenta = new THREE.MeshPhysicalMaterial({
-    color: chromeVariant === 2 ? 0xc45a28 : chromeVariant === 3 ? 0x8a30ff : 0xff38c0,
+    color: chromeVariant === 2 ? 0xc45a28 : chromeVariant === 3 ? 0x8a30ff : 0xff48c8,
     metalness: 1.0,
-    roughness: chromeVariant === 2 ? 0.28 : 0.06,
-    envMapIntensity: chromeVariant === 2 ? 1.2 : 2.5,
-    clearcoat: 0.85,
-    clearcoatRoughness: 0.05,
-    emissive: chromeVariant === 3 ? 0x280850 : 0x501030,
-    emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.18,
+    roughness: chromeVariant === 2 ? 0.28 : 0.1,
+    envMapIntensity: chromeVariant === 2 ? 1.15 : 1.85,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.08,
+    emissive: chromeVariant === 3 ? 0x280850 : 0x601838,
+    emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.22,
     side: THREE.DoubleSide,
   });
-  const perTree = mobileLike ? 9 : 18;
+  const perTree = mobileLike ? 18 : 48;
   const count = cypressPositions.length * perTree;
   const chromeInst = new THREE.InstancedMesh(strandGeo, fiberChrome, count);
   const magentaInst = new THREE.InstancedMesh(strandGeo, fiberMagenta, count);
@@ -1358,29 +1662,29 @@ function placeSpanishMossFilaments() {
     const p = cypressPositions[t];
     for (let s = 0; s < perTree; s++) {
       const seed = (t * 97 + s * 53) % 1000;
-      const ang = (seed / 1000) * Math.PI * 2 + t * 0.37;
-      // Attach mid-to-upper canopy so aisle camera catches filaments
-      const attachT = 0.48 + (seed % 20) * 0.018;
+      const ang = (seed / 1000) * Math.PI * 2 + t * 0.37 + s * 0.19;
+      // Hang from mid→upper feathery canopy (Taxodium moss zone)
+      const attachT = 0.62 + (seed % 18) * 0.012;
       const canopyY = p.h * attachT;
-      const rad = 0.22 + (seed % 19) * 0.05 + (p.role === 'buttress' ? 0.18 : 0.05);
-      const len = 1.15 + (seed % 29) * 0.07 + (s % 4) * 0.22;
-      const thick = 0.022 + (seed % 7) * 0.0045;
-      const hangY = canopyY - len * 0.48;
+      // Keep moss ON this tree's crown — never span between trunks
+      const rad = 0.25 + (seed % 17) * 0.04 + (s % 4) * 0.03;
+      const len = 0.55 + (seed % 23) * 0.05 + (s % 4) * 0.12;
+      const thick = 0.011 + (seed % 7) * 0.0025;
+      const hangY = canopyY - len * 0.45;
       const x = p.x + Math.cos(ang) * rad;
-      const z = p.z + Math.sin(ang) * rad * 0.9;
-      const lean = ((seed % 11) - 5) * 0.05;
-      dummy.position.set(x, Math.max(0.35, hangY), z);
-      dummy.rotation.set(lean, ang, lean * 0.7 + ((seed % 7) - 3) * 0.05);
+      const z = p.z + Math.sin(ang) * rad * 0.85;
+      const lean = 0.75 + ((seed % 9) - 4) * 0.08;
+      dummy.position.set(x, Math.max(1.2, hangY), z);
+      dummy.rotation.set(lean, ang * 0.7, lean * 0.55 + ((seed % 5) - 2) * 0.06);
       dummy.scale.set(thick, len, thick);
       dummy.updateMatrix();
-      if ((s + t) % 3 === 0) {
+      if ((s + t) % 2 === 0) {
         magentaInst.setMatrixAt(mi++, dummy.matrix);
       } else {
         chromeInst.setMatrixAt(ci++, dummy.matrix);
       }
     }
   }
-  // Compact unused instance slots by rewriting counts via dummy zero-scale
   const zero = new THREE.Object3D();
   zero.scale.set(0, 0, 0);
   zero.updateMatrix();
@@ -1408,22 +1712,15 @@ function placeSpanishMossFilaments() {
 }
 
 /**
- * Place Sketch C chrome trees from the Quiver Tree GLB.
- * Uses shared geometry via clone(true) (materials already chrome-shared / cloned once).
- * Optional InstancedMesh path when mesh count is low and hardware allows.
+ * Optional ?glb=1 — OpenGameArt bald cypress GLB (low-poly billboard canopy).
+ * Default path is procedural Taxodium (true silhouette under chrome HDR).
  */
 async function placeGltfCypresses() {
-  const forceProc = params.has('proc') || hashParams.get('proc') === '1';
-  if (forceProc) {
-    placeProceduralCypresses();
-    return;
-  }
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
   const proto = gltf.scene;
   chromeifyCypressRoot(proto);
-  // Merge materials onto shared Sketch C mats where possible (clone keeps geo share)
   proto.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(proto);
   const size = new THREE.Vector3();
@@ -1433,7 +1730,6 @@ async function placeGltfCypresses() {
   let meshCount = 0;
   proto.traverse((o) => { if (o.isMesh) meshCount++; });
 
-  // Build InstancedMesh per unique geometry+material (trunk / leaf), sharing GPU buffers
   const parts = [];
   const seen = new Set();
   proto.traverse((o) => {
@@ -1441,7 +1737,6 @@ async function placeGltfCypresses() {
     const key = o.geometry.uuid + '|' + (o.material && o.material.uuid);
     if (seen.has(key)) return;
     seen.add(key);
-    // Local matrix of this mesh relative to proto root
     const rootInv = new THREE.Matrix4().copy(proto.matrixWorld).invert();
     const local = new THREE.Matrix4().multiplyMatrices(rootInv, o.matrixWorld);
     parts.push({ geometry: o.geometry, material: o.material, local });
@@ -1469,21 +1764,30 @@ async function placeGltfCypresses() {
     inst.instanceMatrix.needsUpdate = true;
     cypressGroup.add(inst);
   }
-  console.info('[cubicles] cathedral chrome GLB instanced', count, 'trees ×', parts.length, 'draw', 'sketch-C quiver');
-  window.__sketchCTrees = { n: count, modelH, parts: parts.length, meshes: meshCount, instanced: true, source: 'polyhaven-quiver_tree_01' };
+  console.info('[cubicles] cathedral chrome GLB instanced', count, 'trees ×', parts.length, 'draw', 'sketch-C bald-cypress-glb');
+  window.__sketchCTrees = { n: count, modelH, parts: parts.length, meshes: meshCount, instanced: true, source: 'opengameart-bald-cypress' };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return count;
 }
 
-placeGltfCypresses().catch((err) => {
-  console.error('[cubicles] GLB cypress place failed — forcing procedural fallback', err);
+(async function bootSketchCCypress() {
+  const wantGlb = params.has('glb') || hashParams.get('glb') === '1';
   try {
-    while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
-    placeProceduralCypresses();
-  } catch (fallbackErr) {
-    console.error('[cubicles] procedural cypress fallback failed', fallbackErr);
+    if (wantGlb) {
+      await placeGltfCypresses();
+    } else {
+      placeBaldCypresses();
+    }
+  } catch (err) {
+    console.error('[cubicles] cypress place failed — Taxodium fallback', err);
+    try {
+      while (cypressGroup.children.length) cypressGroup.remove(cypressGroup.children[0]);
+      placeBaldCypresses();
+    } catch (fallbackErr) {
+      console.error('[cubicles] Taxodium fallback failed', fallbackErr);
+    }
   }
-});
+})();
 
 function resetToFoyer() {
   pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
@@ -1690,13 +1994,13 @@ document.getElementById('btn-debug').addEventListener('click', () => setDebug(!d
 let overviewOn = false;
 const WALK_FOV = 48;
 const OVERVIEW_FOV = 58;
-const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.28, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
+const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.22, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
 const overview = {
   on: false,
   // spherical coords relative to box center (elevated front view of cathedral nave)
   theta: 0.28,          // yaw around Y
   phi: 1.05,            // polar from +Y (smaller = higher)
-  radius: 36,
+  radius: 56,
   minRadius: 18,
   maxRadius: 58,
 };

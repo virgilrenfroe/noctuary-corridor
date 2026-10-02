@@ -1,7 +1,16 @@
-Quiver Tree 01 (shipped as cypress.glb)
-Source: Poly Haven — https://polyhaven.com/a/quiver_tree_01
-Authors: Dario Barresi / Poly Haven contributors
-License: CC0 1.0 Universal (public domain dedication)
-  https://creativecommons.org/publicdomain/zero/1.0/
-  https://polyhaven.com/license
-Optimized locally (weld/simplify + WebP 1k textures) for web chrome PBR.
+Bald Cypress (Taxodium) — Sketch C cathedral chrome
+Primary silhouette: procedural Taxodium in spatial-drill-technique-cubicles.html
+  (flared buttress, pneumatophore knees, feathery needle canopy, Spanish-moss filaments)
+  under MeshPhysicalMaterial mercury chrome + magenta/gold HDR.
+
+Optional ?glb=1 asset (shipped as cypress.glb):
+Source: OpenGameArt — https://opengameart.org/content/cypress-tree
+Author: David W CG
+License: CC-BY 4.0
+  https://creativecommons.org/licenses/by/4.0/
+Description: Textured bald cypress (Taxodium) tree model (.blend + .glb).
+Textures by the author or from ambientCG (CC0).
+Note: GLB canopy is a low-poly billboard plane — default path is procedural.
+
+
+needle_spray.png — procedural Taxodium needle-spray alpha (local, for chrome canopy cards).
