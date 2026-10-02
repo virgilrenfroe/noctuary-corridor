@@ -483,7 +483,7 @@ const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.7
 const SHELL_CENTER_Y = OUTER_H * 0.38;
 const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
 const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
-// shellMat built after stargazer video binds (full-dome VideoTexture). Placeholder dark until then.
+// shellMat built after stargazer video binds (high-res −Z band VideoTexture). Placeholder dark until then.
 let shellMat = new THREE.MeshBasicMaterial({
   color: 0x140610,
   side: THREE.BackSide,
@@ -898,9 +898,9 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// —— Stargazer full-dome: VideoTexture on inward sphere (aspect-correct, nadir fade) ——
-// Portrait clip projected with correct aspect toward −Z; sky edge-extends across the dome;
-// nadir soft-masks to shell dark so the floor join never stretches the subject.
+// —— Stargazer high-res back band on inward sphere (not full-sphere smear) ——
+// Portrait 720×974 stays mural-sharp: planar-project onto a −Z band ≈ OUTER_W×OUTER_H,
+// cover-crop pinned to face+sky, soft fade / edge-extend elsewhere. Same VideoTexture.
 (function installStargazingDome() {
   try {
     const vid = document.createElement('video');
@@ -912,21 +912,29 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     vid.setAttribute('playsinline', '');
     vid.setAttribute('muted', '');
     vid.preload = 'auto';
+    // Hint decode size (source is 720×974; cannot invent pixels — sharpness comes from band).
+    vid.width = 720;
+    vid.height = 974;
     vid.setAttribute('aria-hidden', 'true');
+    const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
+      ? renderer.capabilities.getMaxAnisotropy()
+      : 1;
     const tex = new THREE.VideoTexture(vid);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
+    tex.anisotropy = maxAniso;
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     let domeMat = null; // assigned below
-    // Poster is the initial dome map (updates in place); swap to VideoTexture when ready.
+    // Poster is the initial band map (updates in place); swap to VideoTexture when ready.
     const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
     poster.magFilter = THREE.LinearFilter;
     poster.generateMipmaps = false;
+    poster.anisotropy = maxAniso;
     poster.wrapS = THREE.ClampToEdgeWrapping;
     poster.wrapT = THREE.ClampToEdgeWrapping;
     const promoteVideoMap = () => {
@@ -938,23 +946,28 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     vid.addEventListener('playing', promoteVideoMap);
 
     const videoAspect = 720 / 974;
-    // Equirect-style full-sphere wrap. Portrait cover into 2:1 equirect UV,
-    // biased toward face/sky (upper video). Nadir faded to shell dark.
-    const EQ_ASPECT = 2.0;
+    // Band matches former back-wall mural aspect so texel density ≈ wall mural.
+    const bandW = OUTER_W;
+    const bandH = OUTER_H;
+    const bandAspect = bandW / bandH;
     let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
-    if (videoAspect > EQ_ASPECT) {
-      repX = EQ_ASPECT / videoAspect;
+    if (videoAspect > bandAspect) {
+      // Video wider than band → crop left/right
+      repX = bandAspect / videoAspect;
       repY = 1.0;
       offX = (1.0 - repX) * 0.5;
       offY = 0.0;
     } else {
+      // Portrait narrower than wide band → crop top/bottom; pin TOP (face + stars)
       repX = 1.0;
-      repY = videoAspect / EQ_ASPECT;
+      repY = videoAspect / bandAspect;
       offX = 0.0;
-      // Pin cover to TOP of portrait (face + stars). Lower landscape stays off-dome
-      // so it cannot fake a floor–wall horizon on the sphere.
       offY = 1.0 - repY;
     }
+
+    // Virtual mural plane in shell-local space (shell origin = SHELL_CENTER_Y).
+    const wallZLocal = WALL_Z; // ≈ −OUTER_D/2 (+ inset), same z as shell (shell at z=0)
+    const shellCY = SHELL_CENTER_Y;
 
     domeMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -965,6 +978,10 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
         shellDark: { value: new THREE.Color(0x10060e) },
         rep: { value: new THREE.Vector2(repX, repY) },
         off: { value: new THREE.Vector2(offX, offY) },
+        wallZ: { value: wallZLocal },
+        shellCY: { value: shellCY },
+        bandHalfW: { value: bandW * 0.5 },
+        bandH: { value: bandH },
       },
       vertexShader: /* glsl */`
         varying vec3 vDir;
@@ -978,24 +995,43 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
         uniform vec3 shellDark;
         uniform vec2 rep;
         uniform vec2 off;
+        uniform float wallZ;
+        uniform float shellCY;
+        uniform float bandHalfW;
+        uniform float bandH;
         varying vec3 vDir;
         void main() {
           vec3 d = normalize(vDir);
-          float u = atan(d.x, -d.z) / (2.0 * 3.14159265) + 0.5;
-          float vEq = asin(clamp(d.y, -1.0, 1.0)) / 3.14159265 + 0.5;
-          vec2 uv = off + vec2(u, vEq) * rep;
-          uv = clamp(uv, 0.0, 1.0);
-          vec3 col = texture2D(map, uv).rgb;
-          float nadir = 1.0 - smoothstep(-0.55, 0.18, d.y);
-          col = mix(col, shellDark, nadir * 0.985);
-          float zen = smoothstep(0.85, 0.995, d.y);
-          col = mix(col, mix(shellDark, col, 0.75), zen * 0.35);
+          vec3 col = shellDark;
+          float mask = 0.0;
+          // High-res band: intersect ray from shell center with virtual −Z mural plane
+          if (d.z < -0.02 && wallZ < 0.0) {
+            float t = wallZ / d.z;
+            vec3 hit = d * t;
+            float u = hit.x / bandHalfW * 0.5 + 0.5;
+            float v = (hit.y + shellCY) / bandH;
+            vec2 uv = off + vec2(u, v) * rep;
+            vec2 uvC = clamp(uv, 0.0, 1.0);
+            col = texture2D(map, uvC).rgb;
+            // Soft rectangular falloff — sharp face in-band, immersive fade outside
+            float fx = 1.0 - smoothstep(0.90, 1.22, abs(u - 0.5) * 2.0);
+            float fy = smoothstep(-0.10, 0.05, v) * (1.0 - smoothstep(0.92, 1.28, v));
+            float fb = smoothstep(0.02, -0.20, d.z);
+            mask = fx * fy * fb;
+            // Edge-extend (clamped UV) is dimmer sky bleed, not a second smear
+            float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+            col *= mix(0.42, 1.0, inside);
+          }
+          // Nadir always shell dark (no stretched subject on the floor join)
+          float nadir = 1.0 - smoothstep(-0.55, 0.12, d.y);
+          mask *= 1.0 - nadir * 0.98;
+          col = mix(shellDark, col, clamp(mask, 0.0, 1.0));
           gl_FragColor = vec4(col, 1.0);
         }
       `,
     });
 
-// Swap shell onto full-dome video material (continuous sphere — no planar mural)
+    // Swap shell onto band video material (continuous sphere — sharp −Z panel, soft elsewhere)
     if (outerShell.material && outerShell.material !== domeMat) {
       try { outerShell.material.dispose?.(); } catch {}
     }
@@ -1013,14 +1049,17 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     window.addEventListener('pointerdown', unlock, { once: true });
 
     window.__stargazingWall = {
-      mesh: outerShell, vid, tex, dome: true, equirect: true,
+      mesh: outerShell, vid, tex, dome: true, equirect: false, highResBand: true,
       cover: { repX, repY, offX, offY }, videoAspect,
+      bandSize: { w: bandW, h: bandH, wallZ: wallZLocal },
+      anisotropy: maxAniso,
     };
     console.info(
-      '[cubicles] stargazer full-dome equirect',
+      '[cubicles] stargazer high-res back band',
+      bandW.toFixed(1) + '×' + bandH.toFixed(1),
       'cover', repX.toFixed(3), repY.toFixed(3),
       'offY', offY.toFixed(3),
-      'aspect', videoAspect.toFixed(3)
+      'aniso', maxAniso
     );
   } catch (err) {
     console.warn('[cubicles] stargazing dome failed', err);
@@ -1239,7 +1278,7 @@ function updateSparklines(t) {
   }
 }
 
-// Flat box walls/ceiling removed — continuous inward sphere; stargazer is full-dome VideoTexture; water disc soft-meets shell.
+// Flat box walls/ceiling removed — continuous inward sphere; stargazer is high-res −Z band VideoTexture; water disc soft-meets shell.
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
