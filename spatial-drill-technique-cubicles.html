@@ -240,7 +240,7 @@ console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 /** Walkable nave footprint inside outer sphere shell. 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 32;   // X — roomier cells for pointer
 const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
-const OUTER_H = 12.0; // Y — cathedral vault for chrome cypress nave
+const OUTER_H = 14.2; // Y — cathedral vault for magnified hero Taxodium
 /** Inward-facing skydome radius (encloses floor corners + vault). */
 const SHELL_R = Math.sqrt((OUTER_W * 0.5) ** 2 + (OUTER_D * 0.5) ** 2 + (OUTER_H * 0.55) ** 2) * 1.14;
 const COLS = 5;
@@ -280,7 +280,7 @@ if (wantAisle) {
   SPAWN.x = aisleX + 3.15; // clearance so near-plane does not slice buttress flare
   SPAWN.z = GRID_Z_MAX + 3.8; // foyer edge — full Taxodium midground
   SPAWN.yaw = 0.16;
-  SPAWN.pitch = 0.06; // waterline + knees grounded; canopy still in frame
+  SPAWN.pitch = 0.1; // waterline + knees grounded; taller cathedral canopy in frame
   console.info('[cubicles] aisle viewpoint', SPAWN.x.toFixed(2), SPAWN.z.toFixed(2), 'yaw', SPAWN.yaw, 'pitch', SPAWN.pitch);
 }
 // Optional still-camera overrides: ?camx=&camz=&yaw=&pitch=
@@ -1408,10 +1408,10 @@ scene.add(cypressGroup);
 const CHROME_PRESETS = {
   // 1 — sketch C default: liquid mercury trunk, gold canopy, magenta filament moss
   1: {
-    trunk:  { color: 0x2e3540, metalness: 1.0, roughness: 0.1, envMapIntensity: 2.35, clearcoat: 0.85, clearcoatRoughness: 0.08, reflectivity: 1.0, ior: 1.35, specularIntensity: 1.0, specularColor: 0xffffff },
-    foliage:{ color: 0xb07818, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.45, clearcoat: 0.4, clearcoatRoughness: 0.18, emissive: 0x181004, emissiveIntensity: 0.025, reflectivity: 1.0, specularColor: 0xffd080 },
-    knee:   { color: 0x343c48, metalness: 1.0, roughness: 0.14, envMapIntensity: 2.0, clearcoat: 0.8, clearcoatRoughness: 0.07, specularColor: 0xe8eef6 },
-    moss:   { color: 0xd060b8, metalness: 1.0, roughness: 0.2, envMapIntensity: 1.4, transparent: true, opacity: 0.85, depthWrite: false, emissive: 0x180610, emissiveIntensity: 0.04, clearcoat: 0.4, clearcoatRoughness: 0.14 },
+    trunk:  { color: 0x2e3540, metalness: 1.0, roughness: 0.065, envMapIntensity: 2.95, clearcoat: 0.98, clearcoatRoughness: 0.045, reflectivity: 1.0, ior: 1.42, specularIntensity: 1.0, specularColor: 0xffffff },
+    foliage:{ color: 0xb07818, metalness: 1.0, roughness: 0.2, envMapIntensity: 2.05, clearcoat: 0.62, clearcoatRoughness: 0.12, emissive: 0x181004, emissiveIntensity: 0.04, reflectivity: 1.0, specularColor: 0xffd080 },
+    knee:   { color: 0x343c48, metalness: 1.0, roughness: 0.09, envMapIntensity: 2.65, clearcoat: 0.92, clearcoatRoughness: 0.05, specularColor: 0xe8eef6 },
+    moss:   { color: 0xd060b8, metalness: 1.0, roughness: 0.14, envMapIntensity: 1.85, transparent: true, opacity: 0.88, depthWrite: false, emissive: 0x180610, emissiveIntensity: 0.06, clearcoat: 0.55, clearcoatRoughness: 0.1 },
   },
   // 2 — brushed gold canopy: warmer metals, higher roughness = brushed specular, gold-heavy
   2: {
@@ -1437,8 +1437,8 @@ const cypressMossMat = new THREE.MeshPhysicalMaterial(_cp.moss);
 const cypressCardMat = new THREE.MeshPhysicalMaterial({
   ..._cp.foliage,
   color: 0xe8a030,
-  roughness: 0.28,
-  envMapIntensity: 1.55,
+  roughness: 0.2,
+  envMapIntensity: 2.15,
   side: THREE.DoubleSide,
   transparent: false,
   alphaTest: 0.22,
@@ -1455,10 +1455,10 @@ window.__sketchCChromeMats = cypressChromeMats;
     t.repeat.set(2.2, 4.5);
     t.colorSpace = THREE.NoColorSpace;
     cypressTrunkMat.normalMap = t;
-    cypressTrunkMat.normalScale = new THREE.Vector2(1.55, 1.55);
+    cypressTrunkMat.normalScale = new THREE.Vector2(1.85, 1.85);
     cypressTrunkMat.needsUpdate = true;
     cypressKneeMat.normalMap = t;
-    cypressKneeMat.normalScale = new THREE.Vector2(1.25, 1.25);
+    cypressKneeMat.normalScale = new THREE.Vector2(1.55, 1.55);
     cypressKneeMat.needsUpdate = true;
   });
   const barkR = loader.load('./demo-assets/cypress/bark_roughness.webp', (t) => {
@@ -1540,22 +1540,22 @@ const _taxTrunkProfiles = (() => {
   const pts = [];
   // Closed root tip BELOW y=0 — kills hollow lathe ring that read as a severed flat cut
   pts.push(new THREE.Vector2(0.001, -0.06));
-  pts.push(new THREE.Vector2(0.09, -0.03));
-  pts.push(new THREE.Vector2(0.17, 0.0)); // waterline flare max
+  pts.push(new THREE.Vector2(0.12, -0.03));
+  pts.push(new THREE.Vector2(0.255, 0.0)); // waterline flare max — magnificent hero buttress
   for (let i = 1; i <= 28; i++) {
     const t = i / 28;
     let r;
-    if (t < 0.12) {
-      const u = t / 0.12;
-      // Wide buttress flare (Taxodium)
-      r = 0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38);
+    if (t < 0.14) {
+      const u = t / 0.14;
+      // Extra-wide buttress flare (cathedral hero Taxodium)
+      r = 0.255 * (1 - Math.pow(u, 0.34)) + 0.07 * Math.pow(u, 0.34);
     } else if (t < 0.52) {
-      const u = (t - 0.12) / 0.4;
-      r = THREE.MathUtils.lerp(0.058, 0.034, u);
+      const u = (t - 0.14) / 0.38;
+      r = THREE.MathUtils.lerp(0.07, 0.038, u);
     } else {
       const u = (t - 0.52) / 0.48;
       // Keep upper stem thicker — crown shelf sits on this, not a quiver spike
-      r = THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+      r = THREE.MathUtils.lerp(0.038, 0.024, Math.pow(u, 0.7));
     }
     pts.push(new THREE.Vector2(r, t));
   }
@@ -1572,7 +1572,7 @@ const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 8 : 
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const ang = Math.atan2(v.x, v.z);
-    const flut = 1 + 0.045 * Math.sin(ang * 7) + 0.025 * Math.sin(ang * 13 + v.y * 8);
+    const flut = 1 + 0.07 * Math.sin(ang * 7) + 0.04 * Math.sin(ang * 13 + v.y * 8);
     v.x *= flut;
     v.z *= flut;
     pos.setXYZ(i, v.x, v.y, v.z);
@@ -1606,19 +1606,19 @@ function taxHash(i) {
 /**
  * Instanced hero Taxodium — flared fluted buttress, blunt knees,
  * ascending scaffold, feathery needle fans + alpha cards, Spanish moss separate.
- * Single-tree path: keep rich needles/cards (n=1, no grove draw-budget thin).
+ * Magnified single-tree path (n=1): denser canopy/knees to balance lost grove mass.
  */
 function placeBaldCypresses() {
   const trees = cypressPositions;
   const n = trees.length;
-  // Rich per-tree detail OK at n=1 (mobile no longer thins needles/cards).
-  const kneesPer = mobileLike ? 10 : 14;
-  const branchPer = mobileLike ? 9 : 12;
-  const needlePer = mobileLike ? 90 : 120;
-  const tuftPer = mobileLike ? 4 : 6;
-  const cardPer = mobileLike ? 90 : 120;
+  // Magnified hero detail (n=1) — denser canopy / knees to balance lost grove mass.
+  const kneesPer = mobileLike ? 18 : 26;
+  const branchPer = mobileLike ? 14 : 20;
+  const needlePer = mobileLike ? 160 : 240;
+  const tuftPer = mobileLike ? 8 : 14;
+  const cardPer = mobileLike ? 160 : 240;
   const crownPer = 0; // disable disc sprays entirely
-  const flutePer = mobileLike ? 2 : 3; // subtle bark ribs, not pipe-bundle
+  const flutePer = mobileLike ? 4 : 6; // deeper bark ribs for chrome bead ridges
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
@@ -1670,8 +1670,8 @@ function placeBaldCypresses() {
     // Woody cypress knees — dome mounds emerging FROM water (not hovering above)
     for (let k = 0; k < kneesPer; k++) {
       const ang = yaw + (k / kneesPer) * Math.PI * 2 + taxHash(base + 40 + k) * 0.45;
-      const rad = h * (0.11 + taxHash(base + 50 + k) * 0.13);
-      const rKnee = h * (0.032 + taxHash(base + 60 + k) * 0.028); // dome radius
+      const rad = h * (0.14 + taxHash(base + 50 + k) * 0.18);
+      const rKnee = h * (0.038 + taxHash(base + 60 + k) * 0.034); // dome radius
       const sx = rKnee * (0.9 + taxHash(base + 70 + k) * 0.35);
       const sy = rKnee * (0.7 + taxHash(base + 75 + k) * 0.35);
       const sz = rKnee * (0.85 + taxHash(base + 77 + k) * 0.3);
@@ -1697,15 +1697,15 @@ function placeBaldCypresses() {
       const up = 0.48 + taxHash(base + 120 + b) * 0.32;
       // Local trunk radius at attach height (flare → stem profile)
       let trunkR;
-      if (tAttach < 0.12) {
-        const u = tAttach / 0.12;
-        trunkR = h * (0.17 * (1 - Math.pow(u, 0.38)) + 0.058 * Math.pow(u, 0.38));
+      if (tAttach < 0.14) {
+        const u = tAttach / 0.14;
+        trunkR = h * (0.255 * (1 - Math.pow(u, 0.34)) + 0.07 * Math.pow(u, 0.34));
       } else if (tAttach < 0.52) {
-        const u = (tAttach - 0.12) / 0.4;
-        trunkR = h * THREE.MathUtils.lerp(0.058, 0.034, u);
+        const u = (tAttach - 0.14) / 0.38;
+        trunkR = h * THREE.MathUtils.lerp(0.07, 0.038, u);
       } else {
         const u = (tAttach - 0.52) / 0.48;
-        trunkR = h * THREE.MathUtils.lerp(0.034, 0.022, Math.pow(u, 0.7));
+        trunkR = h * THREE.MathUtils.lerp(0.038, 0.024, Math.pow(u, 0.7));
       }
       const attachY = trunkY + h * tAttach;
       const ax = p.x + Math.cos(ang) * trunkR * 0.92;
@@ -1749,7 +1749,7 @@ function placeBaldCypresses() {
         // Mid canopy shelf — flat-topped mature Taxodium, not a spike tip
         const yNorm = 0.5 + hh2 * 0.38;
         const crownFlat = yNorm > 0.78 ? 0.75 : 1.05;
-        const rad = h * (0.3 * (1 - yNorm * 0.55) + 0.05) * crownFlat * (0.65 + hh * 0.4);
+        const rad = h * (0.38 * (1 - yNorm * 0.55) + 0.06) * crownFlat * (0.7 + hh * 0.4);
         cx = p.x + Math.cos(ang) * rad;
         cy = trunkY + h * yNorm;
         cz = p.z + Math.sin(ang) * rad;
@@ -1792,7 +1792,7 @@ function placeBaldCypresses() {
       const ang = tip.ang + (hh - 0.5) * 1.4;
       const yNorm = 0.48 + hh2 * 0.38;
       const useTip = s % 3 !== 2;
-      const rad = h * (0.16 + hh * 0.18) * (1.05 - yNorm * 0.4);
+      const rad = h * (0.2 + hh * 0.22) * (1.08 - yNorm * 0.38);
       const cx = useTip ? tip.x + Math.cos(ang) * h * 0.06 : p.x + Math.cos(ang) * rad;
       const cy = useTip ? tip.y + (hh - 0.4) * h * 0.05 : trunkY + h * yNorm;
       const cz = useTip ? tip.z + Math.sin(ang) * h * 0.06 : p.z + Math.sin(ang) * rad;
@@ -1879,15 +1879,15 @@ function placeProceduralCypresses() {
 }
 
 /**
- * Single hero Taxodium — tall foyer midground focal under the cathedral vault.
- * Chrome materials / procedural silhouette unchanged; labs stay clear of trunk.
+ * Single magnified hero Taxodium — cathedral-scale foyer focal under the vault.
+ * Wider buttress, denser needles/cards/knees, stronger chrome; labs stay clear of trunk.
  */
 const cypressPositions = [];
 (function buildHeroTaxodium() {
   // Slight −X offset keeps center aisle readable to floating labs; z in foyer strip.
   const x = -CELL_W * 0.28;
   const z = GRID_Z_MAX + 1.65;
-  const h = 11.45; // tall hero under OUTER_H=12 vault
+  const h = 13.55; // cathedral-scale hero under OUTER_H=14.2 vault
   const yaw = 0.92;
   cypressPositions.push({ x, z, h, yaw, role: 'hero' });
   console.info(
@@ -1910,24 +1910,24 @@ function placeSpanishMossFilaments() {
   const fiberChrome = new THREE.MeshPhysicalMaterial({
     color: chromeVariant === 2 ? 0xe8c090 : chromeVariant === 3 ? 0xd0b8f0 : 0xf0f4fa,
     metalness: 1.0,
-    roughness: chromeVariant === 2 ? 0.22 : 0.055,
-    envMapIntensity: chromeVariant === 2 ? 1.35 : 2.35,
-    clearcoat: chromeVariant === 2 ? 0.25 : 0.95,
-    clearcoatRoughness: chromeVariant === 2 ? 0.35 : 0.04,
+    roughness: chromeVariant === 2 ? 0.22 : 0.04,
+    envMapIntensity: chromeVariant === 2 ? 1.35 : 2.85,
+    clearcoat: chromeVariant === 2 ? 0.25 : 1.0,
+    clearcoatRoughness: chromeVariant === 2 ? 0.35 : 0.03,
     side: THREE.DoubleSide,
   });
   const fiberMagenta = new THREE.MeshPhysicalMaterial({
     color: chromeVariant === 2 ? 0xc45a28 : chromeVariant === 3 ? 0x8a30ff : 0xff48c8,
     metalness: 1.0,
-    roughness: chromeVariant === 2 ? 0.28 : 0.1,
-    envMapIntensity: chromeVariant === 2 ? 1.15 : 1.85,
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.08,
+    roughness: chromeVariant === 2 ? 0.28 : 0.07,
+    envMapIntensity: chromeVariant === 2 ? 1.15 : 2.25,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.06,
     emissive: chromeVariant === 3 ? 0x280850 : 0x601838,
     emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.22,
     side: THREE.DoubleSide,
   });
-  const perTree = mobileLike ? 36 : 56; // rich filaments on single hero
+  const perTree = mobileLike ? 56 : 96; // denser filaments on magnified hero
   const count = cypressPositions.length * perTree;
   const chromeInst = new THREE.InstancedMesh(strandGeo, fiberChrome, count);
   const magentaInst = new THREE.InstancedMesh(strandGeo, fiberMagenta, count);
@@ -1949,8 +1949,8 @@ function placeSpanishMossFilaments() {
       const trunkBaseY = 0.02 - 0.22; // match TRUNK_SINK in placeBaldCypresses
       const canopyY = trunkBaseY + p.h * attachT;
       // Keep moss ON this tree's crown — never span between trunks
-      const rad = 0.25 + (seed % 17) * 0.04 + (s % 4) * 0.03;
-      const len = 0.55 + (seed % 23) * 0.05 + (s % 4) * 0.12;
+      const rad = 0.35 + (seed % 17) * 0.055 + (s % 5) * 0.04;
+      const len = 0.7 + (seed % 23) * 0.06 + (s % 5) * 0.14;
       const thick = 0.011 + (seed % 7) * 0.0025;
       const hangY = canopyY - len * 0.45;
       const x = p.x + Math.cos(ang) * rad;
