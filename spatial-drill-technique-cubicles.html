@@ -851,7 +851,7 @@ window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
 // —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
-// Tall centered mural on −Z wall; purple wall shows as side letterbox.
+// Full OUTER_W × OUTER_H −Z mural; object-fit:cover UV crop (no letterbox).
 (function installStargazingWall() {
   try {
     const vid = document.createElement('video');
@@ -870,9 +870,22 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
-    // Portrait 720×~976 → mural ~0.74 aspect, almost full vault height.
-    const muralH = Math.min(OUTER_H * 0.88, 10.4);
-    const muralW = muralH * (720 / 974);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    // Edge-to-edge wall plane; cover/crop portrait 720×974 into wide OUTER_W×OUTER_H.
+    const muralW = OUTER_W;
+    const muralH = OUTER_H;
+    const wallAspect = muralW / muralH;
+    const videoAspect = 720 / 974;
+    if (videoAspect > wallAspect) {
+      // Video wider than wall → crop left/right
+      tex.repeat.set(wallAspect / videoAspect, 1);
+      tex.offset.set((1 - tex.repeat.x) / 2, 0);
+    } else {
+      // Video taller/narrower than wall → crop top/bottom
+      tex.repeat.set(1, videoAspect / wallAspect);
+      tex.offset.set(0, (1 - tex.repeat.y) / 2);
+    }
     const mat = new THREE.MeshBasicMaterial({
       map: tex,
       toneMapped: false,
@@ -901,7 +914,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
     window.addEventListener('pointerdown', unlock, { once: true });
     window.__stargazingWall = { mesh, vid, tex, muralW, muralH };
-    console.info('[cubicles] stargazing back-wall video', muralW.toFixed(2), '×', muralH.toFixed(2));
+    console.info('[cubicles] stargazing back-wall video', muralW.toFixed(2), '×', muralH.toFixed(2), 'cover');
   } catch (err) {
     console.warn('[cubicles] stargazing wall failed', err);
   }
