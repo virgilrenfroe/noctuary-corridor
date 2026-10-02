@@ -41,6 +41,7 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
@@ -68,6 +69,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
 scene.background = new THREE.Color(0x0c1420); __floatClearBg();
+if (document.body.classList.contains('embed')) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+}
+
 const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
 camera.position.set(2.8, 2.4, 3.4);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -106,9 +112,13 @@ const floor = new THREE.Mesh(new THREE.PlaneGeometry(6,6), floorMat);
 floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 if (document.body.classList.contains('embed')) floor.visible = false; // floating labs: object only, no caustic floor plate
 
+const __embedC = document.body.classList.contains('embed');
+// Embed: no transmission (opaque black plate on alpha canvas). Glass-look via opacity + env.
 const glass = new THREE.Mesh(
   new THREE.IcosahedronGeometry(0.55, 2),
-  new THREE.MeshPhysicalMaterial({ color:0xb8e8ff, transmission:0.92, thickness:1.5, roughness:0.08, metalness:0, ior:1.45, transparent:true })
+  new THREE.MeshPhysicalMaterial(__embedC
+    ? { color:0xb8e8ff, roughness:0.08, metalness:0, ior:1.45, transparent:true, opacity:0.55, depthWrite:false, thickness:1.5, envMapIntensity:1.4, clearcoat:1, clearcoatRoughness:0.06 }
+    : { color:0xb8e8ff, transmission:0.92, thickness:1.5, roughness:0.08, metalness:0, ior:1.45, transparent:true })
 );
 glass.position.y = 0.85; glass.castShadow = true; scene.add(glass);
 

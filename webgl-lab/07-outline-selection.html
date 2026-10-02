@@ -129,8 +129,14 @@ addEventListener('pointerdown', (e) => {
   outline.selectedObjects = hits.length ? [hits[0].object] : [];
 });
 
-onResize(camera, renderer, composer);
-(function tick(){ requestAnimationFrame(tick); controls.update(); composer.render(); })();
+onResize(camera, renderer, __embed ? null : composer);
+(function tick(){
+  requestAnimationFrame(tick);
+  controls.update();
+  // Embed/objects-only: skip OutlinePass composer — on some mobile GPUs it fills an opaque plate.
+  if (__embed) renderer.render(scene, camera);
+  else composer.render();
+})();
 
 </script>
 </body>

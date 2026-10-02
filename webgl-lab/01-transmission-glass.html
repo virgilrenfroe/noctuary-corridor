@@ -91,7 +91,16 @@ const checker = new THREE.Mesh(
 );
 checker.position.set(-0.85, 0.28, 0); scene.add(checker);
 
-const glassMat = new THREE.MeshPhysicalMaterial({
+const __embedGlass = document.body.classList.contains('embed');
+// Transmission needs an opaque scene background; with alpha canvas it paints a black plate
+// behind the whole iframe. Embed uses refractive-look PBR without transmission so objects float.
+const glassMat = new THREE.MeshPhysicalMaterial(__embedGlass ? {
+  color: 0xffffff, metalness: 0, roughness: 0.06,
+  transparent: true, opacity: 0.42, depthWrite: false,
+  thickness: 1.2, ior: 1.5,
+  specularIntensity: 1, envMapIntensity: 1.6,
+  clearcoat: 1, clearcoatRoughness: 0.05,
+} : {
   color: 0xffffff, metalness: 0, roughness: 0.05,
   transmission: 1.0, thickness: 1.2, ior: 1.5,
   specularIntensity: 1, envMapIntensity: 1.2,
@@ -101,7 +110,9 @@ const torus = new THREE.Mesh(new THREE.TorusKnotGeometry(0.45, 0.16, 180, 32), g
 torus.position.set(0.35, 0.75, 0); scene.add(torus);
 
 const ball = new THREE.Mesh(new THREE.SphereGeometry(0.38, 64, 64), glassMat.clone());
-ball.material.color.set(0xa8d8ff); ball.material.thickness = 2.0; ball.material.ior = 1.7;
+ball.material.color.set(0xa8d8ff);
+if (!__embedGlass) { ball.material.thickness = 2.0; ball.material.ior = 1.7; }
+else { ball.material.opacity = 0.55; }
 ball.position.set(1.15, 0.4, 0.35); scene.add(ball);
 
 const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(3,5,2); scene.add(key);

@@ -85,7 +85,8 @@ groundReflector.rotation.x = -Math.PI/2; groundReflector.visible = false; scene.
 
 const floorVis = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x222833, metalness:0.9, roughness:0.15 }));
 floorVis.rotation.x = -Math.PI/2; floorVis.position.y = 0.001; scene.add(floorVis);
-if (document.body.classList.contains('embed')) floorVis.visible = false; // floating labs: props only
+const __embedSsr = document.body.classList.contains('embed');
+if (__embedSsr) floorVis.visible = false; // floating labs: props only
 
 const colors = [0xf0c24b, 0x8a7bb8, 0x5ec8c0, 0xe07060];
 colors.forEach((c,i) => {
@@ -109,11 +110,14 @@ ssr.thickness = 0.018; ssr.infiniteThick = false; ssr.maxDistance = 10;
 composer.addPass(ssr);
 composer.addPass(new OutputPass());
 
-onResize(camera, renderer, composer);
+onResize(camera, renderer, __embedSsr ? null : composer);
 (function tick(){
   requestAnimationFrame(tick);
   knot.rotation.y += 0.01; knot.rotation.x += 0.004;
-  controls.update(); composer.render();
+  controls.update();
+  // Embed: SSRPass fills opaque plate on alpha canvas — props only via direct render.
+  if (__embedSsr) renderer.render(scene, camera);
+  else composer.render();
 })();
 
 </script>
