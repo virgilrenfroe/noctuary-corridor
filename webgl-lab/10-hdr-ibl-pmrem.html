@@ -16,14 +16,18 @@ canvas{display:block;width:100%;height:100%}
 .note b{color:var(--accent);font-weight:600}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
-html.embed,body.embed{background:transparent!important} body.embed canvas{background:transparent!important;background-color:transparent!important}
+/* Float embed: transparent. Wall embed (?wall=1): keep opaque env/dark stage. */
+html.embed:not(.wall),body.embed:not(.wall){background:transparent!important}
+body.embed:not(.wall) canvas{background:transparent!important;background-color:transparent!important}
+html.embed.wall,body.embed.wall{background:var(--ink)!important}
+body.embed.wall canvas{background:var(--ink)!important;background-color:var(--ink)!important}
 </style>
 
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
+(function(){const q=new URLSearchParams(location.search);const emb=q.has('embed')||q.has('still');const wall=q.has('wall')||q.get('opaque')==='1';if(emb){document.body.classList.add('embed');document.documentElement.classList.add('embed');if(wall){document.body.classList.add('wall');document.documentElement.classList.add('wall');}else{document.documentElement.style.background='transparent';document.body.style.background='transparent';}}})();
 </script>
 
 <div class="hud">
@@ -44,14 +48,16 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
-  const r = new THREE.WebGLRenderer({ antialias:true, alpha:embed, premultipliedAlpha:!embed, powerPreference:'high-performance', ...opts });
+  const wall = document.body.classList.contains('wall');
+  const alpha = embed && !wall;
+  const r = new THREE.WebGLRenderer({ antialias:true, alpha, premultipliedAlpha:!alpha, powerPreference:'high-performance', ...opts });
   r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.setSize(innerWidth, innerHeight);
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
   r.toneMappingExposure = 1.0;
-  if (embed) { r.setClearColor(0x000000, 0); r.setClearAlpha(0); }
-  if (embed) {
+  if (alpha) {
+    r.setClearColor(0x000000, 0); r.setClearAlpha(0);
     r.domElement.style.background = 'transparent';
     r.domElement.style.backgroundColor = 'transparent';
   }
@@ -71,11 +77,12 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 const renderer = makeRenderer();
 renderer.toneMappingExposure = 1.25;
 const scene = new THREE.Scene();
-const __floatClearBg = () => { if (document.body.classList.contains('embed')) scene.background = null; };
+const __wall = document.body.classList.contains('wall');
+const __floatClearBg = () => { if (document.body.classList.contains('embed') && !__wall) scene.background = null; };
 const __embed = document.body.classList.contains('embed');
-const camera = new THREE.PerspectiveCamera(__embed ? 36 : 45, innerWidth/innerHeight, 0.1, 100);
-// Embed: square CSS3D iframe — pull back so knot+flanking spheres stay inside with margin.
-camera.position.set(0, __embed ? 0.55 : 1, __embed ? 6.4 : 4);
+const camera = new THREE.PerspectiveCamera((__embed && !__wall) ? 36 : (__wall ? 40 : 45), innerWidth/innerHeight, 0.1, 100);
+// Float embed: pull back for square CSS3D. Wall embed: keep env background, slightly wider FOV.
+camera.position.set(0, (__embed && !__wall) ? 0.55 : (__wall ? 0.35 : 1), (__embed && !__wall) ? 6.4 : (__wall ? 5.2 : 4));
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 if (__embed) { controls.target.set(0, 0, 0); controls.enableDamping = false; controls.update(); }
@@ -88,10 +95,10 @@ const mats = {
   gold: new THREE.MeshStandardMaterial({ color:0xf0c24b, metalness:1, roughness:0.18 }),
   dielectric: new THREE.MeshStandardMaterial({ color:0x8a7bb8, metalness:0.0, roughness:0.25 }),
 };
-const __knotR = __embed ? 0.48 : 0.6;
-const __knotT = __embed ? 0.17 : 0.22;
-const __sphR = __embed ? 0.32 : 0.4;
-const __gap = __embed ? 1.05 : 1.4;
+const __knotR = (__embed && !__wall) ? 0.48 : (__wall ? 0.55 : 0.6);
+const __knotT = (__embed && !__wall) ? 0.17 : (__wall ? 0.2 : 0.22);
+const __sphR = (__embed && !__wall) ? 0.32 : (__wall ? 0.36 : 0.4);
+const __gap = (__embed && !__wall) ? 1.05 : (__wall ? 1.2 : 1.4);
 const chrome = new THREE.Mesh(new THREE.TorusKnotGeometry(__knotR,__knotT,180,32), mats.chrome); scene.add(chrome);
 const gold = new THREE.Mesh(new THREE.SphereGeometry(__sphR,64,64), mats.gold); gold.position.set(-__gap,0,0); scene.add(gold);
 const diel = new THREE.Mesh(new THREE.SphereGeometry(__sphR,64,64), mats.dielectric); diel.position.set(__gap,0,0); scene.add(diel);
@@ -100,7 +107,7 @@ if (__embed) {
   const halfW = __gap + __sphR;
   const vFov = THREE.MathUtils.degToRad(camera.fov);
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
-  const needZ = (halfW / Math.tan(hFov / 2)) * 1.22;
+  const needZ = (halfW / Math.tan(hFov / 2)) * (__wall ? 1.12 : 1.22);
   if (needZ > camera.position.z) camera.position.z = needZ;
   controls.update();
 }

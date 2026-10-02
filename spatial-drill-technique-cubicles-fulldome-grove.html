@@ -558,7 +558,7 @@ const CHROME_LOOK = {
 }[chromeVariant];
 console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 
-/** TEMPORARY test: skip ALL lab panels (live CSS3D floating labs + wall still/diagram posters + hit planes).
+/** Optional: skip ALL lab panels (side-wall LIVE iframes + hit planes).
  *  Triggers: ?panels=0 | ?labs=0 | ?SKIP_LABS=true | ?v=nolabs1
  *  Restore: omit those, or force on with ?panels=1 (even alongside ?v=nolabs1). */
 const _panelsParam = params.get('panels') ?? params.get('labs') ?? hashParams.get('panels') ?? hashParams.get('labs');
@@ -585,13 +585,14 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 4; // Virgil LIVE×4: instancing, hdr-ibl (chrome), god-rays, cloth
+const MAX_ARMED = 2; // wall LIVE×2: left hdr-ibl (chrome), right god-rays
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
 const INTERACT_DIST = Math.max(20, CELL_D * 3.6);
 function interactDistFor(panel) {
   if (!panel) return INTERACT_DIST;
+  if (panel.wallMounted) return Math.max(INTERACT_DIST * 1.5, OUTER_W * 0.85);
   // Back half of the grid needs more slack — wallpaper + deeper standing line.
   return panel.row >= 2 ? INTERACT_DIST * 1.35 : INTERACT_DIST;
 }
@@ -630,14 +631,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=nolabs1' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall2' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=nolabs1' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall2' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -650,14 +651,11 @@ const CELLS = [
   { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=nolabs1' },
 ];
 
-/** Virgil LIVE×4: god-rays, hdr-ibl (chrome), instancing, cloth.
- *  Stencil (08) + decals (09) → side/foyer wall stills+diagrams. −Z stargazer untouched. */
-const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth']);
-/** Near-aisle slots for the 4 live labs (col,row) — foyer-readable spread. */
-const LIVE_SLOTS = [
-  [1, 0], [3, 0],
-  [2, 1], [4, 1],
-];
+/** Virgil LIVE×2 side-wall iframes: left HDR chrome (10), right god-rays (03).
+ *  Full wall height · opaque lab backgrounds · no floating labs. −Z stargazer untouched. */
+const LIVE_IDS = new Set(['hdr-ibl', 'god-rays']);
+/** Unused for wall layout (kept so older debug refs do not throw). */
+const LIVE_SLOTS = [];
 /** Still snapshot paths (labeled gallery). */
 const STILL_BY_ID = {
   glass: './demo-assets/lab-stills/01-transmission-glass.png',
@@ -1797,44 +1795,53 @@ async function placeWallLabPosters(wallMetas, opts) {
 
 
 const PANEL_W = Math.min(3.35, CELL_W * 0.62);
-// Human-scale floating scenes under cathedral vault — readable from foyer
-const PANEL_H = Math.min(3.05, CELL_D * 0.66);
-const PANEL_Y = EYE + 0.15; // float near eye height inside each cell
+// LIVE×2 full-height side-wall iframes — no floating cell labs, no still posters.
+// Left −X: HDR chrome (10). Right +X: god-rays (03). Fit to wall size. Opaque lab bg.
+const PANEL_H = Math.min(3.05, CELL_D * 0.66); // kept for beat helpers / legacy refs
+const PANEL_Y = EYE + 0.15;
 
-
-// Live floating labs only (CSS3D + arming). Wall labs → side/foyer diagram posters.
 if (!SKIP_LABS) {
-const liveMetas = CELLS.filter((c) => LIVE_IDS.has(c.id));
-const wallMetas = CELLS.filter((c) => !LIVE_IDS.has(c.id));
+const liveById = Object.fromEntries(CELLS.filter((c) => LIVE_IDS.has(c.id)).map((c) => [c.id, c]));
+const wallLiveOrder = [
+  { id: 'hdr-ibl', side: 'left' },
+  { id: 'god-rays', side: 'right' },
+];
+const liveMetas = wallLiveOrder.map((s) => liveById[s.id]).filter(Boolean);
+if (liveMetas.length !== 2) {
+  console.warn('[cubicles] expected LIVE×2 wall labs, got', liveMetas.map((m) => m && m.id));
+}
 if (liveMetas.length > MAX_ARMED) {
   console.warn('[cubicles] LIVE_IDS count', liveMetas.length, '> MAX_ARMED', MAX_ARMED);
 }
 
-for (let li = 0; li < liveMetas.length; li++) {
-  const meta = liveMetas[li];
-  const slot = LIVE_SLOTS[li] || [li % COLS, Math.floor(li / COLS) % 2];
-  const col = slot[0];
-  const row = slot[1]; // keep near-aisle (row 0–1)
-  const minX = -OUTER_W / 2 + col * CELL_W;
-  const maxX = minX + CELL_W;
-  const maxZ = GRID_Z_MAX - row * CELL_D;
-  const minZ = maxZ - CELL_D;
-  const cx = (minX + maxX) / 2;
-  const cz = (minZ + maxZ) / 2;
+const WALL_LAB_H = Math.min(OUTER_H * 0.92, OUTER_H - 0.55);
+const WALL_LAB_W = Math.min(GRID_D * 0.58, 10.5);
+const wallY = OUTER_H * 0.5;
+const wallZ = (GRID_Z_MIN + GRID_Z_MAX) * 0.5;
+const wallInset = 0.14;
+const leftX = -OUTER_W / 2 + wallInset;
+const rightX = OUTER_W / 2 - wallInset;
 
-  const boxGeo = new THREE.BoxGeometry(CELL_W * 0.998, OUTER_H * 0.998, CELL_D * 0.998);
-  const wire = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), wireMat);
-  wire.position.set(cx, OUTER_H / 2, cz);
-  debugGroup.add(wire);
+const wallSpecs = [
+  { meta: liveById['hdr-ibl'], x: leftX, rotY: Math.PI / 2, side: 'left' },
+  { meta: liveById['god-rays'], x: rightX, rotY: -Math.PI / 2, side: 'right' },
+];
 
-  const panelZ = cz + CELL_D * 0.06;
+for (let li = 0; li < wallSpecs.length; li++) {
+  const spec = wallSpecs[li];
+  const meta = spec.meta;
+  if (!meta) continue;
+  const cx = spec.x;
+  const cz = wallZ;
+  const panelZ = wallZ;
+  const rotY = spec.rotY;
 
   const group = new THREE.Group();
-  group.position.set(cx, PANEL_Y, panelZ);
-  group.rotation.y = 0;
+  group.position.set(cx, wallY, panelZ);
+  group.rotation.y = rotY;
 
   const hit = new THREE.Mesh(
-    new THREE.PlaneGeometry(PANEL_W, PANEL_H),
+    new THREE.PlaneGeometry(WALL_LAB_W * 1.02, WALL_LAB_H * 1.02),
     new THREE.MeshBasicMaterial({
       transparent: true, opacity: 0, depthWrite: false, colorWrite: false,
       side: THREE.DoubleSide, fog: false, visible: false,
@@ -1845,33 +1852,27 @@ for (let li = 0; li < liveMetas.length; li++) {
   hit.userData.cellIndex = li;
   hit.userData.clickable = true;
   hit.userData.liveLab = meta.id;
+  hit.userData.wallSide = spec.side;
   group.add(hit);
   scene.add(group);
 
-  const cssW = Math.round(PANEL_W * 100);
-  const cssH = Math.round(PANEL_H * 100);
-  const scale = PANEL_W / cssW;
+  // CSS px size matches wall aspect (opaque plate — lab keeps its own dark/env bg).
+  const cssH = 1100;
+  const cssW = Math.max(480, Math.round(cssH * (WALL_LAB_W / WALL_LAB_H)));
+  const scale = WALL_LAB_W / cssW;
   const iframe = document.createElement('iframe');
   iframe.src = 'about:blank';
   iframe.setAttribute('loading', 'lazy');
-  iframe.title = meta.name;
+  iframe.title = meta.name + ' · ' + spec.side + ' wall';
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   iframe.allow = 'autoplay';
   iframe.style.width = cssW + 'px';
   iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
-  // God-rays need an opaque dark plate — transparent iframe compositing wiped shafts
-  // (dark objects on white / no volumetric). Other labs stay transparent floaters.
-  if (meta.id === 'god-rays') {
-    iframe.style.background = '#020308';
-    iframe.style.backgroundColor = '#020308';
-    iframe.style.colorScheme = 'dark';
-  } else {
-    iframe.style.background = 'transparent';
-    iframe.style.backgroundColor = 'transparent';
-    iframe.style.colorScheme = 'normal';
-    iframe.setAttribute('allowtransparency', 'true');
-  }
+  // Wall-mounted: opaque plate (HDR keeps env; god-rays keeps ink). Not transparent float.
+  iframe.style.background = '#0a0b10';
+  iframe.style.backgroundColor = '#0a0b10';
+  iframe.style.colorScheme = 'dark';
   iframe.style.pointerEvents = 'none';
   iframe.style.borderRadius = '0';
   iframe.style.boxShadow = 'none';
@@ -1880,29 +1881,54 @@ for (let li = 0; li < liveMetas.length; li++) {
 
   const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
-  cssObj.position.set(cx, PANEL_Y, panelZ + 0.02);
-  cssObj.rotation.y = 0;
+  // Local +Z faces into the room after rotY (left:+X, right:−X) — not world +Z.
+  const faceInset = 0.05;
+  cssObj.position.set(
+    cx + Math.sin(rotY) * faceInset,
+    wallY,
+    panelZ + Math.cos(rotY) * faceInset
+  );
+  cssObj.rotation.y = rotY;
   cssScene.add(cssObj);
 
-  const spot = new THREE.PointLight(0xfff6e8, 4.0, CELL_W * 1.3);
-  spot.position.set(cx, PANEL_Y + PANEL_H * 0.55, panelZ + 0.9);
+  const spot = new THREE.PointLight(0xfff6e8, 5.5, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15);
+  // Pull light slightly into the room from the wall face
+  const inNx = spec.side === 'left' ? 1 : -1;
+  spot.position.set(cx + inNx * 1.1, wallY + WALL_LAB_H * 0.15, panelZ);
   scene.add(spot);
 
+  let embedUrl = meta.src;
+  if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall2');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall2';
+
   hung.push({
-    meta, col, row, cx, cz, panelZ,
-    aabb: { minX, maxX, minZ, maxZ },
+    meta, col: spec.side === 'left' ? 0 : COLS - 1, row: 1,
+    cx, cz, panelZ,
+    aabb: {
+      minX: Math.min(cx - 0.5, cx + 0.5),
+      maxX: Math.max(cx - 0.5, cx + 0.5),
+      minZ: panelZ - WALL_LAB_W * 0.5,
+      maxZ: panelZ + WALL_LAB_W * 0.5,
+    },
     group, frame: null, ghost: null, hit, cssObj, iframe, spot,
     embedArmed: false,
     canInteract: false,
-    embedUrl: meta.src,
+    embedUrl,
     cssBaseScale: scale,
-    baseY: PANEL_Y,
-    beatPhase: li * 1.618 + col * 0.37 + row * 0.21,
+    baseY: wallY,
+    beatPhase: li * 1.618,
     live: true,
+    wallMounted: true,
+    wallSide: spec.side,
+    wallLabW: WALL_LAB_W,
+    wallLabH: WALL_LAB_H,
+    rotY,
   });
 }
 window.__hungLabs = hung;
-window.__floatingLabsSketch = true;
+window.__floatingLabsSketch = false;
+window.__wallLiveLabs = true;
 /** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
 function revealLabWhenReady(panel) {
   if (!panel || panel._revealWatch) return;
@@ -1920,7 +1946,7 @@ function revealLabWhenReady(panel) {
       }
     } catch {}
     if (tries < 180) requestAnimationFrame(tick);
-    else { panel._revealWatch = false; } // stay hidden if canvas never arrives (no empty plate)
+    else { panel._revealWatch = false; }
   };
   panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
   requestAnimationFrame(tick);
@@ -1937,48 +1963,32 @@ function armLab(panel) {
   }
 }
 
-/** Pre-arm a few near-foyer labs (WebGL context budget) so walk shows floating sketches. */
+/** Pre-arm both side-wall labs (MAX_ARMED=2). */
 function armFoyerVisibleLabs() {
-  const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
-    .sort((a, b) => a.dist - b.dist);
-  const FOYER_ARM = Math.min(2, MAX_ARMED, hung.length);
   let n = 0;
-  for (const { h } of scored) {
-    if (n >= FOYER_ARM) break;
-    if (h.row > 1) continue;
+  for (const h of hung) {
+    if (n >= MAX_ARMED) break;
     armLab(h);
     n++;
   }
-  console.info('[cubicles] foyer-armed floating labs', n);
+  console.info('[cubicles] wall-armed LIVE labs', n, 'maxArmed', MAX_ARMED, hung.map((h) => h.meta.id + ':' + h.wallSide).join(','));
 }
-// Defer foyer lab iframes one frame so room (walls/water/trees/HDR bg) paints first.
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     armFoyerVisibleLabs();
-    console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
-    // Side + foyer wall still+diagram plates (stargazer −Z untouched)
-    const wallInset = 0.14;
-    placeWallLabPosters(wallMetas, {
-      leftX: -OUTER_W / 2 + 0.12,
-      rightX: OUTER_W / 2 - 0.12,
-      foyerZ: OUTER_D / 2 - 0.12,
-      y: OUTER_H * 0.5,
-      plateW: 2.05,
-      plateH: OUTER_H * 0.94,
-      plateDepth: 0.62, // thick Taxodium slab (was paper-thin PlaneGeometry)
-      inset: 0.12,
-    }).catch((e) => console.warn('[cubicles] wall posters failed', e));
-
+    console.info('[cubicles] side-wall LIVE×2 — full-H iframes, no floating labs / no still posters');
   });
 });
 
 } else {
-  // Labs/posters skipped — room + Taxodium + stargazer + ambient remain.
+  // Labs skipped — room + Taxodium + stargazer + ambient remain.
   window.__hungLabs = hung;
   window.__floatingLabsSketch = false;
+  window.__wallLiveLabs = false;
   window.__wallLabPosters = wallPosterGroup;
-  console.info('[cubicles] panels skipped (SKIP_LABS) — hung=0 wallPosters=0');
+  console.info('[cubicles] panels skipped (SKIP_LABS) — hung=0 wallLive=0');
 }
+
 
 // —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
 // True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
@@ -2819,8 +2829,10 @@ function labBehindTree(h, tree) {
   const lz = h.cssObj.position.z;
   const sx = h.group.scale.x || 1;
   const sy = h.group.scale.y || 1;
-  const hw = PANEL_W * 0.5 * sx;
-  const hh = PANEL_H * 0.5 * sy;
+  const labW = h.wallMounted ? (h.wallLabW || PANEL_W) : PANEL_W;
+  const labH = h.wallMounted ? (h.wallLabH || PANEL_H) : PANEL_H;
+  const hw = labW * 0.5 * sx;
+  const hh = labH * 0.5 * sy;
   const yaw = h.cssObj.rotation.y || 0;
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
@@ -3039,13 +3051,18 @@ function updateLazyEmbeds() {
     .sort((a, b) => a.dist - b.dist);
 
   // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
+  // Side-wall LIVE plates stay armed (foyer→wall span often exceeds ARM_DIST).
   const armSet = new Set();
+  for (const h of hung) {
+    if (h.wallMounted) armSet.add(h);
+  }
   if (hoverPanel) armSet.add(hoverPanel);
   const facing = facingPanelWithin(1);
   if (facing) armSet.add(facing);
   if (activeCell) armSet.add(activeCell);
   for (const { h, dist } of scored) {
     if (armSet.size >= MAX_ARMED) break;
+    if (h.wallMounted) continue;
     if (dist < ARM_DIST) armSet.add(h);
   }
 
@@ -3106,6 +3123,7 @@ function updateBeatLabs(t, bassOpt) {
   if (bass < 0.002 && !bed?.analyser) {
     // Rest pose when no audio graph yet
     for (const h of hung) {
+      if (h.wallMounted) continue;
       if (h._beatApplied) {
         h.group.position.set(h.cx, h.baseY, h.panelZ);
         h.group.rotation.y = 0;
@@ -3124,6 +3142,7 @@ function updateBeatLabs(t, bassOpt) {
   const AMP_SCALE = 0.068;  // ±6.8% expand/contract (was 0.050)
   const AMP_YAW = 0.030;    // ~1.7° yaw
   for (const h of hung) {
+    if (h.wallMounted) continue; // side-wall plates stay fixed (water/knees keep the beat)
     const ph = h.beatPhase || 0;
     // Staggered micro-phase so the field breathes, not marches in lockstep
     const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
