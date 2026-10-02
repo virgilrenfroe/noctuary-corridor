@@ -427,7 +427,7 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x14061a, 18, 52); // tighter so sphere rim softens; chrome still reads mid-nave
+scene.fog = new THREE.Fog(0x14061a, 12, 42); // dissolve water–shell join; chrome still mid-nave
 scene.background = new THREE.Color(0x1a0820);
 const cssScene = new THREE.Scene();
 
@@ -478,40 +478,43 @@ if (chromeVariant === 2) {
   scene.add(new THREE.PointLight(0xc040ff, 8, 24).translateX(6).translateY(4).translateZ(4)); // foyer magenta kick
 }
 
-// —— Inward-facing outer sphere (skydome shell); floor/water stay planar inside ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // kept for any legacy refs
-const shellMat = new THREE.MeshStandardMaterial({
-  color: 0x160818,
-  roughness: 0.82,
-  metalness: 0.22,
+// —— Inward-facing outer sphere (continuous skydome; no planar box walls) ——
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // legacy refs only
+const SHELL_CENTER_Y = OUTER_H * 0.38;
+const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
+const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
+// shellMat built after stargazer video binds (full-dome VideoTexture). Placeholder dark until then.
+let shellMat = new THREE.MeshBasicMaterial({
+  color: 0x140610,
   side: THREE.BackSide,
-  envMapIntensity: 0.5,
   fog: true,
+  depthWrite: true,
 });
 
-// Swamp water floor — three.js Water addon, slowed + murkier olive/brown
-const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
+// Circular swamp water — radial alpha soft-meets the sphere (no rectangular floor edge)
+const WATER_TIME_SCALE = 0.28;
 const waterNormals = new THREE.TextureLoader().load(
   './demo-assets/textures/waternormals.jpg',
   (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
 );
 const waterSun = new THREE.Vector3(0.25, 0.75, 0.35).normalize();
-const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
+const water = new Water(new THREE.CircleGeometry(WATER_R, mobileLike ? 64 : 96), {
   textureWidth: mobileLike ? 256 : 512,
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
   sunDirection: waterSun.clone(),
   sunColor: 0xffd078,
-  waterColor: 0x140c22, // cathedral aisle — dark mirror so mercury trees read
+  waterColor: 0x140c22,
   distortionScale: 1.15,
   fog: true,
+  alpha: 1.0,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0.02;
 water.raycast = () => {};
-// Larger, lazier ripples (size) + stretch baked wave time divisors in getNoise
 if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
 if (water.material?.fragmentShader) {
+  const wr = WATER_R.toFixed(4);
   water.material.fragmentShader = water.material.fragmentShader
     .replace('time / 17.0', 'time / 52.0')
     .replace('time / 29.0', 'time / 78.0')
@@ -520,10 +523,47 @@ if (water.material?.fragmentShader) {
     .replace('time / 101.0', 'time / 240.0')
     .replace('time / 97.0', 'time / 230.0')
     .replace('time / 109.0', 'time / 260.0')
-    .replace('time / -113.0', 'time / -270.0');
+    .replace('time / -113.0', 'time / -270.0')
+    .replace(
+      'gl_FragColor = vec4( outgoingLight, alpha );',
+      'float _rim = length( worldPosition.xz ) / ' + wr + ';\n'
+      + '\t\t\t\t\tfloat _edgeA = 1.0 - smoothstep( 0.45, 0.92, _rim );\n'
+      + '\t\t\t\t\toutgoingLight = mix( vec3( 0.06, 0.025, 0.04 ), outgoingLight, _edgeA );\n'
+      + '\t\t\t\t\tgl_FragColor = vec4( outgoingLight, alpha * _edgeA );'
+    );
+  water.material.transparent = true;
+  water.material.depthWrite = false;
   water.material.needsUpdate = true;
 }
 scene.add(water);
+const underAlpha = document.createElement('canvas');
+underAlpha.width = 256; underAlpha.height = 256;
+{
+  const ctx = underAlpha.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 60, 128, 128, 128);
+  g.addColorStop(0, 'rgba(16,6,14,1)');
+  g.addColorStop(0.55, 'rgba(16,6,14,0.7)');
+  g.addColorStop(0.78, 'rgba(16,6,14,0.2)');
+  g.addColorStop(1, 'rgba(16,6,14,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+}
+const underDisc = new THREE.Mesh(
+  new THREE.CircleGeometry(FLOOR_CHORD_R * 1.04, mobileLike ? 48 : 72),
+  new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(underAlpha),
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    fog: true,
+    side: THREE.DoubleSide,
+  })
+);
+underDisc.rotation.x = -Math.PI / 2;
+underDisc.position.y = 0.005;
+underDisc.raycast = () => {};
+scene.add(underDisc);
+window.__waterDisc = { water, underDisc, waterR: WATER_R, floorChordR: FLOOR_CHORD_R };
 
 // —— Sketch C cathedral HDR IBL (local Poly Haven) + magenta/gold tint + mercury bloom ——
 // Non-blocking: failures fall back; never blocks WebGL boot.
@@ -754,15 +794,15 @@ setupCathedralEnvAndBloom().then(() => {
 
 
 const outerShell = new THREE.Mesh(
-  new THREE.SphereGeometry(SHELL_R, mobileLike ? 32 : 64, mobileLike ? 24 : 48),
+  new THREE.SphereGeometry(SHELL_R, mobileLike ? 48 : 80, mobileLike ? 32 : 56),
   shellMat
 );
-outerShell.position.set(0, OUTER_H * 0.42, 0);
+outerShell.position.set(0, SHELL_CENTER_Y, 0);
 outerShell.receiveShadow = true;
 outerShell.raycast = () => {};
 scene.add(outerShell);
-window.__outerShell = { mesh: outerShell, radius: SHELL_R };
-console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', (OUTER_H * 0.42).toFixed(2));
+window.__outerShell = { mesh: outerShell, radius: SHELL_R, centerY: SHELL_CENTER_Y, floorChordR: FLOOR_CHORD_R };
+console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', SHELL_CENTER_Y.toFixed(2), 'waterR', WATER_R.toFixed(2));
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -858,9 +898,10 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// —— Far/back wall stargazing clip → soft wrap onto ceiling (portrait ~14s, muted loop) ——
-// Wall keeps object-fit:cover UVs; leftover top crop continues onto ceiling at same texel scale.
-(function installStargazingWall() {
+// —— Stargazer full-dome: VideoTexture on inward sphere (aspect-correct, nadir fade) ——
+// Portrait clip projected with correct aspect toward −Z; sky edge-extends across the dome;
+// nadir soft-masks to shell dark so the floor join never stretches the subject.
+(function installStargazingDome() {
   try {
     const vid = document.createElement('video');
     vid.src = './demo-assets/backwall/stargazing.mp4';
@@ -877,145 +918,90 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
-    // Clamp on shared texture; per-mesh UVs carry cover crop (tex.repeat stays 1,1).
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.repeat.set(1, 1);
-    tex.offset.set(0, 0);
+    let domeMat = null; // assigned below
+    // Poster is the initial dome map (updates in place); swap to VideoTexture when ready.
+    const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
+    poster.colorSpace = THREE.SRGBColorSpace;
+    poster.minFilter = THREE.LinearFilter;
+    poster.magFilter = THREE.LinearFilter;
+    poster.generateMipmaps = false;
+    poster.wrapS = THREE.ClampToEdgeWrapping;
+    poster.wrapT = THREE.ClampToEdgeWrapping;
+    const promoteVideoMap = () => {
+      if (!domeMat?.uniforms?.map || vid.readyState < 2) return;
+      domeMat.uniforms.map.value = tex;
+      tex.needsUpdate = true;
+    };
+    vid.addEventListener('loadeddata', promoteVideoMap);
+    vid.addEventListener('playing', promoteVideoMap);
 
-    const muralW = OUTER_W;
-    const muralH = OUTER_H;
-    const wallAspect = muralW / muralH;
     const videoAspect = 720 / 974;
-    let repX, repY, offX, offY;
-    if (videoAspect > wallAspect) {
-      repX = wallAspect / videoAspect;
-      repY = 1;
-      offX = (1 - repX) / 2;
-      offY = 0;
+    // Equirect-style full-sphere wrap. Portrait cover into 2:1 equirect UV,
+    // biased toward face/sky (upper video). Nadir faded to shell dark.
+    const EQ_ASPECT = 2.0;
+    let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
+    if (videoAspect > EQ_ASPECT) {
+      repX = EQ_ASPECT / videoAspect;
+      repY = 1.0;
+      offX = (1.0 - repX) * 0.5;
+      offY = 0.0;
     } else {
-      repX = 1;
-      repY = videoAspect / wallAspect;
-      offX = 0;
-      offY = (1 - repY) / 2;
-    }
-    // Leftover headroom above the wall band → ceiling depth at same world texel scale.
-    const leftoverV = offY; // symmetric cover crop above wall top
-    const vPerWorld = repY / muralH;
-    const ceilDepthMax = leftoverV > 1e-6 ? leftoverV / vPerWorld : muralH * 0.55;
-    const CEIL_DEPTH = Math.min(ceilDepthMax * 0.92, OUTER_D * 0.52);
-    const FILLET_R = 0.42; // soft geometric join at wall–ceiling crease
-
-    function pushQuad(pos, uv, idx, a, b, c, d, ua, ub, uc, ud) {
-      const base = pos.length / 3;
-      for (const p of [a, b, c, d]) { pos.push(p[0], p[1], p[2]); }
-      for (const t of [ua, ub, uc, ud]) { uv.push(t[0], t[1]); }
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      repX = 1.0;
+      repY = videoAspect / EQ_ASPECT;
+      offX = 0.0;
+      // Pin cover to TOP of portrait (face + stars). Lower landscape stays off-dome
+      // so it cannot fake a floor–wall horizon on the sphere.
+      offY = 1.0 - repY;
     }
 
-    // Bent mural: wall + quarter-cylinder fillet + ceiling strip. Continuous UVs (no hard crop at OUTER_H).
-    const positions = [];
-    const uvs = [];
-    const indices = [];
-    const zWall = WALL_Z + 0.04;
-    const yTop = muralH;
-    const wallH = Math.max(0.5, muralH - FILLET_R);
-    // Wall quad (y=0 → wallH)
-    pushQuad(
-      positions, uvs, indices,
-      [-muralW / 2, 0, zWall], [muralW / 2, 0, zWall],
-      [muralW / 2, wallH, zWall], [-muralW / 2, wallH, zWall],
-      [offX, offY], [offX + repX, offY],
-      [offX + repX, offY + repY * (wallH / muralH)], [offX, offY + repY * (wallH / muralH)]
-    );
-    // Fillet: quarter-circle from wall into ceiling (soft join)
-    const FILLET_SEGS = 10;
-    const vAtWallH = offY + repY * (wallH / muralH);
-    const vAtFilletEnd = offY + repY * ((wallH + FILLET_R * (Math.PI * 0.5)) / muralH);
-    // Arc length FILLET_R * π/2 maps into UV at same vPerWorld as wall.
-    const filletArc = FILLET_R * Math.PI * 0.5;
-    for (let i = 0; i < FILLET_SEGS; i++) {
-      const t0 = i / FILLET_SEGS;
-      const t1 = (i + 1) / FILLET_SEGS;
-      const a0 = t0 * Math.PI * 0.5;
-      const a1 = t1 * Math.PI * 0.5;
-      // a=0: still on wall (outward normal +Z); a=π/2: on ceiling (outward normal +Y)
-      const y0 = wallH + FILLET_R * Math.sin(a0);
-      const z0 = zWall + FILLET_R * (1 - Math.cos(a0));
-      const y1 = wallH + FILLET_R * Math.sin(a1);
-      const z1 = zWall + FILLET_R * (1 - Math.cos(a1));
-      const v0 = vAtWallH + t0 * filletArc * vPerWorld;
-      const v1 = vAtWallH + t1 * filletArc * vPerWorld;
-      pushQuad(
-        positions, uvs, indices,
-        [-muralW / 2, y0, z0], [muralW / 2, y0, z0],
-        [muralW / 2, y1, z1], [-muralW / 2, y1, z1],
-        [offX, v0], [offX + repX, v0],
-        [offX + repX, v1], [offX, v1]
-      );
-    }
-    // Ceiling strip after fillet → +Z, fading out via alphaMap
-    const zCeil0 = zWall + FILLET_R; // fillet ends here (a=π/2)
-    const yCeil = wallH + FILLET_R;  // = muralH when wallH = muralH - FILLET_R
-    const ceilLen = Math.max(0.8, CEIL_DEPTH - FILLET_R);
-    const vCeil0 = vAtWallH + filletArc * vPerWorld;
-    const vCeil1 = Math.min(0.999, vCeil0 + ceilLen * vPerWorld);
-    pushQuad(
-      positions, uvs, indices,
-      [-muralW / 2, yCeil, zCeil0], [muralW / 2, yCeil, zCeil0],
-      [muralW / 2, yCeil, zCeil0 + ceilLen], [-muralW / 2, yCeil, zCeil0 + ceilLen],
-      [offX, vCeil0], [offX + repX, vCeil0],
-      [offX + repX, vCeil1], [offX, vCeil1]
-    );
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-
-    // Alpha fade along ceiling depth so the strip softens into the sphere vault (no hard far edge).
-    const alphaCanvas = document.createElement('canvas');
-    alphaCanvas.width = 4;
-    alphaCanvas.height = 256;
-    const actx = alphaCanvas.getContext('2d');
-    const grd = actx.createLinearGradient(0, 0, 0, 256);
-    // UV v increases toward ceiling far edge in our mapping; alphaMap uses UV.y
-    // Wall+fillet stay opaque; only the last ~40% of the whole v-span fades.
-    const vSpan = Math.max(1e-6, vCeil1 - offY);
-    const fadeStart = (vCeil0 - offY) / vSpan; // start of ceiling in normalized alpha UV
-    grd.addColorStop(0, '#ffffff');
-    grd.addColorStop(Math.min(0.98, fadeStart + 0.15), '#ffffff');
-    grd.addColorStop(1, '#000000');
-    actx.fillStyle = grd;
-    actx.fillRect(0, 0, 4, 256);
-    const alphaMap = new THREE.CanvasTexture(alphaCanvas);
-    alphaMap.wrapS = THREE.ClampToEdgeWrapping;
-    alphaMap.wrapT = THREE.ClampToEdgeWrapping;
-    // Remap alphaMap so its V covers offY→vCeil1 (same as mural UV band used)
-    alphaMap.offset.set(0, offY);
-    alphaMap.repeat.set(1, Math.max(1e-6, vCeil1 - offY));
-
-    const mat = new THREE.MeshBasicMaterial({
-      map: tex,
-      alphaMap,
-      transparent: true,
-      opacity: 1,
+    domeMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      fog: false, // keep stargazer readable; scene fog was washing the dome black
       toneMapped: false,
-      side: THREE.DoubleSide,
-      fog: false,
-      depthWrite: true,
-      alphaTest: 0.02,
+      uniforms: {
+        map: { value: poster },
+        shellDark: { value: new THREE.Color(0x10060e) },
+        rep: { value: new THREE.Vector2(repX, repY) },
+        off: { value: new THREE.Vector2(offX, offY) },
+      },
+      vertexShader: /* glsl */`
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform sampler2D map;
+        uniform vec3 shellDark;
+        uniform vec2 rep;
+        uniform vec2 off;
+        varying vec3 vDir;
+        void main() {
+          vec3 d = normalize(vDir);
+          float u = atan(d.x, -d.z) / (2.0 * 3.14159265) + 0.5;
+          float vEq = asin(clamp(d.y, -1.0, 1.0)) / 3.14159265 + 0.5;
+          vec2 uv = off + vec2(u, vEq) * rep;
+          uv = clamp(uv, 0.0, 1.0);
+          vec3 col = texture2D(map, uv).rgb;
+          float nadir = 1.0 - smoothstep(-0.55, 0.18, d.y);
+          col = mix(col, shellDark, nadir * 0.985);
+          float zen = smoothstep(0.85, 0.995, d.y);
+          col = mix(col, mix(shellDark, col, 0.75), zen * 0.35);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = false;
-    mesh.castShadow = false;
-    mesh.raycast = () => {};
-    scene.add(mesh);
 
-    const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
-    rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
-    scene.add(rim);
+// Swap shell onto full-dome video material (continuous sphere — no planar mural)
+    if (outerShell.material && outerShell.material !== domeMat) {
+      try { outerShell.material.dispose?.(); } catch {}
+    }
+    outerShell.material = domeMat;
+    shellMat = domeMat;
+
     const tryPlay = () => {
       const p = vid.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
@@ -1025,18 +1011,19 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tryPlay();
     const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
     window.addEventListener('pointerdown', unlock, { once: true });
+
     window.__stargazingWall = {
-      mesh, vid, tex, muralW, muralH, ceilDepth: CEIL_DEPTH, filletR: FILLET_R,
-      cover: { repX, repY, offX, offY },
+      mesh: outerShell, vid, tex, dome: true, equirect: true,
+      cover: { repX, repY, offX, offY }, videoAspect,
     };
     console.info(
-      '[cubicles] stargazing wall→ceiling wrap',
-      muralW.toFixed(2), '×', muralH.toFixed(2),
-      '+ ceil', CEIL_DEPTH.toFixed(2),
-      'fillet', FILLET_R, 'cover'
+      '[cubicles] stargazer full-dome equirect',
+      'cover', repX.toFixed(3), repY.toFixed(3),
+      'offY', offY.toFixed(3),
+      'aspect', videoAspect.toFixed(3)
     );
   } catch (err) {
-    console.warn('[cubicles] stargazing wall failed', err);
+    console.warn('[cubicles] stargazing dome failed', err);
   }
 })();
 
@@ -1252,7 +1239,7 @@ function updateSparklines(t) {
   }
 }
 
-// Flat box ceiling + edge silhouette removed — vault is the inward sphere; stargazer wraps the −Z crease.
+// Flat box walls/ceiling removed — continuous inward sphere; stargazer is full-dome VideoTexture; water disc soft-meets shell.
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
@@ -2323,34 +2310,92 @@ function updateLazyEmbeds() {
 }
 
 
-// —— Wormhole ambient bed (loop; unlock on Enter / first pointer) ——
+// —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
 (function installWormholeAmbient() {
   try {
-    const audio = new Audio('./demo-assets/audio/wormhole-ambient.mp3');
-    audio.loop = true;
-    audio.preload = 'auto';
-    audio.volume = 0.42;
-    audio.setAttribute('playsinline', '');
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3';
+    const VOL = 0.38; // soft bed after Enter/tap
+    const XFADE = 2.4; // seconds of overlap
+    const a = new Audio(SRC);
+    const b = new Audio(SRC);
+    for (const el of [a, b]) {
+      el.preload = 'auto';
+      el.loop = false; // crossfade handles looping — avoids MP3 gap click
+      el.volume = 0;
+      el.setAttribute('playsinline', '');
+    }
+    let usingA = true;
     let started = false;
-    const tryPlay = () => {
-      if (started && !audio.paused) return;
-      const p = audio.play();
-      if (p && typeof p.catch === 'function') {
-        p.then(() => { started = true; }).catch(() => {});
+    let raf = 0;
+    let arming = false;
+
+    const active = () => (usingA ? a : b);
+    const idle = () => (usingA ? b : a);
+
+    function crossfadeTick() {
+      if (!started) return;
+      const cur = active();
+      const dur = cur.duration;
+      if (!Number.isFinite(dur) || dur < 1) {
+        raf = requestAnimationFrame(crossfadeTick);
+        return;
+      }
+      const remain = dur - cur.currentTime;
+      if (remain <= XFADE && !arming) {
+        arming = true;
+        const nxt = idle();
+        try {
+          nxt.currentTime = 0;
+          const p = nxt.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch {}
+      }
+      if (arming) {
+        const nxt = idle();
+        const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
+        cur.volume = VOL * (1 - t);
+        nxt.volume = VOL * t;
+        if (t >= 0.999 || cur.ended || cur.paused) {
+          try { cur.pause(); } catch {}
+          cur.volume = 0;
+          nxt.volume = VOL;
+          usingA = !usingA;
+          arming = false;
+        }
       } else {
+        cur.volume = VOL;
+      }
+      raf = requestAnimationFrame(crossfadeTick);
+    }
+
+    const tryPlay = () => {
+      const cur = active();
+      if (started && !cur.paused && !arming) return;
+      const p = cur.play();
+      const mark = () => {
         started = true;
+        cur.volume = VOL;
+        if (!raf) raf = requestAnimationFrame(crossfadeTick);
+      };
+      if (p && typeof p.catch === 'function') {
+        p.then(mark).catch(() => {});
+      } else {
+        mark();
       }
     };
-    window.__wormholeAmbient = { audio, tryPlay };
+
+    window.__wormholeAmbient = { audio: a, audioB: b, tryPlay, vol: VOL };
     window.addEventListener('pointerdown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        try { audio.pause(); } catch {}
-      } else if (started || (window.__cubiclesEntered)) {
+        try { a.pause(); b.pause(); } catch {}
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      } else if (started || window.__cubiclesEntered) {
+        arming = false;
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (loop)');
+    console.info('[cubicles] wormhole ambient ready (dual crossfade)', XFADE + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
