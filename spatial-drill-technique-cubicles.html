@@ -682,14 +682,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall3' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wall4' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall3' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wall4' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -868,7 +868,7 @@ const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.7
 const SHELL_CENTER_Y = OUTER_H * 0.38;
 const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
 const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
-// shellMat swapped to still ceiling starscape + −Z mural (no video). Placeholder dark until then.
+// shellMat swapped to still ceiling starscape + moving −Z stargazer VideoTexture. Placeholder dark until then.
 let shellMat = new THREE.MeshBasicMaterial({
   color: 0x140610,
   side: THREE.BackSide,
@@ -1283,9 +1283,9 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// —— Still starscape ceiling + still stargazer −Z mural (no video) ——
+// —— Still starscape ceiling + MOVING stargazer −Z mural (video) ——
 // Ceiling: ~0.7MB equirect starscape on the upper hemisphere.
-// −Z band: still portrait mural (face/sky). Opaque shell elsewhere stays Taxodium dark.
+// −Z band: poster-first → muted looping mp4 (face/sky). Opaque shell elsewhere Taxodium dark.
 (function installStargazingDome() {
   try {
     const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
@@ -1294,7 +1294,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     const loader = new THREE.TextureLoader();
 
     const STAR_EQ = './demo-assets/sky/starscape-equirect-4k.jpg?v=starstill1';
-    const MURAL = './demo-assets/backwall/stargazing-still.jpg?v=starstill1';
+    const STARGAZER_MP4 = './demo-assets/backwall/stargazing.mp4?v=star2mb';
 
     const starMap = loader.load(STAR_EQ, (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
@@ -1309,31 +1309,48 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     starMap.wrapS = THREE.RepeatWrapping;
     starMap.wrapT = THREE.ClampToEdgeWrapping;
 
-    const mural = loader.load(MURAL, (t) => {
-      t.colorSpace = THREE.SRGBColorSpace;
-      t.needsUpdate = true;
-    });
-    mural.colorSpace = THREE.SRGBColorSpace;
-    mural.minFilter = THREE.LinearFilter;
-    mural.magFilter = THREE.LinearFilter;
-    mural.generateMipmaps = false;
-    mural.anisotropy = maxAniso;
-    mural.wrapS = THREE.ClampToEdgeWrapping;
-    mural.wrapT = THREE.ClampToEdgeWrapping;
+    const vid = document.createElement('video');
+    vid.crossOrigin = 'anonymous';
+    vid.loop = true;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('muted', '');
+    vid.preload = 'none';
+    vid.width = 720;
+    vid.height = 974;
+    vid.setAttribute('aria-hidden', 'true');
+    const videoTex = new THREE.VideoTexture(vid);
+    videoTex.colorSpace = THREE.SRGBColorSpace;
+    videoTex.minFilter = THREE.LinearFilter;
+    videoTex.magFilter = THREE.LinearFilter;
+    videoTex.generateMipmaps = false;
+    videoTex.anisotropy = maxAniso;
+    videoTex.wrapS = THREE.ClampToEdgeWrapping;
+    videoTex.wrapT = THREE.ClampToEdgeWrapping;
 
-    const muralAspect = 720 / 974;
+    const poster = loader.load('./demo-assets/backwall/stargazing-poster.jpg');
+    poster.colorSpace = THREE.SRGBColorSpace;
+    poster.minFilter = THREE.LinearFilter;
+    poster.magFilter = THREE.LinearFilter;
+    poster.generateMipmaps = false;
+    poster.anisotropy = maxAniso;
+    poster.wrapS = THREE.ClampToEdgeWrapping;
+    poster.wrapT = THREE.ClampToEdgeWrapping;
+
+    const videoAspect = 720 / 974;
     const bandW = 12.0;
     const bandH = 15.5;
     const bandAspect = bandW / bandH;
     let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
-    if (muralAspect > bandAspect) {
-      repX = bandAspect / muralAspect;
+    if (videoAspect > bandAspect) {
+      repX = bandAspect / videoAspect;
       repY = 1.0;
       offX = (1.0 - repX) * 0.5;
       offY = 0.0;
     } else {
       repX = 1.0;
-      repY = muralAspect / bandAspect;
+      repY = videoAspect / bandAspect;
       offX = 0.0;
       offY = 1.0 - repY;
     }
@@ -1346,7 +1363,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       fog: false,
       toneMapped: false,
       uniforms: {
-        muralMap: { value: mural },
+        muralMap: { value: poster },
         starMap: { value: starMap },
         shellDark: { value: new THREE.Color(0x10060e) },
         rep: { value: new THREE.Vector2(repX, repY) },
@@ -1376,19 +1393,18 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
         varying vec3 vDir;
         void main() {
           vec3 d = normalize(vDir);
-          // Equirect starscape (ceiling / upper vault)
+          // Equirect starscape (ceiling / upper vault) — still
           float lon = atan(d.x, d.z);
           float lat = asin(clamp(d.y, -1.0, 1.0));
           vec2 starUv = vec2(lon * (1.0 / 6.28318530718) + 0.5, lat * (1.0 / 3.14159265359) + 0.5);
           vec3 stars = texture2D(starMap, starUv).rgb;
-          // Ceiling weight: strong above horizon, soft toward walls, none at nadir
           float ceilW = smoothstep(-0.05, 0.35, d.y);
           float nadir = 1.0 - smoothstep(-0.55, 0.05, d.y);
           ceilW *= 1.0 - nadir;
 
           vec3 col = mix(shellDark, stars, clamp(ceilW, 0.0, 1.0));
 
-          // Still −Z stargazer mural band (portrait)
+          // Moving −Z stargazer mural band (portrait VideoTexture after start)
           float mask = 0.0;
           if (d.z < -0.02 && wallZ < 0.0) {
             float t = wallZ / d.z;
@@ -1412,25 +1428,52 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       `,
     });
 
+    const promoteVideoMap = () => {
+      if (!domeMat?.uniforms?.muralMap || vid.readyState < 2) return;
+      domeMat.uniforms.muralMap.value = videoTex;
+      videoTex.needsUpdate = true;
+    };
+    vid.addEventListener('loadeddata', promoteVideoMap);
+    vid.addEventListener('playing', promoteVideoMap);
+
     if (outerShell.material && outerShell.material !== domeMat) {
       try { outerShell.material.dispose?.(); } catch {}
     }
     outerShell.material = domeMat;
     shellMat = domeMat;
 
+    let videoStarted = false;
+    const tryPlay = () => {
+      if (!vid.src) return;
+      const p = vid.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    };
+    /** Poster stays until enter / first interaction — then load + play mp4. */
+    const startStargazerVideo = () => {
+      if (videoStarted) { tryPlay(); return; }
+      videoStarted = true;
+      vid.preload = 'auto';
+      vid.src = STARGAZER_MP4;
+      try { vid.load(); } catch {}
+      vid.addEventListener('canplay', tryPlay, { once: true });
+      vid.addEventListener('loadeddata', tryPlay, { once: true });
+      tryPlay();
+      console.info('[cubicles] stargazer mp4 deferred start');
+    };
+
     window.__stargazingWall = {
-      mesh: outerShell, vid: null, tex: mural, starMap, dome: true, equirect: true, highResBand: true,
-      portraitBand: true, stillOnly: true,
-      cover: { repX, repY, offX, offY }, videoAspect: muralAspect,
+      mesh: outerShell, vid, tex: videoTex, starMap, dome: true, equirect: true, highResBand: true,
+      portraitBand: true, stillOnly: false,
+      cover: { repX, repY, offX, offY }, videoAspect,
       bandSize: { w: bandW, h: bandH, wallZ: wallZLocal },
       anisotropy: maxAniso,
-      start: () => {}, // still — no deferred mp4
-      posterFirst: false,
+      start: startStargazerVideo,
+      posterFirst: true,
     };
     console.info(
-      '[cubicles] still ceiling starscape + −Z mural (no video)',
+      '[cubicles] still ceiling starscape + moving −Z stargazer mural (poster→mp4)',
       'star', STAR_EQ,
-      'mural', MURAL,
+      'mp4', STARGAZER_MP4,
       bandW.toFixed(1) + '×' + bandH.toFixed(1),
       'aniso', maxAniso
     );
@@ -1652,7 +1695,7 @@ function updateSparklines(t) {
   }
 }
 
-// Flat box walls/ceiling removed — continuous inward sphere; still starscape ceiling + −Z mural; water disc soft-meets shell.
+// Flat box walls/ceiling removed — continuous inward sphere; still starscape ceiling + moving −Z mural; water disc soft-meets shell.
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
@@ -2061,8 +2104,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
 
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall3');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall3';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wall4');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += '&v=wall4';
 
   hung.push({
     meta, col: spec.side === 'left' ? 0 : COLS - 1, row: 1,
