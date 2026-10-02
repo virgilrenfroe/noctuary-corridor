@@ -323,10 +323,10 @@ const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 const mobileLike = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
 renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
-renderer.setClearColor(0x7a8568, 1);
+renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.92;
+renderer.toneMappingExposure = 1.12;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
@@ -353,7 +353,7 @@ renderer.domElement.addEventListener('webglcontextrestored', () => {
   glContextLost = false;
   hideGlTip();
   try {
-    renderer.setClearColor(0x7a8568, 1);
+    renderer.setClearColor(0x140818, 1);
     renderer.setSize(innerWidth, innerHeight, false);
     cssRenderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / Math.max(1, innerHeight);
@@ -369,8 +369,8 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x7a8568, 11, 40);
-scene.background = new THREE.Color(0x7a8568);
+scene.fog = new THREE.Fog(0x140818, 14, 42);
+scene.background = new THREE.Color(0x140818);
 const cssScene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
@@ -378,9 +378,10 @@ const yaw = { value: SPAWN.yaw };
 const pitch = { value: SPAWN.pitch };
 const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
 
-scene.add(new THREE.HemisphereLight(0xe8e4c8, 0x4a5a38, 0.95));
-const key = new THREE.DirectionalLight(0xe8d8a8, 0.95);
-key.position.set(5, 12, 4);
+// Sketch C — magenta / gold cathedral cross-light (chrome cypresses drink this)
+scene.add(new THREE.HemisphereLight(0xc44cff, 0x1a0820, 0.55));
+const key = new THREE.DirectionalLight(0xffd078, 1.55); // warm gold key
+key.position.set(6, 14, 3);
 key.castShadow = true;
 key.shadow.mapSize.set(mobileLike ? 1024 : 2048, mobileLike ? 1024 : 2048);
 key.shadow.camera.near = 0.5;
@@ -392,11 +393,15 @@ key.shadow.camera.bottom = -10;
 key.shadow.radius = 3;
 key.shadow.bias = -0.0004;
 scene.add(key);
-scene.add(new THREE.PointLight(0x7a8a58, 10, 36).translateX(-5).translateY(3.2).translateZ(2));
+const magentaFill = new THREE.DirectionalLight(0xe040a0, 1.05); // magenta cross-fill
+magentaFill.position.set(-8, 6, -4);
+scene.add(magentaFill);
+scene.add(new THREE.PointLight(0xffc050, 18, 28).translateX(4).translateY(4.5).translateZ(-2)); // gold nave accent
+scene.add(new THREE.PointLight(0xb028ff, 14, 32).translateX(-5).translateY(3.2).translateZ(2)); // magenta aisle
 
 // —— Visible outer box ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x7e7a68, roughness: 0.92, metalness: 0.04 });
-const ceilMat = new THREE.MeshStandardMaterial({ color: 0x8a9178, roughness: 0.95, metalness: 0.02 });
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a2a42, roughness: 0.88, metalness: 0.08 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x2a1838, roughness: 0.9, metalness: 0.06 });
 
 // Swamp water floor — three.js Water addon, slowed + murkier olive/brown
 const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
@@ -410,8 +415,8 @@ const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
   sunDirection: waterSun.clone(),
-  sunColor: 0xb8a868,
-  waterColor: 0x1a2e12, // murky olive-brown swamp
+  sunColor: 0xffc868,
+  waterColor: 0x1a2e12, // murky olive-brown swamp (kept)
   distortionScale: 1.15,
   fog: true,
 });
@@ -433,6 +438,126 @@ if (water.material?.fragmentShader) {
   water.material.needsUpdate = true;
 }
 scene.add(water);
+
+// —— Magenta/gold cathedral HDR-ish env (RGBELoader if available) + optional bloom ——
+// Non-blocking: failures fall back; never blocks WebGL boot.
+let composer = null;
+let bloomPass = null;
+
+function makeMagentaGoldEquirect(size = 256) {
+  const data = new Float32Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size;
+      const v = y / size;
+      const gold = Math.pow(Math.max(0, Math.cos((u - 0.18) * Math.PI * 2) * 0.55 + 0.35), 2.2);
+      const gold2 = Math.pow(Math.max(0, Math.cos((u - 0.72) * Math.PI * 2) * 0.4 + 0.2), 2.4);
+      const magenta = Math.pow(Math.max(0, 1 - Math.abs(v - 0.42) * 1.8), 1.6);
+      const vault = Math.pow(Math.max(0, v - 0.55), 1.4);
+      const i = (y * size + x) * 4;
+      data[i]     = 0.12 + gold * 3.2 + gold2 * 1.6 + magenta * 1.1 + vault * 0.4;
+      data[i + 1] = 0.04 + gold * 1.9 + gold2 * 0.9 + magenta * 0.12;
+      data[i + 2] = 0.18 + magenta * 2.8 + vault * 1.6 + gold * 0.35;
+      data[i + 3] = 1;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.LinearSRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+async function setupCathedralEnvAndBloom() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  try { pmrem.compileEquirectangularShader(); } catch (_) {}
+
+  // RGBELoader (vendor): warm HDR wash for background when CDN reachable
+  try {
+    const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
+    try {
+      const hdr = await new RGBELoader().loadAsync(
+        'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
+      );
+      const warm = pmrem.fromEquirectangular(hdr).texture;
+      scene.background = warm;
+      scene.backgroundBlurriness = 0.62;
+      scene.backgroundIntensity = 0.22;
+      hdr.dispose();
+      console.info('[cubicles] RGBELoader HDR background');
+    } catch (hdrErr) {
+      console.warn('[cubicles] HDR file skipped', hdrErr);
+    }
+  } catch (loaderErr) {
+    console.warn('[cubicles] RGBELoader unavailable', loaderErr);
+  }
+
+  // Sketch C reflections: magenta + gold cathedral envMap via PMREM
+  try {
+    const synth = makeMagentaGoldEquirect(mobileLike ? 128 : 256);
+    const env = pmrem.fromEquirectangular(synth).texture;
+    scene.environment = env;
+    scene.environmentIntensity = 1.28;
+    if (!scene.background || scene.background.isColor) {
+      scene.background = env;
+      scene.backgroundBlurriness = 0.55;
+      scene.backgroundIntensity = 0.3;
+    }
+    synth.dispose();
+    console.info('[cubicles] magenta/gold cathedral envMap');
+  } catch (pmErr) {
+    console.warn('[cubicles] equirect PMREM failed — fromScene lights', pmErr);
+    try {
+      const probe = new THREE.Scene();
+      probe.add(new THREE.Mesh(
+        new THREE.SphereGeometry(2, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xffc050 })
+      ).translateX(4).translateY(3).translateZ(-2));
+      probe.add(new THREE.Mesh(
+        new THREE.SphereGeometry(2.4, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xc028ff })
+      ).translateX(-5).translateY(2.5).translateZ(3));
+      scene.environment = pmrem.fromScene(probe, 0.04).texture;
+      scene.environmentIntensity = 1.3;
+    } catch (probeErr) {
+      console.warn('[cubicles] PMREM fromScene failed — colored lights only', probeErr);
+    }
+  }
+
+  try { pmrem.dispose(); } catch (_) {}
+
+  if (mobileLike) {
+    console.info('[cubicles] bloom skipped on mobile-like');
+    return;
+  }
+  try {
+    const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+    const { RenderPass } = await import('three/addons/postprocessing/RenderPass.js');
+    const { UnrealBloomPass } = await import('three/addons/postprocessing/UnrealBloomPass.js');
+    const { OutputPass } = await import('three/addons/postprocessing/OutputPass.js');
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(innerWidth, innerHeight),
+      0.42,
+      0.55,
+      0.72
+    );
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+    composer.setSize(innerWidth, innerHeight);
+    console.info('[cubicles] UnrealBloomPass enabled');
+  } catch (bloomErr) {
+    composer = null;
+    bloomPass = null;
+    console.warn('[cubicles] bloom skipped', bloomErr);
+  }
+}
+
+setupCathedralEnvAndBloom().catch((e) => {
+  console.warn('[cubicles] cathedral env/bloom setup failed', e);
+});
+
 
 function addOuterWall(w, h, x, y, z, rotY) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
@@ -875,21 +1000,57 @@ const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
 
-/** Shared knee / moss materials (cheap extras around trunks). */
-const cypressKneeMat = new THREE.MeshStandardMaterial({
-  color: 0x3a2e22, roughness: 0.94, metalness: 0.02,
+/** Sketch C — high-metalness chrome / gold cathedral materials (MeshPhysicalMaterial). */
+const cypressTrunkMat = new THREE.MeshPhysicalMaterial({
+  color: 0xf2f4f8,
+  metalness: 1.0,
+  roughness: 0.06,
+  envMapIntensity: 1.35,
+  clearcoat: 0.55,
+  clearcoatRoughness: 0.12,
+  reflectivity: 1.0,
 });
-const cypressMossMat = new THREE.MeshStandardMaterial({
-  color: 0x6a7a58, roughness: 1, metalness: 0, transparent: true, opacity: 0.68, depthWrite: false,
+const cypressFoliageMat = new THREE.MeshPhysicalMaterial({
+  color: 0xf0c24b, // warm gold canopy reflections
+  metalness: 1.0,
+  roughness: 0.18,
+  envMapIntensity: 1.2,
+  clearcoat: 0.25,
+  clearcoatRoughness: 0.2,
 });
-const cypressTrunkMat = new THREE.MeshStandardMaterial({
-  color: 0x3a2e22, roughness: 0.92, metalness: 0.02,
+const cypressKneeMat = new THREE.MeshPhysicalMaterial({
+  color: 0xe8ecf2,
+  metalness: 1.0,
+  roughness: 0.1,
+  envMapIntensity: 1.25,
+  clearcoat: 0.4,
+  clearcoatRoughness: 0.15,
 });
-const cypressFoliageMat = new THREE.MeshStandardMaterial({
-  color: 0x1e3a22, roughness: 0.88, metalness: 0.0,
+const cypressMossMat = new THREE.MeshPhysicalMaterial({
+  color: 0xd040a8, // magenta moss wisps
+  metalness: 0.95,
+  roughness: 0.22,
+  envMapIntensity: 1.1,
+  transparent: true,
+  opacity: 0.72,
+  depthWrite: false,
 });
 const kneeGeo = new THREE.CylinderGeometry(0.04, 0.07, 0.28, 5);
 const mossGeo = new THREE.CylinderGeometry(0.01, 0.005, 1, 4);
+
+/** Replace GLTF / procedural mesh mats with cathedral chrome / gold. */
+function chromeifyCypressRoot(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const oldMat = o.material;
+    const mats = Array.isArray(oldMat) ? oldMat : [oldMat];
+    const name = ((o.name || '') + ' ' + mats.map((m) => m?.name || '').join(' ')).toLowerCase();
+    const isFoliage =
+      mats.some((m) => m && (m.transparent || (m.opacity != null && m.opacity < 0.99))) ||
+      /leaf|foliage|canopy|needle|crown|branch/i.test(name);
+    o.material = isFoliage ? cypressFoliageMat : cypressTrunkMat;
+  });
+}
 
 function disableRaycast(root) {
   root.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
@@ -1012,19 +1173,21 @@ async function placeGltfCypresses() {
   const modelH = Math.max(size.y, 0.001);
   const modelMinY = box.min.y;
 
+  // Chrome / gold cathedral materials on the prototype (shared across clones)
+  chromeifyCypressRoot(proto);
   proto.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = !mobileLike;
     o.receiveShadow = true;
     o.raycast = () => {};
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for (const m of mats) {
-      if (!m) continue;
-      // Alpha canopy cards sort better without fighting panel depth
-      if (m.transparent || m.opacity < 1) {
-        m.depthWrite = false;
-        m.side = THREE.DoubleSide;
-      }
+    // Gold canopy cards: double-sided, no depth write so panels stay readable
+    if (o.material === cypressFoliageMat) {
+      // per-mesh clone so we can tweak opacity/side without mutating trunk chrome
+      o.material = cypressFoliageMat.clone();
+      o.material.transparent = true;
+      o.material.opacity = 0.88;
+      o.material.depthWrite = false;
+      o.material.side = THREE.DoubleSide;
     }
   });
 
@@ -1506,6 +1669,8 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
   cssRenderer.setSize(w, h);
+  if (composer) composer.setSize(w, h);
+  if (bloomPass) bloomPass.resolution.set(w, h);
 }
 addEventListener('resize', resize);
 resize();
@@ -1573,7 +1738,8 @@ function frame() {
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
     try {
-      renderer.render(scene, camera);
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
       cssRenderer.render(cssScene, camera);
     } catch (err) {
       console.warn('[cubicles] render failed', err);
