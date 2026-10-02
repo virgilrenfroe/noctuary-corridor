@@ -30,6 +30,11 @@
     cursor: grab; touch-action: none;
   }
   #stage.dragging { cursor: grabbing; }
+  #stage.look-locked { cursor: none; }
+  #btn-look-lock { display: none; }
+  @media (pointer: fine) {
+    #btn-look-lock { display: inline-flex; }
+  }
   #stage.panel-hover { cursor: pointer; }
   #stage > canvas, #stage > div {
     position: absolute; inset: 0;
@@ -179,6 +184,7 @@
         <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
         <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
         <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
+        <button class="pill" id="btn-look-lock" type="button" title="Pointer-lock mouse look (double-click stage · Esc exit)">Look lock</button>
         <button class="pill" id="btn-overview" type="button" title="Toggle overview camera (O)">Overview</button>
       </div>
     </div>
@@ -187,7 +193,7 @@
       <h2 id="chip-title">—</h2>
       <p id="chip-hint"></p>
     </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag/lock look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
   </div>
 
   <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
@@ -195,7 +201,7 @@
       <p class="k">Technique cubicles</p>
       <h1>One box ·<br/>twenty cells</h1>
       <p>Outer walls stay visible. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
-      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look</span></p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag/lock look · full 360° · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look · full 360°</span></p>
       <button type="button" id="btn-enter">Enter</button>
     </div>
   </div>
@@ -2347,6 +2353,62 @@ document.addEventListener('pointermove', (e) => {
   }
 }, { passive: true, capture: true });
 
+// —— Walk look: full 360° ——
+// CSS3D iframes sit above #stage; stage-only pointermove stops when the drag
+// crosses a lab iframe. Use document-level move/up + pointer capture so look
+// continues across embeds. Optional Pointer Lock (desktop) for continuous look.
+let lookPointerId = null;
+const PITCH_MIN = -1.25;
+const PITCH_MAX = 1.15; // slightly wider than prior −1.0…0.8
+
+function wrapYaw(v) {
+  const twopi = Math.PI * 2;
+  v = v % twopi;
+  if (v < 0) v += twopi;
+  return v;
+}
+function applyLookDelta(dx, dy) {
+  if (overview.on) {
+    overview.theta -= dx * 0.005;
+    overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
+    return;
+  }
+  // Never clamp yaw — full 360° orbit; wrap keeps value bounded for logs.
+  yaw.value = wrapYaw(yaw.value - dx * 0.0025);
+  pitch.value = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch.value - dy * 0.002));
+}
+function endLookDrag(e) {
+  if (lookPointerId != null && e && e.pointerId !== lookPointerId) return;
+  if (dragging) {
+    dragging = false;
+    stage.classList.remove('dragging');
+    if (lookPointerId != null) {
+      try { stage.releasePointerCapture(lookPointerId); } catch {}
+    }
+    lookPointerId = null;
+  }
+  // Don't steal panel interact: only clear panel lock if release is outside an armed iframe
+  const t = e && e.target;
+  const inPanel = t && hung.some((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
+  if (!inPanel) panelPointerLock = false;
+}
+function syncLookLockPill() {
+  const btn = document.getElementById('btn-look-lock');
+  if (!btn) return;
+  const on = !!(document.pointerLockElement && (document.pointerLockElement === stage || stage.contains(document.pointerLockElement)));
+  btn.classList.toggle('on', on);
+  stage.classList.toggle('look-locked', on);
+}
+function requestWalkPointerLock() {
+  if (mobileLike || reduceMotion || !entered || overview.on) return;
+  const el = stage;
+  if (document.pointerLockElement) {
+    document.exitPointerLock();
+    return;
+  }
+  try { el.requestPointerLock(); } catch {}
+}
+
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
   if (!overview.on) {
@@ -2358,29 +2420,45 @@ stage.addEventListener('pointerdown', (e) => {
       return;
     }
   }
+  // Don't start look-drag while Pointer Lock owns the mouse (mousemove handles it)
+  if (document.pointerLockElement) return;
   panelPointerLock = false;
   dragging = true;
+  lookPointerId = e.pointerId;
   stage.classList.add('dragging');
   lastX = downX = e.clientX; lastY = downY = e.clientY;
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
-stage.addEventListener('pointermove', (e) => {
-  if (panelPointerLock) return;
-  if (!dragging || reduceMotion) return;
+// Document-level look while dragging — survives CSS3D iframe crossings
+document.addEventListener('pointermove', (e) => {
+  if (!dragging || reduceMotion || panelPointerLock) return;
+  if (lookPointerId != null && e.pointerId !== lookPointerId) return;
+  if (document.pointerLockElement) return; // mousemove + movementX path
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
-  if (overview.on) {
-    overview.theta -= dx * 0.005;
-    overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
-    return;
-  }
-  yaw.value -= dx * 0.0025;
-  pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
+  applyLookDelta(dx, dy);
+}, { capture: true, passive: true });
+document.addEventListener('pointerup', endLookDrag, { capture: true });
+document.addEventListener('pointercancel', endLookDrag, { capture: true });
+
+// Desktop Pointer Lock — continuous mouse-look; Esc exits (browser). Double-click stage or pill.
+stage.addEventListener('dblclick', (e) => {
+  if (!entered || overview.on || mobileLike || reduceMotion) return;
+  if (panelUnderPointer(e)) return; // don't break panel interact
+  e.preventDefault();
+  requestWalkPointerLock();
 });
-stage.addEventListener('pointerup', () => {
-  panelPointerLock = false;
-  dragging = false;
-  stage.classList.remove('dragging');
+document.getElementById('btn-look-lock')?.addEventListener('click', () => {
+  if (!entered) { entered = true; gate.classList.add('hide'); }
+  if (overview.on) setOverview(false);
+  requestWalkPointerLock();
+});
+document.addEventListener('pointerlockchange', syncLookLockPill);
+document.addEventListener('pointerlockerror', () => { console.warn('[cubicles] pointer lock failed'); syncLookLockPill(); });
+document.addEventListener('mousemove', (e) => {
+  if (!document.pointerLockElement || !entered || reduceMotion || panelPointerLock) return;
+  // movementX/Y work under lock even when cursor would cross iframes
+  applyLookDelta(e.movementX || 0, e.movementY || 0);
 });
 
 function resize() {
