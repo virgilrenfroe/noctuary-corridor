@@ -572,7 +572,7 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 6; // live floating labs only (≤6)
+const MAX_ARMED = 4; // Virgil LIVE: god-rays, hdr-ibl, instancing, cloth
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
@@ -637,15 +637,39 @@ const CELLS = [
   { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=noghost2' },
 ];
 
-/** Provisional live floating labs — Virgil will confirm which stay moving.
- *  Recommended near-aisle variety (edit LIVE_IDS freely; wall plates auto-fill the rest):
- *  glass(01), decals(09), hdr-ibl(10), ocean(13), instancing(14), particles(20). */
-const LIVE_IDS = new Set(['glass', 'decals', 'hdr-ibl', 'ocean', 'instancing', 'particles']);
-/** Near-aisle slot order for live labs (col,row) — readable from foyer, variety spread. */
+/** Virgil LIVE picks: god-rays, hdr-ibl (chrome), instancing (blocks), cloth.
+ *  Cloth richer material/lighting = follow-up. Wall plates auto-fill the rest. */
+const LIVE_IDS = new Set(['god-rays', 'hdr-ibl', 'instancing', 'cloth']);
+/** Near-aisle slots for the 4 live labs (col,row). */
 const LIVE_SLOTS = [
-  [0, 0], [2, 0], [4, 0],
-  [1, 1], [2, 1], [3, 1],
+  [1, 0], [3, 0],
+  [2, 1], [4, 1],
 ];
+/** Still snapshot paths (labeled gallery). */
+const STILL_BY_ID = {
+  glass: './demo-assets/lab-stills/01-transmission-glass.png',
+  caustics: './demo-assets/lab-stills/02-caustics.png',
+  'god-rays': './demo-assets/lab-stills/03-god-rays.png',
+  ssr: './demo-assets/lab-stills/04-ssr.png',
+  ssao: './demo-assets/lab-stills/05-ssao.png',
+  pcss: './demo-assets/lab-stills/06-pcss-contact-shadows.png',
+  outline: './demo-assets/lab-stills/07-outline-selection.png',
+  stencil: './demo-assets/lab-stills/08-stencil-portals.png',
+  decals: './demo-assets/lab-stills/09-decals.png',
+  'hdr-ibl': './demo-assets/lab-stills/10-hdr-ibl-pmrem.png',
+  matcap: './demo-assets/lab-stills/11-matcap.png',
+  anisotropic: './demo-assets/lab-stills/12-anisotropic-pbr.png',
+  ocean: './demo-assets/lab-stills/13-ocean-water.png',
+  instancing: './demo-assets/lab-stills/14-instanced-mesh.png',
+  lut: './demo-assets/lab-stills/15-lut-color-grade.png',
+  morph: './demo-assets/lab-stills/16-morph-targets.png',
+  ribbons: './demo-assets/lab-stills/17-fat-ribbons.png',
+  dolly: './demo-assets/lab-stills/18-scroll-camera-dolly.png',
+  cloth: './demo-assets/lab-stills/19-cloth.png',
+  particles: './demo-assets/lab-stills/20-particles.png',
+};
+
+
 /** Plain-English diagram blurbs for wall plates (technique id → copy). */
 const LAB_DIAGRAM = {
   glass: { title: 'Transmission glass', blurb: 'Thick refractive glass bends the room behind it — orbit to feel the weight.' },
@@ -1519,75 +1543,141 @@ wallPosterGroup.name = 'wallLabPosters';
 scene.add(wallPosterGroup);
 window.__wallLabPosters = wallPosterGroup;
 
-function makeLabPosterTexture(meta, accentHue) {
-  const W = 768, H = 960;
+function loadStillImage(url) {
+  return new Promise((resolve) => {
+    if (!url) { resolve(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/** Taxodium wall poster: glossy purple bark + orange/cream brush shards; tall full-wall aspect. */
+function paintTaxodiumPoster(meta, stillImg) {
+  const W = 720, H = 1680;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  // Plum → ink gradient (grove wall)
-  const bg = g.createLinearGradient(0, 0, W * 0.2, H);
-  bg.addColorStop(0, '#3a1a48');
-  bg.addColorStop(0.45, '#241028');
-  bg.addColorStop(1, '#140818');
-  g.fillStyle = bg;
+
+  const bark = g.createLinearGradient(0, 0, W * 0.35, H);
+  bark.addColorStop(0, '#5a2878');
+  bark.addColorStop(0.22, '#3a1458');
+  bark.addColorStop(0.55, '#2a0c40');
+  bark.addColorStop(0.82, '#1a0828');
+  bark.addColorStop(1, '#100418');
+  g.fillStyle = bark;
   g.fillRect(0, 0, W, H);
-  // Soft gold rim
-  g.strokeStyle = 'rgba(240,194,75,0.55)';
-  g.lineWidth = 6;
-  g.strokeRect(18, 18, W - 36, H - 36);
-  g.strokeStyle = 'rgba(216,200,255,0.22)';
+
+  const gloss = g.createLinearGradient(W * 0.05, 0, W * 0.55, H * 0.4);
+  gloss.addColorStop(0, 'rgba(220,180,255,0.28)');
+  gloss.addColorStop(0.35, 'rgba(180,120,255,0.08)');
+  gloss.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gloss;
+  g.fillRect(0, 0, W, H * 0.55);
+
+  for (let i = 0; i < 70; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const len = 18 + Math.random() * 55;
+    const ang = -0.9 + Math.random() * 1.8;
+    const cream = Math.random() > 0.45;
+    g.strokeStyle = cream
+      ? `rgba(255,236,200,${0.18 + Math.random() * 0.35})`
+      : `rgba(255,140,40,${0.2 + Math.random() * 0.4})`;
+    g.lineWidth = 1.2 + Math.random() * 2.8;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+    g.stroke();
+  }
+  for (let i = 0; i < 40; i++) {
+    const side = Math.random() < 0.5;
+    const x = side ? Math.random() * 70 : W - 70 + Math.random() * 70;
+    const y = Math.random() * H;
+    const len = 28 + Math.random() * 70;
+    g.strokeStyle = Math.random() > 0.5
+      ? 'rgba(255,176,64,0.45)' : 'rgba(255,244,220,0.32)';
+    g.lineWidth = 1.5 + Math.random() * 2.2;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + (side ? 1 : -1) * len * 0.35, y + len);
+    g.stroke();
+  }
+
+  g.strokeStyle = 'rgba(208,96,184,0.7)';
+  g.lineWidth = 8;
+  g.strokeRect(14, 14, W - 28, H - 28);
+  g.strokeStyle = 'rgba(255,176,64,0.45)';
   g.lineWidth = 2;
-  g.strokeRect(30, 30, W - 60, H - 60);
-  // Still placeholder band (top ~52%)
-  const stillH = Math.floor(H * 0.52);
-  const stillGrad = g.createLinearGradient(0, 40, W, stillH);
-  const hue = accentHue || 280;
-  stillGrad.addColorStop(0, `hsla(${hue},42%,22%,0.95)`);
-  stillGrad.addColorStop(0.5, `hsla(${(hue + 40) % 360},35%,16%,0.9)`);
-  stillGrad.addColorStop(1, `hsla(${(hue + 80) % 360},30%,12%,0.95)`);
-  g.fillStyle = stillGrad;
-  g.fillRect(48, 48, W - 96, stillH - 64);
-  // Faint glyph / watermark in still band
-  g.fillStyle = 'rgba(255,255,255,0.07)';
-  g.font = '700 120px "Space Mono", ui-monospace, monospace';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(meta.num, W / 2, 48 + (stillH - 64) / 2);
-  // Accent hairline under still
-  g.fillStyle = 'rgba(240,194,75,0.65)';
-  g.fillRect(48, stillH + 4, W - 96, 3);
-  // Diagram plate
+  g.strokeRect(28, 28, W - 56, H - 56);
+
+  const pad = 48;
+  const stillH = Math.floor(H * 0.58);
+  const stillW = W - pad * 2;
+  g.fillStyle = 'rgba(10,4,18,0.55)';
+  g.fillRect(pad, pad, stillW, stillH);
+  if (stillImg) {
+    const iw = stillImg.naturalWidth || stillImg.width;
+    const ih = stillImg.naturalHeight || stillImg.height;
+    const scale = Math.max(stillW / iw, stillH / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = pad + (stillW - dw) / 2;
+    const dy = pad + (stillH - dh) / 2;
+    g.save();
+    g.beginPath();
+    g.rect(pad, pad, stillW, stillH);
+    g.clip();
+    g.drawImage(stillImg, dx, dy, dw, dh);
+    g.restore();
+    const vig = g.createLinearGradient(0, pad + stillH * 0.55, 0, pad + stillH);
+    vig.addColorStop(0, 'rgba(26,8,40,0)');
+    vig.addColorStop(1, 'rgba(26,8,40,0.55)');
+    g.fillStyle = vig;
+    g.fillRect(pad, pad, stillW, stillH);
+  } else {
+    g.fillStyle = 'rgba(255,176,64,0.12)';
+    g.font = '700 140px "Space Mono", ui-monospace, monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(meta.num, W / 2, pad + stillH / 2);
+  }
+
+  g.fillStyle = 'rgba(255,160,48,0.85)';
+  g.fillRect(pad, pad + stillH + 6, stillW, 4);
+
   const diag = LAB_DIAGRAM[meta.id] || { title: meta.name, blurb: meta.hint || '' };
-  g.fillStyle = 'rgba(240,194,75,0.9)';
-  g.font = '700 28px "Space Mono", ui-monospace, monospace';
+  const dy0 = pad + stillH + 48;
+  g.fillStyle = 'rgba(255,176,64,0.95)';
+  g.font = '700 34px "Space Mono", ui-monospace, monospace';
   g.textAlign = 'left';
   g.textBaseline = 'alphabetic';
-  g.fillText(meta.num, 56, stillH + 56);
-  g.fillStyle = '#ebe4d6';
-  g.font = '650 36px "Bricolage Grotesque", system-ui, sans-serif';
-  // wrap title if needed
-  const title = diag.title || meta.name;
-  g.fillText(title, 56, stillH + 104);
-  g.fillStyle = 'rgba(235,228,214,0.78)';
-  g.font = '400 26px "Instrument Sans", system-ui, sans-serif';
+  g.fillText(meta.num, pad, dy0);
+  g.fillStyle = '#ffe8c8';
+  g.font = '700 42px "Bricolage Grotesque", system-ui, sans-serif';
+  g.fillText(diag.title || meta.name, pad, dy0 + 56);
+  g.fillStyle = 'rgba(255,220,180,0.88)';
+  g.font = '400 30px "Instrument Sans", system-ui, sans-serif';
   const blurb = diag.blurb || meta.hint || '';
-  const maxW = W - 112;
+  const maxW = stillW;
   const words = blurb.split(/\s+/);
-  let line = '', ly = stillH + 152;
+  let line = '', ly = dy0 + 110;
   for (const w of words) {
     const test = line ? line + ' ' + w : w;
     if (g.measureText(test).width > maxW && line) {
-      g.fillText(line, 56, ly);
+      g.fillText(line, pad, ly);
       line = w;
-      ly += 34;
-      if (ly > H - 48) break;
+      ly += 40;
+      if (ly > H - 70) break;
     } else line = test;
   }
-  if (line && ly <= H - 48) g.fillText(line, 56, ly);
-  // Footer cue
-  g.fillStyle = 'rgba(240,194,75,0.4)';
-  g.font = '400 18px "Space Mono", ui-monospace, monospace';
-  g.fillText('WALL · STILL', 56, H - 40);
+  if (line && ly <= H - 70) g.fillText(line, pad, ly);
+
+  g.fillStyle = 'rgba(208,96,184,0.65)';
+  g.font = '400 22px "Space Mono", ui-monospace, monospace';
+  g.fillText('WALL · TAXODIUM', pad, H - 36);
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 4);
@@ -1595,77 +1685,74 @@ function makeLabPosterTexture(meta, accentHue) {
   return tex;
 }
 
-function placeWallLabPosters(wallMetas, opts) {
-  // opts: { leftX, rightX, foyerZ, y, plateW, plateH, inset }
+async function placeWallLabPosters(wallMetas, opts) {
   const leftX = opts.leftX, rightX = opts.rightX, foyerZ = opts.foyerZ;
-  const y = opts.y, plateW = opts.plateW, plateH = opts.plateH, inset = opts.inset;
+  const plateW = opts.plateW, plateH = opts.plateH;
+  const y = opts.y;
   const n = wallMetas.length;
-  // Split: ~5 left, ~5 right, rest foyer (+Z). Never −Z / stargazer.
-  const nLeft = Math.min(5, Math.ceil(n * 0.36));
-  const nRight = Math.min(5, Math.ceil((n - nLeft) * 0.45));
-  const nFoyer = n - nLeft - nRight;
+  const nLeft = Math.min(6, Math.ceil(n / 3));
+  const nRight = Math.min(6, Math.ceil((n - nLeft) / 2));
   const left = wallMetas.slice(0, nLeft);
   const right = wallMetas.slice(nLeft, nLeft + nRight);
   const foyer = wallMetas.slice(nLeft + nRight);
 
-  const zSpan = GRID_Z_MAX - GRID_Z_MIN - 2.5; // keep clear of far stargazer band
-  const z0 = GRID_Z_MIN + 2.2; // start a bit off −Z wall
-  function alongZ(list, x, rotY) {
+  const zSpan = GRID_Z_MAX - GRID_Z_MIN - 2.8;
+  const z0 = GRID_Z_MIN + 2.4; // clear of −Z stargazer band
+
+  const barkMatExtras = {
+    roughness: 0.22, metalness: 0.72,
+    emissive: new THREE.Color(0x3a1050), emissiveIntensity: 0.28,
+    side: THREE.FrontSide,
+  };
+
+  async function alongZ(list, x, rotY) {
     const count = list.length;
     if (!count) return;
     for (let i = 0; i < count; i++) {
       const meta = list[i];
       const t = count === 1 ? 0.5 : i / (count - 1);
-      const z = z0 + t * zSpan * 0.92;
-      const yy = y + (i % 2 === 0 ? 0.15 : -0.25);
-      const tex = makeLabPosterTexture(meta, 260 + (parseInt(meta.num, 10) || 0) * 12);
-      const mat = new THREE.MeshStandardMaterial({
-        map: tex, roughness: 0.55, metalness: 0.28,
-        emissive: new THREE.Color(0x1a0a22), emissiveIntensity: 0.35,
-        side: THREE.FrontSide,
+      const z = z0 + t * zSpan * 0.94;
+      const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
+      const tex = paintTaxodiumPoster(meta, stillImg);
+      const mat = new THREE.MeshPhysicalMaterial({
+        map: tex, ...barkMatExtras,
+        clearcoat: 0.55, clearcoatRoughness: 0.18,
       });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plateW, plateH), mat);
-      mesh.position.set(x, yy, z);
+      mesh.position.set(x, y, z);
       mesh.rotation.y = rotY;
       mesh.receiveShadow = true;
       mesh.userData.wallLab = meta.id;
       wallPosterGroup.add(mesh);
-      // Slim chrome rail under plate
-      const rail = new THREE.Mesh(
-        new THREE.BoxGeometry(plateW * 0.92, 0.04, 0.06),
-        new THREE.MeshStandardMaterial({ color: 0xc9b896, metalness: 0.85, roughness: 0.28 })
-      );
-      rail.position.set(x + Math.sin(rotY) * 0.02, yy - plateH * 0.52, z + Math.cos(rotY) * 0.02);
-      rail.rotation.y = rotY;
-      wallPosterGroup.add(rail);
     }
   }
-  alongZ(left, leftX, Math.PI / 2);   // face +X (into room)
-  alongZ(right, rightX, -Math.PI / 2); // face −X
+  await alongZ(left, leftX, Math.PI / 2);
+  await alongZ(right, rightX, -Math.PI / 2);
 
-  // Foyer wall (+Z entrance) — facing −Z into the nave
-  const fx0 = -OUTER_W / 2 + 2.4;
-  const fxSpan = OUTER_W - 4.8;
+  const fx0 = -OUTER_W / 2 + 1.8;
+  const fxSpan = OUTER_W - 3.6;
   for (let i = 0; i < foyer.length; i++) {
     const meta = foyer[i];
     const t = foyer.length === 1 ? 0.5 : i / (foyer.length - 1);
     const x = fx0 + t * fxSpan;
-    const yy = y + 0.1;
-    const tex = makeLabPosterTexture(meta, 200 + (parseInt(meta.num, 10) || 0) * 10);
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex, roughness: 0.55, metalness: 0.28,
-      emissive: new THREE.Color(0x1a0a22), emissiveIntensity: 0.35,
-      side: THREE.FrontSide,
+    const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
+    const tex = paintTaxodiumPoster(meta, stillImg);
+    const mat = new THREE.MeshPhysicalMaterial({
+      map: tex, ...barkMatExtras,
+      clearcoat: 0.55, clearcoatRoughness: 0.18,
     });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plateW * 0.92, plateH * 0.92), mat);
-    mesh.position.set(x, yy, foyerZ);
-    mesh.rotation.y = Math.PI; // face −Z / into room from +Z wall
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(plateW * 0.95, plateH), mat);
+    mesh.position.set(x, y, foyerZ);
+    mesh.rotation.y = Math.PI;
     mesh.receiveShadow = true;
     mesh.userData.wallLab = meta.id;
     wallPosterGroup.add(mesh);
   }
-  console.info('[cubicles] wall diagram posters', wallPosterGroup.children.length, 'meshes · live', [...LIVE_IDS].join(','));
+  console.info('[cubicles] taxodium wall posters', wallPosterGroup.children.length, 'full-H · live', [...LIVE_IDS].join(','));
 }
+
+
+
 
 const PANEL_W = Math.min(3.35, CELL_W * 0.62);
 // Human-scale floating scenes under cathedral vault — readable from foyer
@@ -1803,7 +1890,7 @@ function armLab(panel) {
 function armFoyerVisibleLabs() {
   const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
     .sort((a, b) => a.dist - b.dist);
-  const FOYER_ARM = Math.min(3, MAX_ARMED, hung.length);
+  const FOYER_ARM = Math.min(2, MAX_ARMED, hung.length);
   let n = 0;
   for (const { h } of scored) {
     if (n >= FOYER_ARM) break;
@@ -1821,14 +1908,14 @@ requestAnimationFrame(() => {
     // Side + foyer wall still+diagram plates (stargazer −Z untouched)
     const wallInset = 0.14;
     placeWallLabPosters(wallMetas, {
-      leftX: -OUTER_W / 2 + wallInset,
-      rightX: OUTER_W / 2 - wallInset,
-      foyerZ: OUTER_D / 2 - wallInset,
-      y: EYE + 0.35,
-      plateW: 2.55,
-      plateH: 3.15,
-      inset: wallInset,
-    });
+      leftX: -OUTER_W / 2 + 0.12,
+      rightX: OUTER_W / 2 - 0.12,
+      foyerZ: OUTER_D / 2 - 0.12,
+      y: OUTER_H * 0.5,
+      plateW: 2.05,
+      plateH: OUTER_H * 0.94,
+      inset: 0.12,
+    }).catch((e) => console.warn('[cubicles] wall posters failed', e));
 
   });
 });
