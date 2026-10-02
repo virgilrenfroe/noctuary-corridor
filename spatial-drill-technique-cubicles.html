@@ -45,10 +45,10 @@
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
   }
-  /* Opaque WebGL covers the CSS3D layer (that layer is the dblclick hit target only).
-     The visible mural is a wall mesh textured from the live iframe. */
-  #stage > canvas { z-index: 2; pointer-events: none; }
-  #stage > div { z-index: 1; }
+  /* CSS3D wall plates sit in front so the live iframes show (the canvas copy stayed blank).
+     WebGL room stays underneath. Plates are pointer-events none unless dblclick focus. */
+  #stage > canvas { z-index: 1; pointer-events: none; }
+  #stage > div { z-index: 2; }
   .veil {
     position: fixed; inset: 0; z-index: 1; pointer-events: none;
     background:
@@ -687,14 +687,14 @@ if (wantAisle) {
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
   { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wallpaint1' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=wallshow1' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
   { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
   { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
   { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
   { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wallpaint1' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=wallshow1' },
   { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
   { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
   { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
@@ -2109,8 +2109,8 @@ for (let li = 0; li < wallSpecs.length; li++) {
   const scale = WALL_LAB_W / cssW;
   let embedUrl = meta.src;
   if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wallpaint1');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wallpaint1';
+  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=wallshow1');
+  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=wallshow1';
   if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
 
   // matrix3d on the <iframe> itself is flattened by the browser (exact ±90° wall
@@ -2207,6 +2207,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
   livePlane.castShadow = false;
   livePlane.receiveShadow = false;
   livePlane.raycast = () => {};
+  livePlane.visible = false;
   group.add(livePlane);
 
   const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
