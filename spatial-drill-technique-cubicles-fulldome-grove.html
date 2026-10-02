@@ -799,9 +799,9 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 
 // —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
 // Sharp planar −Z mural (NOT sphere / NOT full-dome equirect smear).
-// Portrait band ~12×15.5 (8d1cdef) — smaller than OUTER_W×OUTER_H so cover
-// stays mild (repY≈1), face+body visible; do NOT clamp to OUTER_H (that
-// widened aspect → aggressive top crop / “zoomed in”).
+// Widen bandW toward OUTER_W cover (~24×18, ~75% wall) — fills more back wall
+// than the 12×15.5 strip while cover UV + lower bias keep face+body readable.
+// Still not OUTER_W×OUTER_H (that zoomed to top ~28% only).
 (function installStargazingWall() {
   try {
     const vid = document.createElement('video');
@@ -827,9 +827,9 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.anisotropy = maxAniso;
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
-    // Tall/narrow mural closer to portrait aspect so cover keeps face + torso (repY ≈ 1).
-    const muralW = 12.0;
-    const muralH = 15.5;
+    // Wider band toward OUTER_W; H stays mural-tall so cover crop stays moderate.
+    const muralW = 24.0;
+    const muralH = 18.0;
     const bandAspect = muralW / muralH;
     const videoAspect = 720 / 974;
     let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
