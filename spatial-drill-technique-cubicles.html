@@ -253,9 +253,9 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 8;
-/** Arm embeds across ~full grid depth so back rows stay live while walking. */
-const ARM_DIST = Math.max(22, GRID_D * 0.95);
+const MAX_ARMED = 3; // lighten: ~2–3 concurrent WebGL iframes near camera
+/** Unload distant labs sooner — only near-aisle cells stay armed. */
+const ARM_DIST = Math.max(11, CELL_D * 1.85);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
 const INTERACT_DIST = Math.max(20, CELL_D * 3.6);
 function interactDistFor(panel) {
@@ -444,7 +444,7 @@ const waterNormals = new THREE.TextureLoader().load(
   (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
 );
 const waterSun = new THREE.Vector3(0.25, 0.75, 0.35).normalize();
-const water = new Water(new THREE.CircleGeometry(WATER_R, mobileLike ? 64 : 96), {
+const water = new Water(new THREE.CircleGeometry(WATER_R, mobileLike ? 40 : 96), {
   textureWidth: mobileLike ? 256 : 512,
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
@@ -495,7 +495,7 @@ underAlpha.width = 256; underAlpha.height = 256;
   ctx.fillRect(0, 0, 256, 256);
 }
 const underDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(FLOOR_CHORD_R * 1.04, mobileLike ? 48 : 72),
+  new THREE.CircleGeometry(FLOOR_CHORD_R * 1.04, mobileLike ? 32 : 72),
   new THREE.MeshBasicMaterial({
     map: new THREE.CanvasTexture(underAlpha),
     transparent: true,
@@ -740,7 +740,7 @@ setupCathedralEnvAndBloom().then(() => {
 
 
 const outerShell = new THREE.Mesh(
-  new THREE.SphereGeometry(SHELL_R, mobileLike ? 48 : 80, mobileLike ? 32 : 56),
+  new THREE.SphereGeometry(SHELL_R, mobileLike ? 32 : 80, mobileLike ? 20 : 56),
   shellMat
 );
 outerShell.position.set(0, SHELL_CENTER_Y, 0);
@@ -754,9 +754,9 @@ console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', 
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
 // Mobile: cheap Basic material, low count, no extra PointLight; animation from base euler only.
 const WALL_Z = -OUTER_D / 2 + 0.12; // flush just in front of far wall plane
-const WALLPAPER_COUNT = mobileLike ? 160 : 1400;
-const WALLPAPER_STRIDE = mobileLike ? 8 : 5;
-const WALLPAPER_FRAME_N = mobileLike ? 2 : 1; // mobile: animate every N frames
+const WALLPAPER_COUNT = mobileLike ? 64 : 1400;
+const WALLPAPER_STRIDE = mobileLike ? 10 : 5;
+const WALLPAPER_FRAME_N = mobileLike ? 3 : 1; // mobile: animate every N frames
 let wallpaper = null;
 let wallpaperDummy = null;
 let wallpaperBase = null;
@@ -851,18 +851,19 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 (function installStargazingDome() {
   try {
     const vid = document.createElement('video');
-    vid.src = './demo-assets/backwall/stargazing.mp4';
+    // Lighten: poster-first — do not set mp4 src until enter / first interaction.
     vid.crossOrigin = 'anonymous';
     vid.loop = true;
     vid.muted = true;
     vid.playsInline = true;
     vid.setAttribute('playsinline', '');
     vid.setAttribute('muted', '');
-    vid.preload = 'auto';
+    vid.preload = 'none';
     // Hint decode size (source is 720×974; cannot invent pixels — sharpness comes from band).
     vid.width = 720;
     vid.height = 974;
     vid.setAttribute('aria-hidden', 'true');
+    const STARGAZER_MP4 = './demo-assets/backwall/stargazing.mp4';
     const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
       ? renderer.capabilities.getMaxAnisotropy()
       : 1;
@@ -986,15 +987,24 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     outerShell.material = domeMat;
     shellMat = domeMat;
 
+    let videoStarted = false;
     const tryPlay = () => {
+      if (!vid.src) return;
       const p = vid.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
     };
-    vid.addEventListener('canplay', tryPlay, { once: true });
-    vid.addEventListener('loadeddata', tryPlay, { once: true });
-    tryPlay();
-    const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
-    window.addEventListener('pointerdown', unlock, { once: true });
+    /** Poster stays until enter / first interaction — then load + play mp4 (sharp band kept). */
+    const startStargazerVideo = () => {
+      if (videoStarted) { tryPlay(); return; }
+      videoStarted = true;
+      vid.preload = 'auto';
+      vid.src = STARGAZER_MP4;
+      try { vid.load(); } catch {}
+      vid.addEventListener('canplay', tryPlay, { once: true });
+      vid.addEventListener('loadeddata', tryPlay, { once: true });
+      tryPlay();
+      console.info('[cubicles] stargazer mp4 deferred start');
+    };
 
     window.__stargazingWall = {
       mesh: outerShell, vid, tex, dome: true, equirect: false, highResBand: true,
@@ -1002,9 +1012,11 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       cover: { repX, repY, offX, offY }, videoAspect,
       bandSize: { w: bandW, h: bandH, wallZ: wallZLocal },
       anisotropy: maxAniso,
+      start: startStargazerVideo,
+      posterFirst: true,
     };
     console.info(
-      '[cubicles] stargazer portrait mural band',
+      '[cubicles] stargazer portrait mural band (poster-first)',
       bandW.toFixed(1) + '×' + bandH.toFixed(1),
       'cover', repX.toFixed(3), repY.toFixed(3),
       'offY', offY.toFixed(3),
@@ -1049,9 +1061,9 @@ function updateWallpaper(t) {
 
 
 // —— Ceiling pendant fixtures (far-wall wallpaper unchanged; floor is Water ocean) ——
-const SPARK_CEIL_N = mobileLike ? 14 : 28; // ~1 per cell + foyer accents
+const SPARK_CEIL_N = mobileLike ? 8 : 28; // lighten mobile: fewer pendant sparks
 const SPARK_STRIDE = mobileLike ? 4 : 2;
-const SPARK_FRAME_N = mobileLike ? 2 : 1;
+const SPARK_FRAME_N = mobileLike ? 3 : 1;
 let sparkStem = null;
 let sparkGlow = null;
 let sparkDummy = null;
@@ -1366,15 +1378,15 @@ function armLab(panel) {
 function armFoyerVisibleLabs() {
   const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
     .sort((a, b) => a.dist - b.dist);
-  const FOYER_ARM = Math.min(3, MAX_ARMED);
+  const FOYER_ARM = Math.min(2, MAX_ARMED); // lighten: fewer foyer pre-arms
   let n = 0;
   for (const { h } of scored) {
     if (n >= FOYER_ARM) break;
-    if (h.row > 1) continue;
+    if (h.row > 0) continue; // near row only
     armLab(h);
     n++;
   }
-  console.info('[cubicles] foyer-armed floating labs', n);
+  console.info('[cubicles] foyer-armed floating labs', n, 'maxArmed', MAX_ARMED, 'armDist', ARM_DIST.toFixed(1));
 }
 // Defer foyer lab iframes one frame so room (walls/water/trees/HDR bg) paints first.
 requestAnimationFrame(() => {
@@ -1552,7 +1564,7 @@ const _taxTrunkProfiles = (() => {
   pts.push(new THREE.Vector2(0.001, 1.03));
   return pts;
 })();
-const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 : 20);
+const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 8 : 20);
 // Flute the bark in vertex space so chrome beads on ridges
 (() => {
   const pos = taxTrunkGeo.attributes.position;
@@ -1570,18 +1582,18 @@ const taxTrunkGeo = new THREE.LatheGeometry(_taxTrunkProfiles, mobileLike ? 12 :
 })();
 // Blunt pneumatophore knees (not ice-cream cones)
 // Cypress knee mound — hemisphere (blunt dome, never a cone tip)
-const taxKneeGeo = new THREE.SphereGeometry(1, mobileLike ? 8 : 12, mobileLike ? 6 : 8, 0, Math.PI * 2, 0, Math.PI * 0.55);
+const taxKneeGeo = new THREE.SphereGeometry(1, mobileLike ? 6 : 12, mobileLike ? 4 : 8, 0, Math.PI * 2, 0, Math.PI * 0.55);
 // Open-ended limbs — closed caps read as severed floating trunk chops
-const taxBranchGeo = new THREE.CylinderGeometry(0.22, 1, 1, mobileLike ? 5 : 6, 1, true);
+const taxBranchGeo = new THREE.CylinderGeometry(0.22, 1, 1, mobileLike ? 4 : 6, 1, true);
 // Thin needle shafts for feathery sprays (NOT fat cones); open-ended = no mid-air discs
 const taxNeedleGeo = new THREE.CylinderGeometry(0.05, 0.18, 1, 3, 1, true);
 // Soft oval tuft
-const taxTuftGeo = new THREE.SphereGeometry(1, mobileLike ? 4 : 6, mobileLike ? 3 : 4);
+const taxTuftGeo = new THREE.SphereGeometry(1, mobileLike ? 3 : 6, mobileLike ? 2 : 4);
 taxTuftGeo.scale(0.7, 1.6, 0.28);
 // Alpha card for feathery canopy planes
 const taxCardGeo = new THREE.PlaneGeometry(1.1, 1.55);
 // Feathery crown spray — elongated oval (NOT flat gold disc / mushroom)
-const taxCrownGeo = new THREE.SphereGeometry(1, mobileLike ? 5 : 7, mobileLike ? 4 : 5);
+const taxCrownGeo = new THREE.SphereGeometry(1, mobileLike ? 4 : 7, mobileLike ? 3 : 5);
 taxCrownGeo.scale(0.45, 1.55, 0.35); // hanging spray, vertical bias
 
 function taxHash(i) {
@@ -1598,13 +1610,13 @@ function taxHash(i) {
 function placeBaldCypresses() {
   const trees = cypressPositions;
   const n = trees.length;
-  const kneesPer = mobileLike ? 8 : 12;
-  const branchPer = mobileLike ? 8 : 11;
-  const needlePer = mobileLike ? 60 : 110;
-  const tuftPer = mobileLike ? 3 : 5;
-  const cardPer = mobileLike ? 60 : 110;
+  const kneesPer = mobileLike ? 5 : 12;
+  const branchPer = mobileLike ? 5 : 11;
+  const needlePer = mobileLike ? 28 : 110;
+  const tuftPer = mobileLike ? 2 : 5;
+  const cardPer = mobileLike ? 24 : 110;
   const crownPer = mobileLike ? 0 : 0; // disable disc sprays entirely
-  const flutePer = mobileLike ? 2 : 3; // subtle bark ribs, not pipe-bundle
+  const flutePer = mobileLike ? 1 : 3; // subtle bark ribs, not pipe-bundle
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
@@ -1896,8 +1908,9 @@ const cypressPositions = [];
   // Foyer grove pair — offset, not symmetric gateposts
   seeds.push({ x: -CELL_W * 1.15, z: GRID_Z_MAX + 1.85, role: 'foyer', hBias: 0.9 });
   seeds.push({ x: CELL_W * 0.92, z: GRID_Z_MAX + 1.35, role: 'foyer', hBias: 0.55 });
-  // Extra mid-grove fillers (natural clumps, avoid cell centers)
-  for (let k = 0; k < 6; k++) {
+  // Extra mid-grove fillers (natural clumps, avoid cell centers) — thinned on mobile
+  const clumpN = mobileLike ? 2 : 6;
+  for (let k = 0; k < clumpN; k++) {
     const col = 0.5 + (k % 4) + ((k * 3) % 5) * 0.07;
     const row = 0.4 + Math.floor(k / 2) * 0.85 + ((k * 7) % 5) * 0.05;
     seeds.push({
@@ -1942,8 +1955,9 @@ const cypressPositions = [];
     if (nearLabFace(x, z)) continue; // drop rather than bury a lab
 
     // Density gaps — skip some seeds so grove reads clumpy, not regimented
-    if (s.role === 'grove' && h4 < 0.22) continue;
-    if (s.role === 'clump' && h1 < 0.28) continue;
+    if (s.role === 'grove' && h4 < (mobileLike ? 0.48 : 0.22)) continue;
+    if (s.role === 'clump' && h1 < (mobileLike ? 0.55 : 0.28)) continue;
+    if (s.role === 'margin' && mobileLike && h2 < 0.42) continue;
     const hBase = 7.6 + h3 * 3.2 + (s.hBias || 0);
     const h = Math.max(6.8, Math.min(11.6, hBase + (h4 - 0.5) * 1.4));
     const yaw = h1 * Math.PI * 2 + h2 * 2.3 + h3 * 0.9;
@@ -1955,7 +1969,16 @@ const cypressPositions = [];
       role: s.role,
     });
   }
-  console.info('[cubicles] irregular Taxodium grove', cypressPositions.length, 'trees (jittered pos/scale/yaw)');
+  // Hard cap mobile grove so room stays thin (prefer foyer, then grove)
+  if (mobileLike && cypressPositions.length > 12) {
+    const foyer = cypressPositions.filter((p) => p.role === 'foyer');
+    const grove = cypressPositions.filter((p) => p.role === 'grove');
+    const other = cypressPositions.filter((p) => p.role !== 'foyer' && p.role !== 'grove');
+    cypressPositions.length = 0;
+    cypressPositions.push(...foyer, ...grove, ...other);
+    cypressPositions.splice(12);
+  }
+  console.info('[cubicles] irregular Taxodium grove', cypressPositions.length, 'trees (jittered pos/scale/yaw)', mobileLike ? 'mobile-thin' : 'desktop');
 })();
 
 /**
@@ -1987,7 +2010,7 @@ function placeSpanishMossFilaments() {
     emissiveIntensity: chromeVariant === 2 ? 0.05 : 0.22,
     side: THREE.DoubleSide,
   });
-  const perTree = mobileLike ? 18 : 48;
+  const perTree = mobileLike ? 8 : 48;
   const count = cypressPositions.length * perTree;
   const chromeInst = new THREE.InstancedMesh(strandGeo, fiberChrome, count);
   const magentaInst = new THREE.InstancedMesh(strandGeo, fiberMagenta, count);
@@ -2611,6 +2634,7 @@ function silentEnter({ reset = true } = {}) {
   window.__cubiclesEntered = true;
   if (gate) gate.classList.add('hide');
   try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+  try { window.__stargazingWall?.start?.(); } catch {}
   if (reset) {
     resetToFoyer();
     velocity.set(0, 0, 0);
@@ -2622,6 +2646,7 @@ function silentEnter({ reset = true } = {}) {
 }
 window.addEventListener('pointerdown', () => {
   try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+  try { window.__stargazingWall?.start?.(); } catch {}
 }, { passive: true });
 
 let debugOn = params.has('debug');
