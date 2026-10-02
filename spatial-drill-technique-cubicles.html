@@ -257,6 +257,7 @@
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { Water } from 'three/addons/objects/Water.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const params = new URLSearchParams(location.search);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches || params.has('still');
@@ -868,68 +869,55 @@ for (let i = 0; i < CELLS.length; i++) {
   frame.userData.clickable = true;
 }
 
-// —— Stylized bald cypresses in cell aisles / divider lines (not on panel faces) ——
+// —— GLTF bald cypresses in cell aisles / divider lines (not on panel faces) ——
+// Model: demo-assets/cypress/cypress.glb (OpenGameArt / David W CG, CC-BY 4.0)
 const cypressGroup = new THREE.Group();
 cypressGroup.name = 'cypresses';
 scene.add(cypressGroup);
-const cypressTrunkMat = new THREE.MeshStandardMaterial({
-  color: 0x3a2e22, roughness: 0.92, metalness: 0.02,
-});
-const cypressFoliageMat = new THREE.MeshStandardMaterial({
-  color: 0x1e3a22, roughness: 0.88, metalness: 0.0,
+
+/** Shared knee / moss materials (cheap extras around the loaded trunk). */
+const cypressKneeMat = new THREE.MeshStandardMaterial({
+  color: 0x3a2e22, roughness: 0.94, metalness: 0.02,
 });
 const cypressMossMat = new THREE.MeshStandardMaterial({
-  color: 0x6a7a58, roughness: 1, metalness: 0, transparent: true, opacity: 0.72,
+  color: 0x6a7a58, roughness: 1, metalness: 0, transparent: true, opacity: 0.68, depthWrite: false,
 });
+const kneeGeo = new THREE.CylinderGeometry(0.04, 0.07, 0.28, 5);
+const mossGeo = new THREE.CylinderGeometry(0.01, 0.005, 1, 4);
 
-function makeCypress(height) {
-  const g = new THREE.Group();
-  const trunkH = height * 0.7;
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.035, 0.11, trunkH, 6),
-    cypressTrunkMat
-  );
-  trunk.position.y = trunkH * 0.5;
-  trunk.castShadow = !mobileLike;
-  trunk.receiveShadow = true;
-  g.add(trunk);
-  // Knee / buttress hint at waterline
-  const knee = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.14, 0.18, 0.22, 6),
-    cypressTrunkMat
-  );
-  knee.position.y = 0.1;
-  g.add(knee);
-  // Sparse vertical canopy — stacked slender cones
-  const layers = 3;
-  for (let L = 0; L < layers; L++) {
-    const t = L / (layers - 1);
-    const coneH = height * (0.28 - t * 0.06);
-    const coneR = 0.38 - t * 0.12;
-    const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(coneR, coneH, 7),
-      cypressFoliageMat
-    );
-    cone.position.y = trunkH * 0.42 + L * height * 0.18 + coneH * 0.35;
-    cone.castShadow = !mobileLike;
-    g.add(cone);
+function disableRaycast(root) {
+  root.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
+}
+
+function addKneesAndMoss(parent, height, seed) {
+  // Bald-cypress knees poking through swamp water around the buttress
+  const kneeN = mobileLike ? 3 : 5;
+  for (let k = 0; k < kneeN; k++) {
+    const ang = (k / kneeN) * Math.PI * 2 + seed * 0.7;
+    const rad = 0.18 + ((seed * 3 + k * 5) % 7) * 0.025;
+    const knee = new THREE.Mesh(kneeGeo, cypressKneeMat);
+    const kh = 0.22 + (k % 3) * 0.06;
+    knee.scale.set(0.85 + (k % 2) * 0.25, kh / 0.28, 0.85 + ((k + 1) % 2) * 0.2);
+    knee.position.set(Math.cos(ang) * rad, kh * 0.35, Math.sin(ang) * rad);
+    knee.rotation.z = (k % 2 ? 0.18 : -0.14);
+    knee.rotation.x = (k % 3 ? 0.1 : -0.08);
+    knee.castShadow = !mobileLike;
+    knee.raycast = () => {};
+    parent.add(knee);
   }
-  // Spanish-moss hints — thin hanging strands
-  const mossN = mobileLike ? 2 : 4;
+  // Spanish-moss strands under the crown
+  const mossN = mobileLike ? 3 : 6;
+  const hangY = height * 0.42;
   for (let m = 0; m < mossN; m++) {
-    const mossLen = 0.35 + (m % 3) * 0.18;
-    const moss = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.012, 0.006, mossLen, 4),
-      cypressMossMat
-    );
-    const ang = (m / mossN) * Math.PI * 2 + 0.4;
-    const rad = 0.22;
-    moss.position.set(Math.cos(ang) * rad, trunkH * 0.55 - mossLen * 0.35, Math.sin(ang) * rad);
+    const mossLen = 0.4 + (m % 4) * 0.16;
+    const moss = new THREE.Mesh(mossGeo, cypressMossMat);
+    moss.scale.y = mossLen;
+    const ang = (m / mossN) * Math.PI * 2 + seed;
+    const rad = 0.28 + (m % 3) * 0.08;
+    moss.position.set(Math.cos(ang) * rad, hangY - mossLen * 0.45, Math.sin(ang) * rad);
     moss.raycast = () => {};
-    g.add(moss);
+    parent.add(moss);
   }
-  g.traverse((o) => { if (o.isMesh) o.raycast = () => {}; });
-  return g;
 }
 
 /** Grid divider positions: column aisles × row aisles (between cells, clear of panel faces). */
@@ -958,15 +946,54 @@ for (const side of [-1, 1]) {
   }
 }
 
-let cypressCount = 0;
-for (const p of cypressPositions) {
-  const tree = makeCypress(p.h);
-  tree.position.set(p.x, 0.02, p.z);
-  tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
-  cypressGroup.add(tree);
-  cypressCount++;
+async function placeGltfCypresses() {
+  const loader = new GLTFLoader();
+  const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
+  const proto = gltf.scene;
+  const box = new THREE.Box3().setFromObject(proto);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const modelH = Math.max(size.y, 0.001);
+  const modelMinY = box.min.y;
+
+  proto.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = !mobileLike;
+    o.receiveShadow = true;
+    o.raycast = () => {};
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      // Alpha canopy cards sort better without fighting panel depth
+      if (m.transparent || m.opacity < 1) {
+        m.depthWrite = false;
+        m.side = THREE.DoubleSide;
+      }
+    }
+  });
+
+  let cypressCount = 0;
+  for (const p of cypressPositions) {
+    const root = new THREE.Group();
+    const tree = proto.clone(true);
+    const s = p.h / modelH;
+    tree.scale.setScalar(s);
+    // Sit trunk on swamp waterline (model origin may not be y=0)
+    tree.position.y = -modelMinY * s + 0.02;
+    tree.rotation.y = (p.x * 0.3 + p.z * 0.17) % (Math.PI * 2);
+    disableRaycast(tree);
+    root.add(tree);
+    addKneesAndMoss(root, p.h, p.x + p.z);
+    root.position.set(p.x, 0, p.z);
+    cypressGroup.add(root);
+    cypressCount++;
+  }
+  console.info('[cubicles] gltf cypresses', cypressCount, 'from', modelH.toFixed(2) + 'u model');
 }
-console.info('[cubicles] cypresses', cypressCount);
+
+placeGltfCypresses().catch((err) => {
+  console.error('[cubicles] cypress GLB failed', err);
+});
 
 function resetToFoyer() {
   pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
