@@ -2412,6 +2412,156 @@ async function placeGltfCypresses() {
   }
 })();
 
+/** CSS3D iframes share no depth buffer with WebGL Taxodium meshes.
+ *  Per-frame: hide a lab’s CSS3DObject when a trunk is closer along the view
+ *  and screen AABBs overlap. Hit planes keep raycasting (arm facing lab);
+ *  iframe pointer-events stay none while occluded so in-front labs remain tappable. */
+const TREE_OCCLUDERS = [];
+const _depthCorner = new THREE.Vector3();
+const _depthView = new THREE.Vector3();
+const _depthInvCam = new THREE.Matrix4();
+const _labNdc = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+const _treeNdc = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+function rebuildTreeOccluders() {
+  TREE_OCCLUDERS.length = 0;
+  for (const p of cypressPositions) {
+    // Match lathe profile: buttress flare 0.255*h → mid-stem ~0.05*h
+    TREE_OCCLUDERS.push({
+      x: p.x,
+      z: p.z,
+      y0: -0.25,
+      y1: p.h * 1.02,
+      h: p.h,
+      rButt: p.h * 0.255,
+      rStem: p.h * 0.055,
+    });
+  }
+  window.__treeOccluders = TREE_OCCLUDERS;
+  console.info('[cubicles] CSS3D depth occluders', TREE_OCCLUDERS.length, 'trunks');
+}
+
+function trunkRadiusAtY(tree, y) {
+  const t = THREE.MathUtils.clamp(y / Math.max(0.01, tree.h), 0, 1);
+  if (t < 0.14) {
+    const u = t / 0.14;
+    return tree.rButt * (1 - Math.pow(u, 0.34)) + tree.rStem * Math.pow(u, 0.34);
+  }
+  if (t < 0.52) {
+    const u = (t - 0.14) / 0.38;
+    return THREE.MathUtils.lerp(tree.rStem, tree.h * 0.038, u);
+  }
+  const u = (t - 0.52) / 0.48;
+  return tree.h * THREE.MathUtils.lerp(0.038, 0.024, Math.pow(u, 0.7));
+}
+
+function expandNdcRect(x, y, z, rect) {
+  _depthCorner.set(x, y, z).project(camera);
+  if (_depthCorner.z < -1.05 || _depthCorner.z > 1.05) return false;
+  rect.minX = Math.min(rect.minX, _depthCorner.x);
+  rect.maxX = Math.max(rect.maxX, _depthCorner.x);
+  rect.minY = Math.min(rect.minY, _depthCorner.y);
+  rect.maxY = Math.max(rect.maxY, _depthCorner.y);
+  return true;
+}
+
+function viewZOf(x, y, z) {
+  _depthView.set(x, y, z).applyMatrix4(_depthInvCam);
+  return _depthView.z; // Three view: closer to camera ⇒ larger (less negative) z
+}
+
+function resetNdcRect(rect) {
+  rect.minX = Infinity; rect.maxX = -Infinity;
+  rect.minY = Infinity; rect.maxY = -Infinity;
+}
+
+function labBehindTree(h, tree) {
+  const lx = h.cssObj.position.x;
+  const ly = h.cssObj.position.y;
+  const lz = h.cssObj.position.z;
+  const sx = h.group.scale.x || 1;
+  const sy = h.group.scale.y || 1;
+  const hw = PANEL_W * 0.5 * sx;
+  const hh = PANEL_H * 0.5 * sy;
+  const yaw = h.cssObj.rotation.y || 0;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+
+  const labVz = viewZOf(lx, ly, lz);
+  if (labVz >= -0.08) return false;
+
+  const ty = THREE.MathUtils.clamp(ly, tree.y0, tree.y1);
+  const treeVz = viewZOf(tree.x, ty, tree.z);
+  // Tree must sit closer to the camera than the lab
+  if (!(treeVz > labVz + 0.15)) return false;
+
+  if (ly + hh < tree.y0 || ly - hh > tree.y1) return false;
+
+  resetNdcRect(_labNdc);
+  let labOk = false;
+  for (const ox of [-hw, hw]) {
+    for (const oy of [-hh, hh]) {
+      const wx = lx + ox * cos;
+      const wz = lz - ox * sin;
+      if (expandNdcRect(wx, ly + oy, wz, _labNdc)) labOk = true;
+    }
+  }
+  if (!labOk) return false;
+
+  const rLo = trunkRadiusAtY(tree, Math.max(tree.y0, ly - hh));
+  const rHi = trunkRadiusAtY(tree, Math.min(tree.y1, ly + hh));
+  const rMid = trunkRadiusAtY(tree, ly);
+  const rp = Math.max(rLo, rHi, rMid) * 1.1;
+  const yLo = Math.max(tree.y0, ly - hh - 0.2);
+  const yHi = Math.min(tree.y1, ly + hh + 0.2);
+
+  resetNdcRect(_treeNdc);
+  let treeOk = false;
+  for (const dx of [-rp, rp]) {
+    for (const dz of [-rp, rp]) {
+      if (expandNdcRect(tree.x + dx, yLo, tree.z + dz, _treeNdc)) treeOk = true;
+      if (expandNdcRect(tree.x + dx, yHi, tree.z + dz, _treeNdc)) treeOk = true;
+    }
+  }
+  if (!treeOk) return false;
+
+  return _labNdc.minX < _treeNdc.maxX && _labNdc.maxX > _treeNdc.minX
+      && _labNdc.minY < _treeNdc.maxY && _labNdc.maxY > _treeNdc.minY;
+}
+
+function updateCssDepthOcclusion() {
+  if (!TREE_OCCLUDERS.length) return;
+  camera.updateMatrixWorld(true);
+  _depthInvCam.copy(camera.matrixWorldInverse);
+
+  for (const h of hung) {
+    if (!h.cssObj || !h.iframe) continue;
+    let occluded = false;
+    if (h.embedArmed) {
+      for (let i = 0; i < TREE_OCCLUDERS.length; i++) {
+        if (labBehindTree(h, TREE_OCCLUDERS[i])) { occluded = true; break; }
+      }
+    }
+    if (h._depthOccluded === occluded) {
+      // Even if flag unchanged, keep pointer-events honest after setInteractTarget
+      if (occluded && h.iframe.style.pointerEvents !== 'none') {
+        h.iframe.style.pointerEvents = 'none';
+        h.canInteract = false;
+      }
+      continue;
+    }
+    h._depthOccluded = occluded;
+    // visible=false → CSS3DRenderer display:none (visual only). Hit mesh stays raycastable.
+    h.cssObj.visible = !occluded;
+    if (occluded) {
+      h.iframe.style.pointerEvents = 'none';
+      h.canInteract = false;
+    }
+  }
+}
+
+rebuildTreeOccluders();
+
 function resetToFoyer() {
   pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
   yaw.value = SPAWN.yaw;
@@ -2474,6 +2624,7 @@ function panelFromDomPoint(clientX, clientY, maxDistScale) {
   let bestArea = Infinity;
   for (const h of hung) {
     if (!h.iframe || !h.embedArmed) continue;
+    if (h._depthOccluded || h.cssObj?.visible === false) continue;
     if (h.iframe.style.opacity === '0') continue;
     const r = h.iframe.getBoundingClientRect();
     if (r.width < 4 || r.height < 4) continue;
@@ -2528,7 +2679,13 @@ function setInteractTarget(panel) {
     stage.classList.remove('panel-hover');
     return;
   }
+  // Raycast / facing may still select a depth-occluded lab so it stays armed;
+  // never enable iframe pointer-events while visually suppressed (clicks fall to walk).
   armLab(panel);
+  if (panel._depthOccluded || panel.cssObj?.visible === false) {
+    stage.classList.remove('panel-hover');
+    return;
+  }
   panel.canInteract = true;
   panel.iframe.style.pointerEvents = 'auto';
   panel.iframe.style.cursor = 'pointer';
@@ -2571,15 +2728,29 @@ function updateLazyEmbeds() {
   // Cursor-over-frame wins → center facing → activeCell → nearest.
   // Arm hover immediately so pointer cursor is not lost on the far wall.
   let best = null;
-  if (hoverPanel && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
+  const inFront = (p) => p && !p._depthOccluded && p.cssObj?.visible !== false;
+  // Cursor-over visible iframe wins; else prefer an in-front facing/near lab for taps.
+  // Occluded facing still arms via setInteractTarget (pointer-events stay none).
+  if (inFront(hoverPanel) && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
     best = hoverPanel;
-  } else if (facing) {
+  } else if (inFront(facing)) {
     best = facing;
-  } else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
+  } else if (inFront(activeCell) && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
     best = activeCell;
   } else {
     for (const { h, dist } of scored) {
+      if (!inFront(h)) continue;
       if (dist <= interactDistFor(h)) { best = h; break; }
+    }
+    // Fallback: arm occluded facing/near so embed stays warm (no iframe clicks)
+    if (!best) {
+      if (facing) best = facing;
+      else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) best = activeCell;
+      else {
+        for (const { h, dist } of scored) {
+          if (dist <= interactDistFor(h)) { best = h; break; }
+        }
+      }
     }
   }
   if (!panelPointerLock) setInteractTarget(best);
@@ -3204,6 +3375,7 @@ function frame() {
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
     updateBeatLabs(_tSpark);
+    updateCssDepthOcclusion();
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
