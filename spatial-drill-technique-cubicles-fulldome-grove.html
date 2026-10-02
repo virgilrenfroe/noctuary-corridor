@@ -2839,6 +2839,9 @@ const cypressPositions = [];
     x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
     z = Math.max(GRID_Z_MIN + marginZ, Math.min(OUTER_D / 2 - 1.2, z));
     if (nearLabFace(x, z)) continue; // drop rather than bury a lab
+    // One interior cell of clear floor against every exterior wall.
+    if (Math.abs(x) > OUTER_W / 2 - CELL_W) continue;
+    if (Math.abs(z) > OUTER_D / 2 - CELL_D) continue;
 
     // Density gaps — skip some seeds so grove reads clumpy, not regimented
     if (s.role === 'grove' && h4 < 0.22) continue;
