@@ -2671,7 +2671,7 @@ function placeBaldCypresses() {
     inst: kneeInst,
     bases: kneeBases,
     dummy: new THREE.Object3D(),
-    faces: hillbillyKnees(kneeBases, kneeInst),
+    faces: hillbillyKnees(kneeBases),
   };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return n;
@@ -2680,61 +2680,71 @@ function placeBaldCypresses() {
 
 function hillbillyCanvas(i) {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 256;
+  c.width = 256; c.height = 384;
   const g = c.getContext('2d');
-  const skins = ['#c4a574','#a67c52','#8d6e63','#d7b899','#6d4c41','#b08968','#e0c097','#5d4037'];
-  const cloth = ['#3d5a80','#6b3e26','#2f4f3e','#7a4e2d','#4a5568','#5c4033','#1e3a5f','#6b705c'];
-  const hats = ['#c2a878','#8d6b4a','#d9c7a1','#6b5344','#b08968','#3d3a36','#a98467','#efe6d5'];
-  g.fillStyle = '#2a1438';
-  g.fillRect(0, 0, 256, 256);
+  g.clearRect(0, 0, 256, 384);
+  const skins = ['#e7c39a','#c4926a','#a87556','#f0d2ae','#8d5a3c','#d7a574','#f3dcc0','#6b4632'];
+  const cloth = ['#2f4d86','#6b3a1f','#245c3a','#8a4b22','#3d4a63','#5a3424','#16325c','#4e5a3a'];
+  const hats = ['#e6d2a2','#8d6b4a','#f4ead0','#5c4638','#c4a574','#2a2724','#b08968','#f7f1e4'];
   g.fillStyle = cloth[i % 8];
-  g.fillRect(48, 150, 160, 106);
+  g.beginPath();
+  g.moveTo(58, 250); g.lineTo(198, 250); g.lineTo(214, 372); g.lineTo(42, 372); g.closePath();
+  g.fill();
   g.fillStyle = '#1a120c';
-  g.fillRect(118, 150, 14, 90);
+  g.fillRect(118, 248, 18, 124);
+  // arms out of the dome
+  g.strokeStyle = skins[i % 8];
+  g.lineWidth = 16;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(70, 270); g.lineTo(28 + (i % 3) * 8, 210 - (i % 4) * 10);
+  g.moveTo(186, 270); g.lineTo(228 - (i % 3) * 8, 200 - ((i + 1) % 4) * 8);
+  g.stroke();
   g.fillStyle = skins[i % 8];
-  g.beginPath(); g.ellipse(128, 118, 52, 62, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(128, 168, 58, 70, 0, 0, Math.PI * 2); g.fill();
   g.fillStyle = hats[i % 8];
-  g.beginPath(); g.ellipse(128, 72, 78, 18, 0, 0, Math.PI * 2); g.fill();
-  g.fillRect(78, 40, 100, 28);
-  g.fillStyle = '#1a120c';
-  const eye = 18 + (i % 3) * 6;
-  g.beginPath(); g.arc(108, 112, 4 + (i % 2), 0, Math.PI * 2); g.arc(148, 112, 4 + ((i + 1) % 2), 0, Math.PI * 2); g.fill();
+  g.fillRect(62, 78, 132, 36);
+  g.beginPath(); g.ellipse(128, 112, 96, 18, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#14110e';
+  const eyeY = 158 + (i % 3) * 4;
+  g.beginPath();
+  g.arc(104, eyeY, 6, 0, Math.PI * 2);
+  g.arc(152, eyeY, 6, 0, Math.PI * 2);
+  g.fill();
   if (i % 2 === 0) {
     g.fillStyle = '#3a2a22';
-    g.beginPath(); g.ellipse(128, 148, 28, 22 + (i % 4) * 4, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(128, 198, 34, 26 + (i % 4) * 4, 0, 0, Math.PI * 2); g.fill();
   }
-  g.strokeStyle = '#1a120c'; g.lineWidth = 3;
-  g.beginPath(); g.arc(128, 132, 10 + (i % 3) * 2, 0.1, Math.PI - 0.1); g.stroke();
-  return c;
+  g.strokeStyle = '#14110e'; g.lineWidth = 4;
+  g.beginPath(); g.arc(128, 186, 12 + (i % 3) * 3, 0.15, Math.PI - 0.15); g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
 }
-function hillbillyKnees(bases, inst) {
+function hillbillyKnees(bases) {
   const faces = [];
-  const n = Math.min(8, bases.length);
-  if (!n) return faces;
-  const step = Math.max(1, Math.floor(bases.length / n));
-  const dummy = new THREE.Object3D();
-  for (let f = 0; f < n; f++) {
-    const i = Math.min(bases.length - 1, f * step);
+  if (!bases.length) return faces;
+  const geo = new THREE.PlaneGeometry(0.95, 1.55);
+  for (let i = 0; i < bases.length; i++) {
     const b = bases[i];
-    const map = new THREE.CanvasTexture(hillbillyCanvas(f));
-    map.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.MeshPhysicalMaterial({
-      map, color: 0xffffff, roughness: 0.45, metalness: 0.15, emissive: 0x140818, emissiveIntensity: 0.15,
+    const mat = new THREE.MeshBasicMaterial({
+      map: hillbillyCanvas(i),
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     });
-    const mesh = new THREE.Mesh(taxKneeGeo, mat);
-    mesh.position.set(b.px, b.py, b.pz);
-    mesh.rotation.set(b.rx, b.ry, b.rz);
-    mesh.scale.set(b.sx, b.sy, b.sz);
+    const mesh = new THREE.Mesh(geo, mat);
+    const g = new THREE.Group();
+    mesh.position.y = 0.78;
+    g.add(mesh);
+    g.position.set(b.px, b.py + b.sy * 0.85, b.pz);
+    g.rotation.y = Math.atan2(-b.px, -b.pz);
+    g.raycast = () => {};
     mesh.raycast = () => {};
-    cypressGroup.add(mesh);
-    faces.push({ mesh, base: b });
-    dummy.position.set(b.px, b.py, b.pz);
-    dummy.rotation.set(b.rx, b.ry, b.rz);
-    dummy.scale.set(0.001, 0.001, 0.001);
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
+    cypressGroup.add(g);
+    faces.push({ mesh: g, base: b, y0: g.position.y });
   }
-  inst.instanceMatrix.needsUpdate = true;
   console.info('[cubicles] hillbilly knees', faces.length);
   return faces;
 }
@@ -3567,8 +3577,9 @@ function updateBeatKneesWater(t, dt, bassOpt) {
       const ring = 1 - PHASE_GAIN + PHASE_GAIN * Math.sin(b.phase || 0);
       const local = bass * ring;
       const m = faces[f].mesh;
-      m.position.set(b.px, b.py + local * b.sy * AMP_LIFT, b.pz);
-      m.scale.set(b.sx * (1 + local * AMP_XZ), b.sy * (1 + local * AMP_Y), b.sz * (1 + local * AMP_XZ));
+      const pop = 1 + local * 0.55;
+      m.position.y = faces[f].y0 + local * 0.35;
+      m.scale.set(pop, pop, pop);
     }
   }
 }
