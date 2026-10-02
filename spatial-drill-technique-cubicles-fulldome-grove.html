@@ -2500,9 +2500,9 @@ function updateBeatLabs(t) {
     }
     return;
   }
-  // Elegant caps — never fight walk/look; scale pulse a bit above prior 0.035 left-off
+  // Elegant caps — never fight walk/look; scale pulse nudged up from 0.050
   const AMP_Y = 0.095;      // ~9.5 cm bob
-  const AMP_SCALE = 0.050;  // ±5% expand/contract (was 0.035)
+  const AMP_SCALE = 0.068;  // ±6.8% expand/contract (was 0.050)
   const AMP_YAW = 0.030;    // ~1.7° yaw
   for (const h of hung) {
     const ph = h.beatPhase || 0;
