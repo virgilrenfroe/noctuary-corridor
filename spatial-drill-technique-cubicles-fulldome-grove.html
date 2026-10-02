@@ -12,7 +12,8 @@
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
 <link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
-<title>Technique cubicles · corridor-share</title>
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=amb96" fetchpriority="high" />
+<title>Technique cubicles · box grove capture</title>
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -37,10 +38,6 @@
   }
   #stage.dragging { cursor: grabbing; }
   #stage.look-locked { cursor: none; }
-  #btn-look-lock { display: none; }
-  @media (pointer: fine) {
-    #btn-look-lock { display: inline-flex; }
-  }
   #stage.panel-hover { cursor: pointer; }
   #stage > canvas, #stage > div {
     position: absolute; inset: 0;
@@ -51,88 +48,7 @@
     background:
       radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.3) 100%);
   }
-  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
-  .topbar {
-    position: absolute; top: 18px; left: 18px; right: 18px;
-    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
-  }
-  .brand {
-    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
-    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
-    background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
-  }
-  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
-  .pill {
-    appearance: none; border: 1px solid var(--line); background: rgba(235,228,214,0.82);
-    color: var(--ink); border-radius: 999px; padding: 10px 14px; font: inherit;
-    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
-    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
-  }
-  .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
-  .chip {
-    position: absolute; left: 18px; bottom: 18px;
-    max-width: min(42ch, calc(100vw - 36px));
-    padding: 12px 16px; border-radius: 14px;
-    border: 1px solid var(--line); background: rgba(235,228,214,0.88);
-    backdrop-filter: blur(14px);
-    opacity: 0; transform: translateY(8px);
-    transition: opacity 0.28s ease, transform 0.28s ease;
-    pointer-events: none;
-  }
-  .chip.show { opacity: 1; transform: translateY(0); }
-  .chip .tag {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #b8860b; margin: 0 0 4px;
-  }
-  .chip h2 {
-    margin: 0; font-family: var(--font-display); font-weight: 650;
-    font-size: 1.15rem; letter-spacing: -0.03em; line-height: 1.15;
-  }
-  .chip p { margin: 6px 0 0; font-size: 12px; color: var(--mute); line-height: 1.4; }
-  .keys {
-    position: absolute; right: 18px; bottom: 18px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--mute); text-align: right;
-    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
-    background: rgba(235,228,214,0.75); backdrop-filter: blur(10px);
-  }
-  .keys strong { color: var(--ink); font-weight: 400; }
-  .gate {
-    position: fixed; inset: 0; z-index: 5;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(207,200,186,0.55); backdrop-filter: blur(18px);
-    pointer-events: auto; transition: opacity 0.35s ease, visibility 0.35s;
-  }
-  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-  .gate-card {
-    text-align: center; max-width: 40ch; padding: 28px 32px;
-    border-radius: 24px; border: 1px solid var(--line);
-    background: rgba(255,252,246,0.9);
-  }
-  .gate-card .k {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
-  }
-  .gate-card h1 {
-    margin: 0; font-family: var(--font-display); font-weight: 700;
-    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3rem);
-    letter-spacing: -0.04em; line-height: 0.95;
-  }
-  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
-  .gate-card .ctrl {
-    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
-    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(26,29,38,0.7);
-  }
-  .gate-card button {
-    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.5);
-    background: rgba(240,194,75,0.18); color: var(--ink);
-    border-radius: 999px; padding: 14px 28px; font: inherit;
-    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
-  }
-  .gate-card button:hover { background: rgba(240,194,75,0.3); }
-  body.reduce .gate { display: none; }
   body.overview #mobile-pad { display: none !important; }
-  body.overview .chip { display: none !important; }
   #gl-tip {
     display: none; position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
     transform: translateX(-50%); z-index: 6; max-width: min(92vw, 36ch);
@@ -141,77 +57,107 @@
     font-size: 13px; line-height: 1.4; text-align: center; pointer-events: auto; cursor: pointer;
   }
   #gl-tip.show { display: block; }
+
+  /* Crossbar walkpad — liquid mercury chrome (Sketch C / floating lab metal) */
   #mobile-pad {
     display: none; position: fixed;
     left: max(12px, env(safe-area-inset-left));
     bottom: max(12px, env(safe-area-inset-bottom));
     z-index: 4; width: 148px; height: 148px;
     pointer-events: auto; touch-action: none; user-select: none;
+    -webkit-user-select: none;
+    filter: drop-shadow(0 10px 22px rgba(8, 4, 18, 0.55));
   }
   #mobile-pad .pad-base {
     position: absolute; inset: 0; border-radius: 50%;
-    border: 1px solid rgba(26,29,38,0.2);
-    background: rgba(235,228,214,0.55); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background:
+      radial-gradient(120% 90% at 28% 18%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.28) 18%, transparent 42%),
+      radial-gradient(80% 70% at 78% 72%, rgba(208, 96, 184, 0.42) 0%, transparent 55%),
+      radial-gradient(70% 55% at 55% 100%, rgba(240, 194, 75, 0.28) 0%, transparent 50%),
+      linear-gradient(152deg,
+        #e8eef6 0%,
+        #9aa4b4 16%,
+        #2e3540 34%,
+        #c8d0dc 48%,
+        #5a6474 58%,
+        #f4f7fb 72%,
+        #3a4250 88%,
+        #a8b4c4 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      inset 0 -3px 10px rgba(20, 8, 28, 0.45),
+      inset 0 0 0 1px rgba(46, 53, 64, 0.35),
+      0 0 18px rgba(208, 96, 184, 0.12);
+  }
+  #mobile-pad .pad-base::after {
+    content: "";
+    position: absolute; inset: 10%;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background:
+      radial-gradient(circle at 50% 50%, transparent 58%, rgba(14, 10, 22, 0.22) 100%);
+    pointer-events: none;
+  }
+  #mobile-pad .pad-cross {
+    position: absolute; inset: 18%; pointer-events: none; opacity: 0.72;
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.85) 0%,
+        rgba(176, 120, 24, 0.55) 35%,
+        rgba(208, 96, 184, 0.45) 65%,
+        rgba(255, 255, 255, 0.75) 100%
+      ) center / 2.5px 100% no-repeat,
+      linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0.85) 0%,
+        rgba(176, 120, 24, 0.55) 35%,
+        rgba(208, 96, 184, 0.45) 65%,
+        rgba(255, 255, 255, 0.75) 100%
+      ) center / 100% 2.5px no-repeat;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
   }
   #mobile-pad .pad-knob {
     position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
     margin: -28px 0 0 -28px; border-radius: 50%;
-    border: 1px solid rgba(240,194,75,0.5); background: rgba(240,194,75,0.22);
-    pointer-events: none;
-  }
-  #mobile-pad.active .pad-knob { background: rgba(240,194,75,0.38); }
-  #mobile-pad .pad-cross {
-    position: absolute; inset: 18%; pointer-events: none; opacity: 0.3;
+    border: 1px solid rgba(255, 255, 255, 0.55);
     background:
-      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
-      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
+      radial-gradient(120% 90% at 30% 22%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.2) 28%, transparent 52%),
+      radial-gradient(90% 80% at 70% 78%, rgba(240, 194, 75, 0.35) 0%, transparent 55%),
+      linear-gradient(145deg,
+        #f2f5f8 0%,
+        #8a94a4 22%,
+        #2e3540 45%,
+        #d8dee8 58%,
+        #4a5464 78%,
+        #c0c8d4 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -2px 6px rgba(20, 10, 30, 0.4),
+      0 4px 14px rgba(8, 4, 18, 0.4);
+    pointer-events: none;
+    transition: filter 0.12s ease, box-shadow 0.12s ease;
   }
-  .keys .keys-mobile { display: none; }
-  .gate-card .ctrl .ctrl-mobile { display: none; }
+  #mobile-pad.active .pad-knob {
+    filter: brightness(1.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -2px 6px rgba(20, 10, 30, 0.35),
+      0 0 16px rgba(240, 194, 75, 0.35),
+      0 0 22px rgba(208, 96, 184, 0.28),
+      0 4px 14px rgba(8, 4, 18, 0.4);
+  }
   @media (pointer: coarse), (max-width: 900px) {
     #mobile-pad { display: block; }
-    .keys .keys-desktop { display: none; }
-    .keys .keys-mobile { display: inline; }
-    .gate-card .ctrl .ctrl-desktop { display: none; }
-    .gate-card .ctrl .ctrl-mobile { display: inline; }
-    .chip, .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
   }
 </style>
 </head>
 <body>
   <div id="stage" aria-label="Technique cubicles stage"></div>
   <div class="veil" aria-hidden="true"></div>
-  <div class="layer">
-    <div class="topbar">
-      <div class="brand">Technique cubicles · 5×4</div>
-      <div class="pills">
-        <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
-        <a class="pill" href="./webgpu-lab/INDEX.html">WebGPU Lab</a>
-        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
-        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
-        <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
-        <button class="pill" id="btn-look-lock" type="button" title="Pointer-lock mouse look (double-click stage · Esc exit)">Look lock</button>
-        <button class="pill" id="btn-overview" type="button" title="Toggle overview camera (O)">Overview</button>
-      </div>
-    </div>
-    <div class="chip" id="chip" aria-live="polite">
-      <p class="tag" id="chip-tag">Cell</p>
-      <h2 id="chip-title">—</h2>
-      <p id="chip-hint"></p>
-    </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag/lock look · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · pinch zoom · full 360° · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
-  </div>
 
-  <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
-    <div class="gate-card">
-      <p class="k">Technique cubicles</p>
-      <h1>One sphere ·<br/>twenty cells</h1>
-      <p>Inside an inward-facing shell. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
-      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag/lock look · full 360° · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look · pinch zoom · full 360°</span></p>
-      <button type="button" id="btn-enter">Enter</button>
-    </div>
-  </div>
-
+  <!-- Visual-only: crossbar walkpad (chrome metal). Silent first tap unlocks audio. -->
   <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
     <div class="pad-base"></div>
     <div class="pad-cross" aria-hidden="true"></div>
@@ -291,12 +237,10 @@ const CHROME_LOOK = {
 }[chromeVariant];
 console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 
-/** Walkable nave footprint inside outer sphere shell. 5×4×1 equal cells + entrance foyer. */
+/** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 32;   // X — roomier cells for pointer
 const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
 const OUTER_H = 12.0; // Y — cathedral vault for chrome cypress nave
-/** Inward-facing skydome radius (encloses floor corners + vault). */
-const SHELL_R = Math.sqrt((OUTER_W * 0.5) ** 2 + (OUTER_D * 0.5) ** 2 + (OUTER_H * 0.55) ** 2) * 1.14;
 const COLS = 5;
 const ROWS = 4;
 /** Empty entrance strip on +Z; cells do NOT cover this AABB. */
@@ -427,11 +371,11 @@ cssRenderer.domElement.style.pointerEvents = 'none';
 stage.appendChild(cssRenderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x14061a, 12, 42); // dissolve water–shell join; chrome still mid-nave
+scene.fog = new THREE.Fog(0x14061a, 28, 72); // farther fog so mercury chrome reads in nave
 scene.background = new THREE.Color(0x1a0820);
 const cssScene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(48, 1, 0.1, Math.max(120, SHELL_R * 3.2));
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 140);
 const yaw = { value: SPAWN.yaw };
 const pitch = { value: SPAWN.pitch };
 const pos = new THREE.Vector3(SPAWN.x, SPAWN.y, SPAWN.z);
@@ -478,43 +422,33 @@ if (chromeVariant === 2) {
   scene.add(new THREE.PointLight(0xc040ff, 8, 24).translateX(6).translateY(4).translateZ(4)); // foyer magenta kick
 }
 
-// —— Inward-facing outer sphere (continuous skydome; no planar box walls) ——
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 }); // legacy refs only
-const SHELL_CENTER_Y = OUTER_H * 0.38;
-const FLOOR_CHORD_R = Math.sqrt(Math.max(1, SHELL_R * SHELL_R - SHELL_CENTER_Y * SHELL_CENTER_Y));
-const WATER_R = FLOOR_CHORD_R * 0.78; // inset so curved shell reads past soft water rim
-// shellMat built after stargazer video binds (full-dome VideoTexture). Placeholder dark until then.
-let shellMat = new THREE.MeshBasicMaterial({
-  color: 0x140610,
-  side: THREE.BackSide,
-  fog: true,
-  depthWrite: true,
-});
+// —— Visible outer box ——
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1a0c28, roughness: 0.55, metalness: 0.35, envMapIntensity: 0.85 });
 
-// Circular swamp water — radial alpha soft-meets the sphere (no rectangular floor edge)
-const WATER_TIME_SCALE = 0.28;
+// Swamp water floor — three.js Water addon, slowed + murkier olive/brown
+const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
 const waterNormals = new THREE.TextureLoader().load(
   './demo-assets/textures/waternormals.jpg',
   (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
 );
 const waterSun = new THREE.Vector3(0.25, 0.75, 0.35).normalize();
-const water = new Water(new THREE.CircleGeometry(WATER_R, mobileLike ? 64 : 96), {
+const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   textureWidth: mobileLike ? 256 : 512,
   textureHeight: mobileLike ? 256 : 512,
   waterNormals,
   sunDirection: waterSun.clone(),
   sunColor: 0xffd078,
-  waterColor: 0x140c22,
+  waterColor: 0x140c22, // cathedral aisle — dark mirror so mercury trees read
   distortionScale: 1.15,
   fog: true,
-  alpha: 1.0,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0.02;
 water.raycast = () => {};
+// Larger, lazier ripples (size) + stretch baked wave time divisors in getNoise
 if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
 if (water.material?.fragmentShader) {
-  const wr = WATER_R.toFixed(4);
   water.material.fragmentShader = water.material.fragmentShader
     .replace('time / 17.0', 'time / 52.0')
     .replace('time / 29.0', 'time / 78.0')
@@ -523,47 +457,10 @@ if (water.material?.fragmentShader) {
     .replace('time / 101.0', 'time / 240.0')
     .replace('time / 97.0', 'time / 230.0')
     .replace('time / 109.0', 'time / 260.0')
-    .replace('time / -113.0', 'time / -270.0')
-    .replace(
-      'gl_FragColor = vec4( outgoingLight, alpha );',
-      'float _rim = length( worldPosition.xz ) / ' + wr + ';\n'
-      + '\t\t\t\t\tfloat _edgeA = 1.0 - smoothstep( 0.45, 0.92, _rim );\n'
-      + '\t\t\t\t\toutgoingLight = mix( vec3( 0.06, 0.025, 0.04 ), outgoingLight, _edgeA );\n'
-      + '\t\t\t\t\tgl_FragColor = vec4( outgoingLight, alpha * _edgeA );'
-    );
-  water.material.transparent = true;
-  water.material.depthWrite = false;
+    .replace('time / -113.0', 'time / -270.0');
   water.material.needsUpdate = true;
 }
 scene.add(water);
-const underAlpha = document.createElement('canvas');
-underAlpha.width = 256; underAlpha.height = 256;
-{
-  const ctx = underAlpha.getContext('2d');
-  const g = ctx.createRadialGradient(128, 128, 60, 128, 128, 128);
-  g.addColorStop(0, 'rgba(16,6,14,1)');
-  g.addColorStop(0.55, 'rgba(16,6,14,0.7)');
-  g.addColorStop(0.78, 'rgba(16,6,14,0.2)');
-  g.addColorStop(1, 'rgba(16,6,14,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 256, 256);
-}
-const underDisc = new THREE.Mesh(
-  new THREE.CircleGeometry(FLOOR_CHORD_R * 1.04, mobileLike ? 48 : 72),
-  new THREE.MeshBasicMaterial({
-    map: new THREE.CanvasTexture(underAlpha),
-    transparent: true,
-    opacity: 1,
-    depthWrite: false,
-    fog: true,
-    side: THREE.DoubleSide,
-  })
-);
-underDisc.rotation.x = -Math.PI / 2;
-underDisc.position.y = 0.005;
-underDisc.raycast = () => {};
-scene.add(underDisc);
-window.__waterDisc = { water, underDisc, waterR: WATER_R, floorChordR: FLOOR_CHORD_R };
 
 // —— Sketch C cathedral HDR IBL (local Poly Haven) + magenta/gold tint + mercury bloom ——
 // Non-blocking: failures fall back; never blocks WebGL boot.
@@ -793,16 +690,17 @@ setupCathedralEnvAndBloom().then(() => {
 });
 
 
-const outerShell = new THREE.Mesh(
-  new THREE.SphereGeometry(SHELL_R, mobileLike ? 48 : 80, mobileLike ? 32 : 56),
-  shellMat
-);
-outerShell.position.set(0, SHELL_CENTER_Y, 0);
-outerShell.receiveShadow = true;
-outerShell.raycast = () => {};
-scene.add(outerShell);
-window.__outerShell = { mesh: outerShell, radius: SHELL_R, centerY: SHELL_CENTER_Y, floorChordR: FLOOR_CHORD_R };
-console.info('[cubicles] outer sphere shell r=', SHELL_R.toFixed(2), 'centerY', SHELL_CENTER_Y.toFixed(2), 'waterR', WATER_R.toFixed(2));
+function addOuterWall(w, h, x, y, z, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
+  m.position.set(x, y, z);
+  m.rotation.y = rotY;
+  m.receiveShadow = true;
+  scene.add(m);
+}
+addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
+addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -898,10 +796,10 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// —— Stargazer full-dome: VideoTexture on inward sphere (aspect-correct, nadir fade) ——
-// Portrait clip projected with correct aspect toward −Z; sky edge-extends across the dome;
-// nadir soft-masks to shell dark so the floor join never stretches the subject.
-(function installStargazingDome() {
+// —— Far/back wall stargazing clip (portrait ~14s, muted loop) ——
+// Sharp planar −Z mural (NOT sphere / NOT full-dome equirect smear).
+// Portrait-framed panel (~12×15.5) so face + body stay mural-sharp on the box back wall.
+(function installStargazingWall() {
   try {
     const vid = document.createElement('video');
     vid.src = './demo-assets/backwall/stargazing.mp4';
@@ -912,96 +810,65 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     vid.setAttribute('playsinline', '');
     vid.setAttribute('muted', '');
     vid.preload = 'auto';
+    vid.width = 720;
+    vid.height = 974;
     vid.setAttribute('aria-hidden', 'true');
+    const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
+      ? renderer.capabilities.getMaxAnisotropy()
+      : 1;
     const tex = new THREE.VideoTexture(vid);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
+    tex.anisotropy = maxAniso;
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
-    let domeMat = null; // assigned below
-    // Poster is the initial dome map (updates in place); swap to VideoTexture when ready.
+    const muralW = 12.0;
+    const muralH = Math.min(15.5, OUTER_H * 0.98);
+    const wallAspect = muralW / muralH;
+    const videoAspect = 720 / 974;
+    if (videoAspect > wallAspect) {
+      tex.repeat.set(wallAspect / videoAspect, 1);
+      tex.offset.set((1 - tex.repeat.x) / 2, 0);
+    } else {
+      tex.repeat.set(1, videoAspect / wallAspect);
+      tex.offset.set(0, (1 - tex.repeat.y) * 0.28);
+    }
     const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
     poster.magFilter = THREE.LinearFilter;
     poster.generateMipmaps = false;
+    poster.anisotropy = maxAniso;
     poster.wrapS = THREE.ClampToEdgeWrapping;
     poster.wrapT = THREE.ClampToEdgeWrapping;
+    poster.repeat.copy(tex.repeat);
+    poster.offset.copy(tex.offset);
+    const mat = new THREE.MeshBasicMaterial({
+      map: poster,
+      toneMapped: false,
+      side: THREE.FrontSide,
+      fog: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(muralW, muralH), mat);
+    mesh.position.set(0, muralH * 0.5 + 0.15, WALL_Z + 0.04);
+    mesh.rotation.y = 0;
+    mesh.receiveShadow = false;
+    mesh.castShadow = false;
+    mesh.raycast = () => {};
+    scene.add(mesh);
     const promoteVideoMap = () => {
-      if (!domeMat?.uniforms?.map || vid.readyState < 2) return;
-      domeMat.uniforms.map.value = tex;
+      if (vid.readyState < 2) return;
+      mat.map = tex;
       tex.needsUpdate = true;
+      mat.needsUpdate = true;
     };
     vid.addEventListener('loadeddata', promoteVideoMap);
     vid.addEventListener('playing', promoteVideoMap);
-
-    const videoAspect = 720 / 974;
-    // Equirect-style full-sphere wrap. Portrait cover into 2:1 equirect UV,
-    // biased toward face/sky (upper video). Nadir faded to shell dark.
-    const EQ_ASPECT = 2.0;
-    let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
-    if (videoAspect > EQ_ASPECT) {
-      repX = EQ_ASPECT / videoAspect;
-      repY = 1.0;
-      offX = (1.0 - repX) * 0.5;
-      offY = 0.0;
-    } else {
-      repX = 1.0;
-      repY = videoAspect / EQ_ASPECT;
-      offX = 0.0;
-      // Pin cover to TOP of portrait (face + stars). Lower landscape stays off-dome
-      // so it cannot fake a floor–wall horizon on the sphere.
-      offY = 1.0 - repY;
-    }
-
-    domeMat = new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      fog: false, // keep stargazer readable; scene fog was washing the dome black
-      toneMapped: false,
-      uniforms: {
-        map: { value: poster },
-        shellDark: { value: new THREE.Color(0x10060e) },
-        rep: { value: new THREE.Vector2(repX, repY) },
-        off: { value: new THREE.Vector2(offX, offY) },
-      },
-      vertexShader: /* glsl */`
-        varying vec3 vDir;
-        void main() {
-          vDir = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: /* glsl */`
-        uniform sampler2D map;
-        uniform vec3 shellDark;
-        uniform vec2 rep;
-        uniform vec2 off;
-        varying vec3 vDir;
-        void main() {
-          vec3 d = normalize(vDir);
-          float u = atan(d.x, -d.z) / (2.0 * 3.14159265) + 0.5;
-          float vEq = asin(clamp(d.y, -1.0, 1.0)) / 3.14159265 + 0.5;
-          vec2 uv = off + vec2(u, vEq) * rep;
-          uv = clamp(uv, 0.0, 1.0);
-          vec3 col = texture2D(map, uv).rgb;
-          float nadir = 1.0 - smoothstep(-0.55, 0.18, d.y);
-          col = mix(col, shellDark, nadir * 0.985);
-          float zen = smoothstep(0.85, 0.995, d.y);
-          col = mix(col, mix(shellDark, col, 0.75), zen * 0.35);
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `,
-    });
-
-// Swap shell onto full-dome video material (continuous sphere — no planar mural)
-    if (outerShell.material && outerShell.material !== domeMat) {
-      try { outerShell.material.dispose?.(); } catch {}
-    }
-    outerShell.material = domeMat;
-    shellMat = domeMat;
-
+    const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
+    rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
+    scene.add(rim);
     const tryPlay = () => {
       const p = vid.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
@@ -1011,19 +878,18 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tryPlay();
     const unlock = () => { tryPlay(); window.removeEventListener('pointerdown', unlock); };
     window.addEventListener('pointerdown', unlock, { once: true });
-
     window.__stargazingWall = {
-      mesh: outerShell, vid, tex, dome: true, equirect: true,
-      cover: { repX, repY, offX, offY }, videoAspect,
+      mesh, vid, tex, muralW, muralH,
+      dome: false, equirect: false, highResBand: true, portraitBand: true,
+      anisotropy: maxAniso,
     };
     console.info(
-      '[cubicles] stargazer full-dome equirect',
-      'cover', repX.toFixed(3), repY.toFixed(3),
-      'offY', offY.toFixed(3),
-      'aspect', videoAspect.toFixed(3)
+      '[cubicles] stargazing sharp back-wall portrait',
+      muralW.toFixed(2), '×', muralH.toFixed(2),
+      'aniso', maxAniso
     );
   } catch (err) {
-    console.warn('[cubicles] stargazing dome failed', err);
+    console.warn('[cubicles] stargazing wall failed', err);
   }
 })();
 
@@ -1239,7 +1105,19 @@ function updateSparklines(t) {
   }
 }
 
-// Flat box walls/ceiling removed — continuous inward sphere; stargazer is full-dome VideoTexture; water disc soft-meets shell.
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), ceilMat);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.y = OUTER_H;
+scene.add(ceil);
+
+// Outer edge lines (readable “box” silhouette)
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.45 });
+const outerEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(OUTER_W, OUTER_H, OUTER_D)),
+  edgeMat
+);
+outerEdges.position.y = OUTER_H / 2;
+scene.add(outerEdges);
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
@@ -1331,10 +1209,6 @@ for (let i = 0; i < CELLS.length; i++) {
     embedArmed: false,
     canInteract: false,
     embedUrl: meta.src,
-    // Rest pose for beat-reactive float (AnalyserNode → scale/bob/yaw)
-    cssBaseScale: scale,
-    baseY: PANEL_Y,
-    beatPhase: i * 1.618 + col * 0.37 + row * 0.21,
   });
 }
 window.__hungLabs = hung;
@@ -1945,7 +1819,7 @@ const cypressPositions = [];
       x += (h3 > 0.5 ? 1 : -1) * (PANEL_W * 0.55 + h4 * 0.4);
       z += (h1 > 0.5 ? 1 : -1) * (0.7 + h2 * 0.5);
     }
-    // Keep inside walkable footprint with buttress clearance
+    // Keep inside outer box with buttress clearance
     const marginX = 1.9;
     const marginZ = 1.35;
     x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
@@ -2166,26 +2040,15 @@ function findCellAt(x, z) {
   return null;
 }
 
-// —— Zone chip + lazy embeds ——
+// —— Zone chip + lazy embeds (chip UI stripped — silent cell tracking only) ——
 let activeCell = null;
-const chip = document.getElementById('chip');
-const chipTag = document.getElementById('chip-tag');
-const chipTitle = document.getElementById('chip-title');
-const chipHint = document.getElementById('chip-hint');
-
-function showChip(h) {
-  chipTag.textContent = 'Cell ' + h.meta.num;
-  chipTitle.textContent = h.meta.name;
-  chipHint.textContent = h.meta.hint;
-  chip.classList.add('show');
-}
-
+const chip = document.getElementById('chip'); // may be null (language chrome removed)
+function showChip(_h) { /* visual chip removed */ }
 function updateActiveCell() {
   const next = findCellAt(pos.x, pos.z);
   if (next === activeCell) return;
   activeCell = next;
   if (activeCell) showChip(activeCell);
-  else chip.classList.remove('show');
 }
 
 function panelDist(h) {
@@ -2313,22 +2176,47 @@ function updateLazyEmbeds() {
   if (!panelPointerLock) setInteractTarget(best);
 }
 
-
-// —— Wormhole ambient bed (seamless dual-Audio crossfade; unlock on Enter / pointer) ——
-// Web Audio AnalyserNode on the bed drives subtle bass-reactive CSS3D lab motion.
+// —— Wormhole ambient bed (musical loop: beat 1 → beat 4 → 1; unlock on Enter / pointer) ——
+// Asset is an 8-bar / 96 BPM trim (20.000s) of wormhole-ambient, beat1@source 0.952s → after beat4.
+// Tiny dual-Audio XFADE only hides MP3 decoder padding — not a phrasing blur.
+// Primary Audio loads first (high priority); secondary buffer arms only after primary is playing
+// so mobile bandwidth isn't split / starved against stargazer + labs. Play on earliest canplay —
+// never wait for full-file download. GainNodes unlock speakers; Analyser taps bass → labs.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3';
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=amb96';
     const VOL = 0.38; // soft bed after Enter/tap
-    const XFADE = 2.4; // seconds of overlap
-    const a = new Audio(SRC);
-    const b = new Audio(SRC);
-    for (const el of [a, b]) {
-      el.preload = 'auto';
-      el.loop = false; // crossfade handles looping — avoids MP3 gap click
-      el.volume = 0;
-      el.setAttribute('playsinline', '');
-      try { el.crossOrigin = 'anonymous'; } catch {}
+    const BPM = 96;
+    const BARS = 8;
+    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s — start on 1, end after 4
+    const XFADE = 0.05; // ~1/12 beat; covers MP3 gap without smearing the downbeat
+    const a = new Audio();
+    const b = new Audio();
+    // Primary first — second buffer gets src only after play (avoids dual full-file fetch)
+    a.preload = 'auto';
+    a.loop = false;
+    a.volume = VOL;
+    a.setAttribute('playsinline', '');
+    try { a.setAttribute('fetchpriority', 'high'); } catch {}
+    a.src = SRC;
+    try { a.load(); } catch {}
+    b.preload = 'auto';
+    b.loop = false;
+    b.volume = 0;
+    b.setAttribute('playsinline', '');
+    // no b.src yet
+    let bArmed = false;
+    function armSecondary() {
+      if (bArmed) return;
+      bArmed = true;
+      b.src = SRC;
+      try { b.load(); } catch {}
+      console.info('[cubicles] ambient secondary buffer loading (after primary play)');
+    }
+
+    a.addEventListener('error', () => console.warn('[cubicles] ambient media error', a.error), { once: true });
+    if (a.readyState < 2) {
+      a.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (primary)'), { once: true });
     }
     let usingA = true;
     let started = false;
@@ -2337,35 +2225,73 @@ function updateLazyEmbeds() {
     let audioCtx = null;
     let analyser = null;
     let freqData = null;
+    let gainA = null;
+    let gainB = null;
     let graphWired = false;
     let graphFailed = false;
     let bassSmooth = 0;
+    let playWaitBound = false;
 
     const active = () => (usingA ? a : b);
     const idle = () => (usingA ? b : a);
 
-    function wireAnalyser() {
+    function setLevels(curVol, nxtVol) {
+      if (graphWired && gainA && gainB) {
+        gainA.gain.value = usingA ? curVol : nxtVol;
+        gainB.gain.value = usingA ? nxtVol : curVol;
+        a.volume = 1;
+        b.volume = 1;
+      } else {
+        a.volume = usingA ? curVol : nxtVol;
+        b.volume = usingA ? nxtVol : curVol;
+      }
+    }
+
+    function wireGainGraph() {
       if (graphWired || graphFailed) return;
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { graphFailed = true; return; }
       try {
         audioCtx = audioCtx || new AC();
+        // MediaElementSource works before b has src — creates silent idle buffer
         const srcA = audioCtx.createMediaElementSource(a);
         const srcB = audioCtx.createMediaElementSource(b);
+        gainA = audioCtx.createGain();
+        gainB = audioCtx.createGain();
+        gainA.gain.value = VOL;
+        gainB.gain.value = 0;
+        srcA.connect(gainA);
+        srcB.connect(gainB);
+        gainA.connect(audioCtx.destination);
+        gainB.connect(audioCtx.destination);
+        graphWired = true;
+        a.volume = 1;
+        b.volume = 1;
+        console.info('[cubicles] ambient GainNode wired (speakers)');
+      } catch (err) {
+        console.warn('[cubicles] Web Audio wire failed — using element.volume path', err);
+        graphFailed = true;
+        analyser = null;
+        freqData = null;
+        gainA = null;
+        gainB = null;
+      }
+    }
+
+    function wireAnalyserTap() {
+      if (!graphWired || analyser || !audioCtx) return;
+      try {
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.72;
         analyser.minDecibels = -90;
         analyser.maxDecibels = -28;
-        srcA.connect(analyser);
-        srcB.connect(analyser);
-        analyser.connect(audioCtx.destination);
+        gainA.connect(analyser);
+        gainB.connect(analyser);
         freqData = new Uint8Array(analyser.frequencyBinCount);
-        graphWired = true;
-        console.info('[cubicles] ambient AnalyserNode wired (bass → floating labs)');
-      } catch (err) {
-        console.warn('[cubicles] AnalyserNode wire failed', err);
-        graphFailed = true;
+        console.info('[cubicles] ambient Analyser tap ready (bass → floating labs)');
+      } catch (errA) {
+        console.warn('[cubicles] AnalyserNode tap failed — audio still plays via GainNode', errA);
         analyser = null;
         freqData = null;
       }
@@ -2376,18 +2302,15 @@ function updateLazyEmbeds() {
       try {
         analyser.getByteFrequencyData(freqData);
       } catch { return 0; }
-      // Low bins ≈ sub/bass (~86–500 Hz @ 44.1 kHz, fft 256)
       let sum = 0;
       const n = Math.min(7, freqData.length - 1);
       for (let i = 1; i <= n; i++) sum += freqData[i];
       const avg = sum / n / 255;
-      // Soft knee so quiet beds still nudge, loud peaks don't slam
       return Math.min(1, Math.pow(avg, 0.85) * 1.15);
     }
 
     function getBass() {
       const raw = sampleBass();
-      // Fast attack / slower release — reads as beat without jitter
       const k = raw > bassSmooth ? 0.38 : 0.09;
       bassSmooth += (raw - bassSmooth) * k;
       return bassSmooth;
@@ -2396,35 +2319,40 @@ function updateLazyEmbeds() {
     function crossfadeTick() {
       if (!started) return;
       const cur = active();
-      const dur = cur.duration;
-      if (!Number.isFinite(dur) || dur < 1) {
+      const dur = LOOP_LEN;
+      if (!Number.isFinite(cur.duration) || cur.duration < 1) {
         raf = requestAnimationFrame(crossfadeTick);
         return;
       }
+      // Ensure secondary is warming well before seam
+      if (!bArmed && cur.currentTime > 0.5) armSecondary();
       const remain = dur - cur.currentTime;
       if (remain <= XFADE && !arming) {
         arming = true;
+        armSecondary();
         const nxt = idle();
         try {
           nxt.currentTime = 0;
           const p = nxt.play();
-          if (p && typeof p.catch === 'function') p.catch(() => {});
-        } catch {}
+          if (p && typeof p.catch === 'function') {
+            p.catch((err) => console.warn('[cubicles] ambient crossfade play failed', err));
+          }
+        } catch (err) {
+          console.warn('[cubicles] ambient crossfade play threw', err);
+        }
       }
       if (arming) {
-        const nxt = idle();
         const t = Math.max(0, Math.min(1, 1 - (dur - cur.currentTime) / XFADE));
-        cur.volume = VOL * (1 - t);
-        nxt.volume = VOL * t;
-        if (t >= 0.999 || cur.ended || cur.paused) {
+        setLevels(VOL * (1 - t), VOL * t);
+        if (t >= 0.999 || cur.currentTime >= dur || cur.ended || cur.paused) {
           try { cur.pause(); } catch {}
-          cur.volume = 0;
-          nxt.volume = VOL;
+          try { cur.currentTime = 0; } catch {}
+          setLevels(0, VOL);
           usingA = !usingA;
           arming = false;
         }
       } else {
-        cur.volume = VOL;
+        setLevels(VOL, 0);
       }
       raf = requestAnimationFrame(crossfadeTick);
     }
@@ -2433,30 +2361,66 @@ function updateLazyEmbeds() {
       const cur = active();
       if (started && !cur.paused && !arming) {
         if (audioCtx && audioCtx.state === 'suspended') {
-          try { audioCtx.resume(); } catch {}
+          audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
         }
         return;
       }
-      wireAnalyser();
-      if (audioCtx && audioCtx.state === 'suspended') {
-        try { audioCtx.resume(); } catch {}
+      // Earliest buffered play — canplay / HAVE_CURRENT_DATA; do NOT wait for full file
+      if (cur.readyState < 2) {
+        if (!playWaitBound) {
+          playWaitBound = true;
+          const kick = () => {
+            playWaitBound = false;
+            tryPlay();
+          };
+          cur.addEventListener('canplay', kick, { once: true });
+          cur.addEventListener('loadeddata', kick, { once: true });
+          console.info('[cubicles] ambient waiting for canplay (readyState=' + cur.readyState + ')');
+          // Kick once only — re-load() on every pointerdown would restart the download
+          try {
+            if (!cur.src) { cur.src = SRC; cur.load(); }
+          } catch {}
+        }
+        return;
       }
-      const p = cur.play();
+      wireGainGraph();
+      setLevels(VOL, 0);
+      let p;
+      try {
+        p = cur.play();
+      } catch (err) {
+        console.warn('[cubicles] ambient play threw', err);
+        return;
+      }
       const mark = () => {
         started = true;
-        cur.volume = VOL;
+        setLevels(VOL, 0);
+        // Arm secondary only after primary is audible — frees bandwidth for first seconds
+        armSecondary();
         if (!raf) raf = requestAnimationFrame(crossfadeTick);
+        console.info('[cubicles] wormhole ambient playing', graphWired ? '(web-audio)' : '(element)');
+        try {
+          window.dispatchEvent(new CustomEvent('cubicles-ambient-playing'));
+        } catch {}
       };
-      if (p && typeof p.catch === 'function') {
-        p.then(mark).catch(() => {});
+      if (p && typeof p.then === 'function') {
+        p.then(mark).catch((err) => console.warn('[cubicles] ambient play blocked/failed', err));
       } else {
         mark();
       }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
+      }
+      try { wireAnalyserTap(); } catch {}
     };
 
     window.__wormholeAmbient = {
       audio: a, audioB: b, tryPlay, vol: VOL,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: XFADE,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
+      get graphWired() { return graphWired; },
+      get started() { return started; },
+      get secondaryArmed() { return bArmed; },
     };
     window.addEventListener('pointerdown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
@@ -2469,60 +2433,16 @@ function updateLazyEmbeds() {
       } else if (started || window.__cubiclesEntered) {
         arming = false;
         if (audioCtx && audioCtx.state === 'suspended') {
-          try { audioCtx.resume(); } catch {}
+          audioCtx.resume().catch(() => {});
         }
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (dual crossfade + analyser)', XFADE + 's');
+    console.info('[cubicles] wormhole ambient ready', BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's, xfade ' + XFADE + 's, primary-first');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
 })();
-
-/** Subtle bass-reactive scale / bob / yaw on floating CSS3D labs — small amplitude. */
-function updateBeatLabs(t) {
-  if (reduceMotion) return;
-  const bed = window.__wormholeAmbient;
-  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
-  if (bass < 0.002 && !bed?.analyser) {
-    // Rest pose when no audio graph yet
-    for (const h of hung) {
-      if (h._beatApplied) {
-        h.group.position.y = h.baseY;
-        h.group.rotation.y = 0;
-        h.group.scale.set(1, 1, 1);
-        h.cssObj.position.y = h.baseY;
-        h.cssObj.rotation.y = 0;
-        h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
-        if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55;
-        h._beatApplied = false;
-      }
-    }
-    return;
-  }
-  // Elegant caps — never fight walk/look
-  const AMP_Y = 0.055;      // ~5.5 cm bob
-  const AMP_SCALE = 0.022;  // ±2.2% scale
-  const AMP_YAW = 0.018;    // ~1° yaw
-  for (const h of hung) {
-    const ph = h.beatPhase || 0;
-    // Staggered micro-phase so the field breathes, not marches in lockstep
-    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
-    const bob = local * AMP_Y * (0.85 + 0.15 * Math.sin(t * 2.3 + ph * 1.3));
-    const yawOff = local * AMP_YAW * Math.sin(t * 1.1 + ph);
-    const s = 1 + local * AMP_SCALE;
-    h.group.position.y = h.baseY + bob;
-    h.group.rotation.y = yawOff;
-    h.group.scale.set(s, s, s);
-    h.cssObj.position.y = h.baseY + bob;
-    h.cssObj.rotation.y = yawOff;
-    const cs = h.cssBaseScale * s;
-    h.cssObj.scale.set(cs, cs, cs);
-    if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55 + bob * 0.6;
-    h._beatApplied = true;
-  }
-}
 
 // —— Controls ——
 const move = { f: false, b: false, l: false, r: false };
@@ -2531,34 +2451,35 @@ let dragging = false;
 let panelPointerLock = false;
 let lastX = 0, lastY = 0, downX = 0, downY = 0;
 
-const gate = document.getElementById('gate');
-const btnEnter = document.getElementById('btn-enter');
-let entered = reduceMotion || params.has('still');
-if (entered) gate.classList.add('hide');
-btnEnter.addEventListener('click', () => {
+const gate = document.getElementById('gate'); // may be null (gate copy stripped)
+let entered = false;
+function silentEnter({ reset = true } = {}) {
+  if (entered) return;
   entered = true;
-  gate.classList.add('hide');
   window.__cubiclesEntered = true;
+  if (gate) gate.classList.add('hide');
   try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  resetToFoyer();
-  velocity.set(0, 0, 0);
-  move.f = move.b = move.l = move.r = false;
-  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / Overview pill / ?overview=1.
-  if (overview.on) setOverview(false);
-  chip.classList.remove('show');
+  if (reset) {
+    resetToFoyer();
+    velocity.set(0, 0, 0);
+    move.f = move.b = move.l = move.r = false;
+  }
   activeCell = null;
   updateActiveCell();
   updateLazyEmbeds();
-});
+}
+window.addEventListener('pointerdown', () => {
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
+}, { passive: true });
 
 let debugOn = params.has('debug');
 function setDebug(on) {
   debugOn = on;
   debugGroup.visible = debugOn;
-  document.getElementById('btn-debug').classList.toggle('on', debugOn);
+  document.getElementById('btn-debug')?.classList.toggle('on', debugOn);
 }
 setDebug(debugOn);
-document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
+document.getElementById('btn-debug')?.addEventListener('click', () => setDebug(!debugOn));
 
 // —— Overview / walk camera ——
 let overviewOn = false;
@@ -2573,9 +2494,9 @@ const overview = {
   // spherical coords relative to box center (elevated front view of cathedral nave)
   theta: 0.28,          // yaw around Y
   phi: 1.05,            // polar from +Y (smaller = higher)
-  radius: Math.min(52, SHELL_R * 1.85),
-  minRadius: 16,
-  maxRadius: Math.min(64, SHELL_R * 2.35),
+  radius: 56,
+  minRadius: 18,
+  maxRadius: 58,
 };
 const walkSnapshot = {
   pos: new THREE.Vector3(),
@@ -2609,7 +2530,7 @@ function applyCamera() {
 
 function setOverview(on) {
   if (on === overview.on) {
-    document.getElementById('btn-overview').classList.toggle('on', overview.on);
+    document.getElementById('btn-overview')?.classList.toggle('on', overview.on);
     return;
   }
   if (on) {
@@ -2630,7 +2551,6 @@ function setOverview(on) {
         h.canInteract = false;
       }
     }
-    chip.classList.remove('show');
     activeCell = null;
     camera.fov = OVERVIEW_FOV;
     camera.updateProjectionMatrix();
@@ -2647,22 +2567,24 @@ function setOverview(on) {
     updateActiveCell();
     updateLazyEmbeds();
   }
-  document.getElementById('btn-overview').classList.toggle('on', overview.on);
+  document.getElementById('btn-overview')?.classList.toggle('on', overview.on);
   document.body.classList.toggle('overview', overview.on);
 }
-document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
+document.getElementById('btn-overview')?.addEventListener('click', () => setOverview(!overview.on));
 // Default: full-screen foyer walk (Sketch C) on mobile + desktop.
 // ?overview=1 forces dollhouse overview; Overview pill / O still toggles. ?walk=1 kept as no-op alias.
 if (params.has('overview') && !params.has('still') && !params.has('walk')) {
   entered = true;
-  gate.classList.add('hide');
+  window.__cubiclesEntered = true;
+  if (gate) gate.classList.add('hide');
   resetToFoyer();
   setOverview(true);
-} else if (mobileLike && !params.has('still')) {
-  // Skip gate on mobile — land in walkable foyer immediately (pad + drag look).
+} else if (reduceMotion || params.has('still')) {
   entered = true;
-  gate.classList.add('hide');
-  resetToFoyer();
+  window.__cubiclesEntered = true;
+} else {
+  // Silent enter — no gate language; audio unlocks on first pointer.
+  silentEnter({ reset: true });
 }
 
 // Dev assert: foyer spawn must not sit in any cell
@@ -2686,7 +2608,6 @@ document.addEventListener('keydown', (e) => {
     resetToFoyer();
     velocity.set(0, 0, 0);
     move.f = move.b = move.l = move.r = false;
-    chip.classList.remove('show');
     activeCell = null;
     updateActiveCell();
     updateLazyEmbeds();
@@ -2880,7 +2801,7 @@ stage.addEventListener('dblclick', (e) => {
   requestWalkPointerLock();
 });
 document.getElementById('btn-look-lock')?.addEventListener('click', () => {
-  if (!entered) { entered = true; gate.classList.add('hide'); }
+  if (!entered) silentEnter({ reset: false });
   if (overview.on) setOverview(false);
   requestWalkPointerLock();
 });
@@ -2996,22 +2917,7 @@ stage.addEventListener('wheel', (e) => {
 const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
-const walkMargin = 1.15;
-const walkHalfW = OUTER_W * 0.5 - walkMargin;
-const walkHalfD = OUTER_D * 0.5 - walkMargin;
-
-function clampWalkPos() {
-  // Elliptical clamp on the water footprint so you stay inside the sphere chord (no void).
-  const nx = pos.x / walkHalfW;
-  const nz = pos.z / walkHalfD;
-  const d2 = nx * nx + nz * nz;
-  if (d2 > 1) {
-    const inv = 1 / Math.sqrt(d2);
-    pos.x = nx * inv * walkHalfW;
-    pos.z = nz * inv * walkHalfD;
-  }
-  pos.y = EYE;
-}
+const margin = 0.95;
 
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
@@ -3036,7 +2942,9 @@ function frame() {
     }
     pos.x += velocity.x * dt;
     pos.z += velocity.z * dt;
-    clampWalkPos();
+    pos.x = Math.max(-OUTER_W / 2 + margin, Math.min(OUTER_W / 2 - margin, pos.x));
+    pos.z = Math.max(-OUTER_D / 2 + margin, Math.min(OUTER_D / 2 - margin, pos.z));
+    pos.y = EYE;
     updateActiveCell();
     updateLazyEmbeds();
     applyCamera();
@@ -3060,7 +2968,6 @@ function frame() {
     }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
-    updateBeatLabs(_tSpark);
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
@@ -3077,7 +2984,8 @@ requestAnimationFrame(frame);
 
 if (params.has('still')) {
   entered = true;
-  gate.classList.add('hide');
+  window.__cubiclesEntered = true;
+  if (gate) gate.classList.add('hide');
 }
 </script>
 </body>
