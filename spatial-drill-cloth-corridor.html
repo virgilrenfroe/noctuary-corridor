@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Space+Mono:wght@400&display=swap" rel="stylesheet" />
+<title>Noctuary — cloth corridor</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #07060a; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hint {
+    position: fixed; left: 16px; bottom: 16px; z-index: 2;
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,244,230,0.55); pointer-events: none;
+  }
+  .name {
+    position: fixed; left: 16px; top: 16px; z-index: 2;
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 650; font-size: 1.35rem; letter-spacing: -0.03em;
+    color: #f4efe6; pointer-events: none;
+  }
+  .name span {
+    display: block; margin-top: 4px;
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-weight: 400; font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(244,239,230,0.5);
+  }
+</style>
+</head>
+<body>
+<div class="name" id="name">Velvet<span>drag it aside to pass</span></div>
+<div class="hint">drag the cloth aside · WASD walk</div>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const FABRICS = [
+  { name: 'Velvet', note: 'deep pile', color: '#3a1848', sheen: 1, sheenColor: '#d7b4ff', rough: 0.78, clearcoat: 0.04, transmission: 0, wind: 0.28, sag: 0.1, weave: 'velvet' },
+  { name: 'Silk', note: 'tight sheen', color: '#f2e2b8', sheen: 0.85, sheenColor: '#fff6df', rough: 0.16, clearcoat: 0.35, transmission: 0, wind: 0.55, sag: 0.05, weave: 'silk' },
+  { name: 'Linen', note: 'open weave', color: '#cbb89a', sheen: 0.05, sheenColor: '#efe4d2', rough: 0.96, clearcoat: 0, transmission: 0, wind: 0.22, sag: 0.07, weave: 'linen' },
+  { name: 'Denim', note: 'twill', color: '#243e78', sheen: 0.08, sheenColor: '#9eb4e6', rough: 0.88, clearcoat: 0, transmission: 0, wind: 0.16, sag: 0.12, weave: 'denim' },
+  { name: 'Satin', note: 'wine gloss', color: '#6e1430', sheen: 1, sheenColor: '#ffb3c4', rough: 0.18, clearcoat: 0.45, transmission: 0, wind: 0.4, sag: 0.06, weave: 'satin' },
+  { name: 'Wool', note: 'felted', color: '#6d645c', sheen: 0.15, sheenColor: '#d9d0c6', rough: 0.94, clearcoat: 0, transmission: 0, wind: 0.12, sag: 0.14, weave: 'wool' },
+  { name: 'Organza', note: 'sheer', color: '#f7f1ea', sheen: 0.4, sheenColor: '#ffffff', rough: 0.22, clearcoat: 0.2, transmission: 0.72, wind: 0.85, sag: 0.03, weave: 'organza' },
+  { name: 'Canvas', note: 'heavy', color: '#8d7344', sheen: 0, sheenColor: '#e6d2a4', rough: 0.92, clearcoat: 0, transmission: 0, wind: 0.08, sag: 0.16, weave: 'canvas' },
+  { name: 'Chiffon', note: 'blush', color: '#e7a8b4', sheen: 0.55, sheenColor: '#ffe4ea', rough: 0.28, clearcoat: 0.12, transmission: 0.45, wind: 0.95, sag: 0.04, weave: 'chiffon' },
+  { name: 'Brocade', note: 'gold thread', color: '#1c140c', sheen: 0.7, sheenColor: '#f0d48a', rough: 0.42, clearcoat: 0.22, transmission: 0, wind: 0.2, sag: 0.09, weave: 'brocade' },
+];
+
+const COLS = 20;
+const ROWS = 15;
+const REST = 0.19;
+const CLOTH_HALF = ((COLS - 1) * REST) / 2;
+const SPACING = 7.2;
+const EYE = 1.55;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#07060a');
+scene.fog = new THREE.Fog('#07060a', 8, 28);
+
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.08, 80);
+camera.position.set(0, EYE, -1.2);
+
+scene.add(new THREE.AmbientLight(0x2a242c, 0.55));
+const key = new THREE.DirectionalLight(0xffe2c4, 1.35);
+key.position.set(2.4, 6.2, 1.2);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x8ea6ff, 0.45);
+rim.position.set(-3, 3, -4);
+scene.add(rim);
+const lamp = new THREE.PointLight(0xffb27a, 18, 11, 2);
+scene.add(lamp);
+
+const length = FABRICS.length * SPACING + 6;
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x121016, roughness: 0.92, metalness: 0.04 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(4.2, length), new THREE.MeshStandardMaterial({ color: 0x0c0b10, roughness: 0.72, metalness: 0.18 }));
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(0, 0, length / 2 - 2);
+scene.add(floor);
+for (const side of [-1, 1]) {
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(length, 4.2), wallMat);
+  wall.position.set(side * 2.05, 2.05, length / 2 - 2);
+  wall.rotation.y = side * -Math.PI / 2;
+  scene.add(wall);
+}
+const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(4.2, length), wallMat);
+ceiling.rotation.x = Math.PI / 2;
+ceiling.position.set(0, 3.35, length / 2 - 2);
+scene.add(ceiling);
+
+function weaveTexture(fabric) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = fabric.color;
+  g.fillRect(0, 0, 256, 256);
+  if (fabric.weave === 'denim') {
+    g.strokeStyle = 'rgba(255,255,255,0.16)';
+    g.lineWidth = 2;
+    for (let i = -256; i < 512; i += 7) {
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 256, 256); g.stroke();
+    }
+  } else if (fabric.weave === 'linen' || fabric.weave === 'canvas') {
+    const step = fabric.weave === 'canvas' ? 10 : 6;
+    for (let i = 0; i < 256; i += step) {
+      g.fillStyle = i % (step * 2) === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+      g.fillRect(i, 0, 2, 256);
+      g.fillRect(0, i, 256, 2);
+    }
+  } else if (fabric.weave === 'brocade') {
+    g.fillStyle = 'rgba(240,212,138,0.55)';
+    for (let y = 16; y < 256; y += 42) {
+      for (let x = 16; x < 256; x += 42) {
+        g.beginPath(); g.ellipse(x, y, 8, 14, 0, 0, Math.PI * 2); g.fill();
+      }
+    }
+  } else if (fabric.weave === 'wool') {
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)';
+      g.fillRect(Math.random() * 256, Math.random() * 256, 3, 2);
+    }
+  } else if (fabric.weave === 'silk' || fabric.weave === 'satin') {
+    const grad = g.createLinearGradient(0, 0, 256, 256);
+    grad.addColorStop(0, 'rgba(255,255,255,0.22)');
+    grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.18)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+  } else {
+    for (let i = 0; i < 256; i += 4) {
+      g.fillStyle = i % 8 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+      g.fillRect(i, 0, 1, 256);
+      g.fillRect(0, i, 256, 1);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(fabric.weave === 'denim' ? 2.2 : 3, 2.4);
+  return tex;
+}
+
+function makeCloth(fabric, index) {
+  const group = new THREE.Group();
+  group.position.z = 2.4 + index * SPACING;
+  const particles = [];
+  const originX = -((COLS - 1) * REST) / 2;
+  const originY = 3.05;
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const u = y / (ROWS - 1);
+      const sag = u * u * fabric.sag;
+      const fold = Math.sin(x * 0.7 + index) * 0.035 * u;
+      const px = originX + x * REST;
+      const py = originY - y * REST - sag;
+      const pz = fold;
+      particles.push({ pos: new THREE.Vector3(px, py, pz), prev: new THREE.Vector3(px, py, pz), pinned: y === 0 });
+    }
+  }
+  const constraints = [];
+  const link = (a, b) => constraints.push({ a, b, rest: particles[a].pos.distanceTo(particles[b].pos) });
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const i = y * COLS + x;
+      if (x < COLS - 1) link(i, i + 1);
+      if (y < ROWS - 1) link(i, i + COLS);
+      if (x < COLS - 1 && y < ROWS - 1) { link(i, i + COLS + 1); link(i + 1, i + COLS); }
+    }
+  }
+  const railW = (COLS - 1) * REST + 0.22;
+  const railMat = new THREE.MeshStandardMaterial({ color: 0xc4a574, roughness: 0.32, metalness: 0.86 });
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, railW, 12), railMat);
+  rail.rotation.z = Math.PI / 2;
+  rail.position.set(0, originY + 0.03, 0);
+  group.add(rail);
+
+  const positions = new Float32Array(COLS * ROWS * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const uvs = new Float32Array(COLS * ROWS * 2);
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const i = y * COLS + x;
+    uvs[i * 2] = x / (COLS - 1);
+    uvs[i * 2 + 1] = 1 - y / (ROWS - 1);
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  const indices = [];
+  for (let y = 0; y < ROWS - 1; y++) for (let x = 0; x < COLS - 1; x++) {
+    const i = y * COLS + x;
+    indices.push(i, i + COLS, i + 1, i + 1, i + COLS, i + COLS + 1);
+  }
+  geo.setIndex(indices);
+  const mat = new THREE.MeshPhysicalMaterial({
+    map: weaveTexture(fabric),
+    color: fabric.color,
+    roughness: fabric.rough,
+    metalness: 0.02,
+    sheen: fabric.sheen,
+    sheenRoughness: 0.45,
+    sheenColor: new THREE.Color(fabric.sheenColor),
+    clearcoat: fabric.clearcoat,
+    clearcoatRoughness: 0.55,
+    transmission: fabric.transmission,
+    thickness: fabric.transmission ? 0.15 : 0,
+    side: THREE.DoubleSide,
+    transparent: fabric.transmission > 0,
+    opacity: fabric.transmission > 0.6 ? 0.72 : 1,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  group.add(mesh);
+  scene.add(group);
+  return { fabric, group, particles, constraints, geo, positions, mesh, t: index * 1.7, live: false };
+}
+
+const cloths = FABRICS.map(makeCloth);
+const nameEl = document.getElementById('name');
+
+function writeMesh(cloth) {
+  let i3 = 0;
+  for (const p of cloth.particles) {
+    cloth.positions[i3++] = p.pos.x;
+    cloth.positions[i3++] = p.pos.y;
+    cloth.positions[i3++] = p.pos.z;
+  }
+  cloth.geo.attributes.position.needsUpdate = true;
+  cloth.geo.computeVertexNormals();
+}
+
+function stepCloth(cloth, dt) {
+  cloth.t += dt;
+  const g = 9.82 * (0.28 + cloth.fabric.sag);
+  const windAmp = cloth.fabric.wind;
+  const parts = cloth.particles;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p.pinned) continue;
+    const y = Math.floor(i / COLS);
+    const x = i % COLS;
+    const vx = p.pos.x - p.prev.x;
+    const vy = p.pos.y - p.prev.y;
+    const vz = p.pos.z - p.prev.z;
+    p.prev.copy(p.pos);
+    const falloff = y / ROWS;
+    const wind = Math.sin(cloth.t * 1.2 + x * 0.35) * windAmp * falloff;
+    p.pos.x += vx * 0.985 + wind * dt * dt * 16;
+    p.pos.y += vy * 0.985 - g * dt * dt;
+    p.pos.z += vz * 0.985 + Math.sin(cloth.t * 0.85 + x * 0.4) * windAmp * falloff * dt * dt * 12;
+    if (p.pos.y < 0.08) { p.pos.y = 0.08; p.prev.y = p.pos.y; }
+  }
+  for (let iter = 0; iter < 4; iter++) {
+    for (const c of cloth.constraints) {
+      const pa = parts[c.a];
+      const pb = parts[c.b];
+      const dx = pb.pos.x - pa.pos.x;
+      const dy = pb.pos.y - pa.pos.y;
+      const dz = pb.pos.z - pa.pos.z;
+      const dist = Math.hypot(dx, dy, dz) || 0.0001;
+      if (cloth.settled && dist > c.rest * 1.55) c.rest = c.rest * 0.65 + dist * 0.35;
+      const diff = (dist - c.rest) / dist;
+      const ox = dx * 0.5 * diff, oy = dy * 0.5 * diff, oz = dz * 0.5 * diff;
+      if (!pa.pinned) { pa.pos.x += ox; pa.pos.y += oy; pa.pos.z += oz; }
+      if (!pb.pinned) { pb.pos.x -= ox; pb.pos.y -= oy; pb.pos.z -= oz; }
+    }
+  }
+  writeMesh(cloth);
+}
+
+let grab = null;
+for (const cloth of cloths) {
+  for (let i = 0; i < 28; i++) stepCloth(cloth, 1 / 60);
+  cloth.live = false;
+  cloth.settled = true;
+}
+
+const keys = new Set();
+addEventListener('keydown', (e) => {
+  if (['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  keys.add(e.code);
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+let yaw = 0, pitch = 0, looking = false, lx = 0, ly = 0;
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const hit = new THREE.Vector3();
+const grabPlane = new THREE.Plane();
+function pointerNdc(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+}
+function placeGrab(e) {
+  if (!grab) return;
+  pointerNdc(e);
+  raycaster.setFromCamera(ndc, camera);
+  grabPlane.set(new THREE.Vector3(0, 0, 1), -grab.cloth.group.position.z);
+  if (!raycaster.ray.intersectPlane(grabPlane, hit)) return;
+  grab.cloth.group.position.x = Math.max(-1.35, Math.min(1.35, grab.baseX + (hit.x - grab.pointerX)));
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerNdc(e);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(cloths.filter(c => c.live).map(c => c.mesh), false);
+  if (hits.length) {
+    const cloth = cloths.find(c => c.mesh === hits[0].object);
+    grab = { cloth, pointerX: hits[0].point.x, baseX: cloth.group.position.x };
+    looking = false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+    return;
+  }
+  looking = true; lx = e.clientX; ly = e.clientY;
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointerup', () => { looking = false; grab = null; });
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (grab) { placeGrab(e); return; }
+  if (!looking) return;
+  yaw -= (e.clientX - lx) * 0.0045;
+  pitch -= (e.clientY - ly) * 0.0035;
+  pitch = Math.max(-0.7, Math.min(0.6, pitch));
+  lx = e.clientX; ly = e.clientY;
+});
+function gapOpen(cloth, x) {
+  const left = cloth.group.position.x - CLOTH_HALF;
+  const right = cloth.group.position.x + CLOTH_HALF;
+  return x < left + 0.25 || x > right - 0.25;
+}
+
+const endZ = cloths[cloths.length - 1].group.position.z + 3;
+let shown = -1;
+const clock = new THREE.Clock();
+
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.033);
+  const forward = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+  const strafe = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+  const sp = 3.1 * dt;
+  let nx = camera.position.x + (Math.sin(yaw) * forward + Math.cos(yaw) * strafe) * sp;
+  let nz = camera.position.z + (Math.cos(yaw) * forward - Math.sin(yaw) * strafe) * sp;
+  if (nz > camera.position.z) {
+    for (const cloth of cloths) {
+      const planeZ = cloth.group.position.z;
+      if (camera.position.z < planeZ - 0.35 && nz > planeZ - 0.35 && !gapOpen(cloth, nx)) nz = planeZ - 0.42;
+    }
+  }
+  camera.position.x = nx;
+  camera.position.z = nz;
+  camera.position.x = Math.max(-1.55, Math.min(1.55, camera.position.x));
+  camera.position.z = Math.max(-1.6, Math.min(endZ, camera.position.z));
+  camera.position.y = EYE;
+  const look = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(camera.position.clone().add(look));
+  lamp.position.set(camera.position.x, 2.4, camera.position.z + 1.6);
+
+  let best = 0, bestD = Infinity;
+  cloths.forEach((cloth, i) => {
+    cloth.live = false;
+    const dz = cloth.group.position.z - camera.position.z;
+    if (dz > 0.15 && dz < bestD) { bestD = dz; best = i; }
+  });
+  if (bestD === Infinity) best = cloths.length - 1;
+  cloths[best].live = true;
+  if (best > 0) {
+    const prev = cloths[best - 1];
+    const dz = prev.group.position.z - camera.position.z;
+    if (dz > -2.2) prev.live = true;
+  }
+  for (const cloth of cloths) if (cloth.live) stepCloth(cloth, dt);
+  if (best !== shown) {
+    shown = best;
+    const f = cloths[best].fabric;
+    nameEl.innerHTML = f.name + '<span>' + f.note + '</span>';
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
