@@ -914,13 +914,43 @@ function buildParticles() {
   const yHi = embed ? 2.55 : 3.1;
   const positions = new Float32Array(N * 3);
   const velocities = new Float32Array(N * 3);
+  // Technique cubicles pass funnel=1. Other embeds keep the upright ribbon.
+  const funnel = embed && params.has('funnel');
+  // Tornado funnel, world units: wide mouth, narrow base, particles on a vertical spiral.
+  const funnelTopR = 0.66;
+  const funnelBotR = 0.09;
+  const funnelH = 2.15;
+  const funnelTurns = 4;
+  const funnelCy = 1.4;
   // Grove embed: each dot keeps a lane on a double spiral so the cloud is a ribbon, not a sprinkle.
   const laneR = embed ? new Float32Array(N) : null;
   const laneAng = embed ? new Float32Array(N) : null;
+  const laneU = funnel ? new Float32Array(N) : null;
   // Keep the ribbon tight, but stretch its local spiral vertically so it stands upright.
   const ribbonX = embed ? 0.68 : 1;
   const ribbonY = embed ? 1.42 : 1;
-  if (embed) {
+  if (funnel) {
+    const half = N >> 1;
+    for (let i = 0; i < N; i++) {
+      const arm = i < half ? 0 : 1;
+      const j = i - arm * half;
+      const count = arm === 0 ? half : N - half;
+      const u = j / Math.max(1, count - 1);
+      const ang = u * Math.PI * 2 * funnelTurns + arm * Math.PI;
+      const shell = 1 + (((j * 13) % 5) - 2) * 0.035;
+      const rad = (funnelBotR + (funnelTopR - funnelBotR) * u) * shell;
+      laneU[i] = u;
+      laneR[i] = rad;
+      laneAng[i] = ang;
+      positions[i * 3] = Math.cos(ang) * rad;
+      positions[i * 3 + 1] = funnelCy + (u - 0.5) * funnelH;
+      positions[i * 3 + 2] = Math.sin(ang) * rad;
+      const omega0 = 1.15;
+      velocities[i * 3] = -Math.sin(ang) * omega0 * rad;
+      velocities[i * 3 + 1] = 0;
+      velocities[i * 3 + 2] = Math.cos(ang) * omega0 * rad;
+    }
+  } else if (embed) {
     const cy = 1.4;
     const half = N >> 1;
     const turns = 2.75;
@@ -1003,14 +1033,24 @@ function buildParticles() {
 
   // Visible cue so pointer drive is obvious
   const vortexMesh = new THREE.Mesh(
-    new THREE.RingGeometry(embed ? 0.05 : 0.18, embed ? 0.09 : 0.28, 32),
+    new THREE.RingGeometry(
+      funnel ? funnelTopR * 0.9 : (embed ? 0.05 : 0.18),
+      funnel ? funnelTopR : (embed ? 0.09 : 0.28),
+      funnel ? 48 : 32
+    ),
     new THREE.MeshBasicMaterial({ color: __ptColor, transparent: true, opacity: embed ? 0.75 : 0.55, side: THREE.DoubleSide })
   );
-  if (embed) vortexMesh.scale.set(ribbonX, ribbonY, 1);
-  vortexMesh.position.set(0, 1.4, 0.05);
+  if (funnel) {
+    vortexMesh.rotation.x = Math.PI / 2;
+    vortexMesh.position.set(0, funnelCy + funnelH * 0.5, 0);
+  } else {
+    if (embed) vortexMesh.scale.set(ribbonX, ribbonY, 1);
+    vortexMesh.position.set(0, 1.4, 0.05);
+  }
   scene.add(vortexMesh);
 
-  const vortex = new THREE.Vector3(0, 1.4, 0);
+  const vortex = new THREE.Vector3(0, funnel ? funnelCy : 1.4, 0);
+  let funnelSpin = 0;
   tick = (dt, t) => {
     if (still) return;
     // Resting pattern is always a vortex. Follow pointer only while dragging;
@@ -1026,11 +1066,51 @@ function buildParticles() {
       vortex.y = (embed ? 1.4 : 1.35) + Math.cos(t * 0.28) * (embed ? 0.22 : 0.35);
     }
     vortexMesh.position.x = vortex.x;
-    vortexMesh.position.y = vortex.y;
+    vortexMesh.position.y = funnel ? vortex.y + funnelH * 0.5 : vortex.y;
+    if (funnel) vortexMesh.rotation.x = Math.PI / 2;
     vortexMesh.rotation.z = t * 1.8;
     vortexMesh.material.opacity = pointerDown ? 0.85 : 0.35;
 
-    if (embed) {
+    if (funnel) {
+      const omega = pointerDown ? 2.55 : 1.15;
+      funnelSpin += omega * dt;
+      const hold = pointerDown ? 10 : 18;
+      const k = pointerDown ? 8 : 16;
+      const blend = 1 - Math.exp(-k * dt);
+      for (let i = 0; i < N; i++) {
+        const ix = i * 3;
+        let x = positions[ix];
+        let y = positions[ix + 1];
+        let z = positions[ix + 2];
+        const dx = x - vortex.x;
+        const dz = z;
+        const r = Math.hypot(dx, dz) + 1e-4;
+        const inv = 1 / r;
+        const tx = -dz * inv;
+        const tz = dx * inv;
+        const nx = dx * inv;
+        const nz = dz * inv;
+        const ang = Math.atan2(dz, dx);
+        let dang = laneAng[i] + funnelSpin - ang;
+        dang = Math.atan2(Math.sin(dang), Math.cos(dang));
+        const vTang = velocities[ix] * tx + velocities[ix + 2] * tz;
+        const vRad = velocities[ix] * nx + velocities[ix + 2] * nz;
+        const tangTarget = laneR[i] * (omega + dang * hold);
+        const radTarget = -(r - laneR[i]) * hold;
+        const wobble = pointerDown ? Math.sin(t * 1.4 + laneAng[i]) * 0.04 : 0;
+        const newVTang = vTang + (tangTarget - vTang) * blend;
+        const newVRad = vRad + (radTarget - vRad) * blend;
+        const targetY = vortex.y + (laneU[i] - 0.5) * funnelH;
+        const vYTarget = -(y - targetY) * hold;
+        const newVY = velocities[ix + 1] + (vYTarget - velocities[ix + 1]) * blend;
+        velocities[ix] = tx * (newVTang + wobble) + nx * newVRad;
+        velocities[ix + 1] = newVY;
+        velocities[ix + 2] = tz * (newVTang + wobble) + nz * newVRad;
+        positions[ix] = x + velocities[ix] * dt;
+        positions[ix + 1] = y + velocities[ix + 1] * dt;
+        positions[ix + 2] = z + velocities[ix + 2] * dt;
+      }
+    } else if (embed) {
       const omega = pointerDown ? 2.55 : 1.15;
       const hold = pointerDown ? 10 : 18;
       const k = pointerDown ? 8 : 16;
