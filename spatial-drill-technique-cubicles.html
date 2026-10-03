@@ -430,7 +430,7 @@
       src.loopStart = 0;
       src.loopEnd = end;
       src.connect(gain);
-      try { src.start(0); }
+      try { src.start(); }
       catch (err) {
         console.warn('[cubicles] ambient BufferSource start failed', err);
         try { src.disconnect(); } catch {}
@@ -568,15 +568,15 @@
       }
       if (playStarting) return;
       playStarting = true;
-      const resumePromise = ctx.state === 'suspended' ? ctx.resume() : null;
+      // Invoke resume() in this turn so the browser counts the foyer click or key.
+      // Do not await it with no timeout: a non-gesture call never settles and the
+      // lock would swallow every later pointer and key.
+      const resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
       try {
-        if (resumePromise) {
-          try { await resumePromise; }
-          catch (err) {
-            console.warn('[cubicles] AudioContext resume failed', err);
-            return;
-          }
-        }
+        await Promise.race([
+          resumePromise.then(() => 'ok', () => 'err'),
+          new Promise((resolve) => setTimeout(() => resolve('timeout'), 400)),
+        ]);
         if (ctx.state !== 'running') return;
         kickDecode();
         const buf = buffer || (decodePromise ? await decodePromise : null);
@@ -621,10 +621,11 @@
         if (audioCtx && audioCtx.state === 'running') {
           try { audioCtx.suspend(); } catch {}
         }
-      } else if (started || window.__cubiclesEntered) {
+      } else if (started) {
+        // Foyer is already entered, so this event is not a click. Do not start
+        // the bed here. The next pointer or key calls tryPlay.
         resumeCtx();
         lockRate();
-        tryPlay();
       }
     });
     console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, 4bar10)',
@@ -2268,8 +2269,8 @@ if (params.has('overview') && !params.has('still') && !params.has('walk')) {
 }
 
 document.addEventListener('keydown', (e) => {
-  // Enter starts the wormhole bed. Any other key also unlocks audio via the early installer.
-  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat) {
+  // First key in the foyer is the unlock the Enter card used to be.
+  if (!e.repeat) {
     try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
   }
   if (!entered && !reduceMotion) return;
@@ -2321,6 +2322,7 @@ function applyPadVector(dx, dy) {
   mobilePad.classList.toggle('active', move.f || move.b || move.l || move.r);
 }
 mobilePad.addEventListener('pointerdown', (e) => {
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
   if (!entered) return;
   padPointerId = e.pointerId;
   mobilePad.setPointerCapture(e.pointerId);
@@ -2417,6 +2419,7 @@ function choosePanel(panel) {
 }
 
 stage.addEventListener('pointerdown', (e) => {
+  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
   if (!entered) return;
   if (e.button != null && e.button !== 0) return;
   if (!overview.on) {
