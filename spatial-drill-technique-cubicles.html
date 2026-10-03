@@ -42,23 +42,6 @@
       radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.3) 100%);
   }
   .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
-  .topbar {
-    position: absolute; top: 18px; left: 18px; right: 18px;
-    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
-  }
-  .brand {
-    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
-    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
-    background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
-  }
-  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
-  .pill {
-    appearance: none; border: 1px solid var(--line); background: rgba(235,228,214,0.82);
-    color: var(--ink); border-radius: 999px; padding: 10px 14px; font: inherit;
-    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
-    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
-  }
-  .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
   .chip {
     position: absolute; left: 18px; bottom: 18px;
     max-width: min(42ch, calc(100vw - 36px));
@@ -237,17 +220,6 @@
   <div id="stage" aria-label="Technique cubicles stage"></div>
   <div class="veil" aria-hidden="true"></div>
   <div class="layer">
-    <div class="topbar">
-      <div class="brand">Technique cubicles · 5×4</div>
-      <div class="pills">
-        <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
-        <a class="pill" href="./webgpu-lab/INDEX.html">WebGPU Lab</a>
-        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
-        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
-        <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
-        <button class="pill" id="btn-overview" type="button" title="Toggle overview camera (O)">Overview</button>
-      </div>
-    </div>
     <div class="chip" id="chip" aria-live="polite">
       <p class="tag" id="chip-tag">Cell</p>
       <h2 id="chip-title">—</h2>
@@ -2600,7 +2572,7 @@ btnEnter.addEventListener('click', () => {
   resetToFoyer();
   velocity.set(0, 0, 0);
   move.f = move.b = move.l = move.r = false;
-  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / Overview pill / ?overview=1.
+  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / ?overview=1.
   if (overview.on) setOverview(false);
   chip.classList.remove('show');
   activeCell = null;
@@ -2612,10 +2584,8 @@ let debugOn = params.has('debug');
 function setDebug(on) {
   debugOn = on;
   debugGroup.visible = debugOn;
-  document.getElementById('btn-debug').classList.toggle('on', debugOn);
 }
 setDebug(debugOn);
-document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
 
 // —— Overview / walk camera ——
 let overviewOn = false;
@@ -2663,7 +2633,6 @@ function applyCamera() {
 
 function setOverview(on) {
   if (on === overview.on) {
-    document.getElementById('btn-overview').classList.toggle('on', overview.on);
     return;
   }
   if (on) {
@@ -2701,12 +2670,10 @@ function setOverview(on) {
     updateActiveCell();
     updateLazyEmbeds();
   }
-  document.getElementById('btn-overview').classList.toggle('on', overview.on);
   document.body.classList.toggle('overview', overview.on);
 }
-document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
 // Default: full-screen foyer walk (Sketch C) on mobile + desktop.
-// ?overview=1 forces dollhouse overview; Overview pill / O still toggles. ?walk=1 kept as no-op alias.
+// ?overview=1 forces dollhouse overview; O still toggles. ?walk=1 kept as no-op alias.
 if (params.has('overview') && !params.has('still') && !params.has('walk')) {
   entered = true;
   window.__cubiclesEntered = true;
