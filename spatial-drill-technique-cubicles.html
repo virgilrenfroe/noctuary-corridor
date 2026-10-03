@@ -225,7 +225,7 @@
       <h2 id="chip-title">—</h2>
       <p id="chip-hint"></p>
     </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · click panel to stand · click empty or drag look · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · click panel to stand · drag look</span></div>
   </div>
 
   <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
@@ -233,7 +233,7 @@
       <p class="k">Technique cubicles</p>
       <h1>One box ·<br/>twenty cells</h1>
       <p>Outer walls stay visible. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
-      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look</span></p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · click panel to stand · click empty or drag look · O overview · B grid</span><span class="ctrl-mobile">pad walk · click panel to stand · drag look</span></p>
       <button type="button" id="btn-enter">Enter</button>
     </div>
   </div>
@@ -729,7 +729,7 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 7;
+const MAX_ARMED = 6;
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
@@ -1210,7 +1210,8 @@ function createWallpaper() {
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
 
-// One upright portrait plane in the grove. Poster until the first pointer/touch, then the mp4.
+// One upright plane covering the far wall, edge to edge (no purple rim).
+// Poster until the first pointer/touch, then the mp4.
 // No star sphere, no copies, no cylinder. depthWrite so a later depth-less sky cannot cover it.
 (function installStargazingPortrait() {
   try {
@@ -1243,21 +1244,23 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     tex.anisotropy = maxAniso;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.repeat.set(1, 1);
-    tex.offset.set(0, 0);
-
     const poster = new THREE.TextureLoader().load(POSTER_URL);
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
     poster.magFilter = THREE.LinearFilter;
     poster.generateMipmaps = false;
     poster.anisotropy = maxAniso;
-    poster.wrapS = THREE.ClampToEdgeWrapping;
-    poster.wrapT = THREE.ClampToEdgeWrapping;
-    poster.repeat.set(1, 1);
-    poster.offset.set(0, 0);
+    // 720×974 frame onto a 32×12 wall: full width, rows 180–450 (telescope + person).
+    const STAR_SRC_W = 720, STAR_SRC_H = 974, STAR_COVER_TOP = 180;
+    const starCoverH = STAR_SRC_W * (OUTER_H / OUTER_W);
+    const applyStarCover = (map) => {
+      map.wrapS = THREE.ClampToEdgeWrapping;
+      map.wrapT = THREE.ClampToEdgeWrapping;
+      map.repeat.set(1, starCoverH / STAR_SRC_H);
+      map.offset.set(0, (STAR_SRC_H - (STAR_COVER_TOP + starCoverH)) / STAR_SRC_H);
+    };
+    applyStarCover(tex);
+    applyStarCover(poster);
 
     const mat = new THREE.MeshBasicMaterial({
       map: poster,
@@ -1267,12 +1270,12 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       depthWrite: true,
       depthTest: true,
     });
-    // Portrait matching the 720×974 frame so the person is not cropped.
-    const figH = 10.2;
-    const figW = figH * (720 / 974);
+    // Entire far wall. Cover crop above keeps the person unstretched.
+    const figW = OUTER_W;
+    const figH = OUTER_H;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(figW, figH), mat);
     mesh.name = 'stargazer-portrait';
-    mesh.position.set(0, figH * 0.5 + 0.05, WALL_Z + 0.18);
+    mesh.position.set(0, OUTER_H / 2, WALL_Z);
     mesh.rotation.y = 0;
     mesh.receiveShadow = false;
     mesh.castShadow = false;
@@ -1282,6 +1285,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
 
     const promoteVideoMap = () => {
       if (vid.readyState < 2) return;
+      applyStarCover(tex);
       if (mat.map !== tex) mat.map = tex;
       tex.needsUpdate = true;
       mat.needsUpdate = true;
@@ -1329,11 +1333,16 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       stillOnly: false,
       portrait: true,
       figW, figH,
+      coverTop: STAR_COVER_TOP,
+      coverH: starCoverH,
+      srcW: STAR_SRC_W,
+      srcH: STAR_SRC_H,
       start: startStargazerVideo,
       play: tryPlay,
       posterFirst: true,
     };
-    console.info('[cubicles] one upright stargazer portrait', figW.toFixed(2) + '×' + figH.toFixed(2), 'poster until gesture');
+    console.info('[cubicles] stargazer covers far wall', figW.toFixed(2) + '×' + figH.toFixed(2),
+      'cover rows', STAR_COVER_TOP + '–' + (STAR_COVER_TOP + starCoverH).toFixed(0), 'of', STAR_SRC_H, 'poster until gesture');
   } catch (err) {
     console.warn('[cubicles] stargazing portrait failed', err);
   }
@@ -2048,21 +2057,78 @@ function panelUnderPointer(e) {
   return panelFromHits(hits, 1.25);
 }
 
-function setInteractTarget(panel) {
+function lookLockHeld() {
+  const el = document.pointerLockElement;
+  return !!(el && stage.contains(el));
+}
+
+function iframesIgnorePointer() {
   for (const h of hung) {
     h.canInteract = false;
     h.iframe.style.pointerEvents = 'none';
     h.iframe.style.cursor = '';
+  }
+}
+
+/** Only the chosen lab iframe gets clicks, and never during a look-drag or pointer lock. */
+function setInteractTarget(panel) {
+  const blockPointer = dragging || suspendIframePointer || lookLockHeld();
+  for (const h of hung) {
+    const on = !blockPointer && armedForClicks && h === armedForClicks;
+    h.canInteract = !!on;
+    h.iframe.style.pointerEvents = on ? 'auto' : 'none';
+    h.iframe.style.cursor = on ? 'pointer' : '';
   }
   if (!panel) {
     stage.classList.remove('panel-hover');
     return;
   }
   armLab(panel);
-  panel.canInteract = true;
-  panel.iframe.style.pointerEvents = 'auto';
-  panel.iframe.style.cursor = 'pointer';
   stage.classList.add('panel-hover');
+}
+
+const STAND_IN_FRONT = 3.6;
+const STAND_EASE_SEC = 0.75;
+
+function beginStandGlide(panel) {
+  const faceZ = panel.panelZ + 0.02;
+  const standX = panel.cx;
+  const standZ = faceZ + STAND_IN_FRONT;
+  const pitchTo = Math.atan2(PANEL_Y - EYE, STAND_IN_FRONT);
+  velocity.set(0, 0, 0);
+  if (reduceMotion) {
+    pos.set(standX, EYE, standZ);
+    yaw.value = 0;
+    pitch.value = pitchTo;
+    standGlide = null;
+    applyCamera();
+    return;
+  }
+  standGlide = {
+    x0: pos.x, z0: pos.z, yaw0: yaw.value, pitch0: pitch.value,
+    x1: standX, z1: standZ, yaw1: 0, pitch1: pitchTo,
+    t: 0,
+  };
+}
+
+function stepStandGlide(dt) {
+  const g = standGlide;
+  if (!g) return;
+  g.t += dt;
+  const u = Math.min(1, g.t / STAND_EASE_SEC);
+  const s = u * u * (3 - 2 * u);
+  pos.x = g.x0 + (g.x1 - g.x0) * s;
+  pos.z = g.z0 + (g.z1 - g.z0) * s;
+  pos.y = EYE;
+  // Walk cancels the whole glide. Look does not, but don't fight an active look.
+  if (!dragging && !lookLockHeld()) {
+    let dYaw = g.yaw1 - g.yaw0;
+    while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+    while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+    yaw.value = g.yaw0 + dYaw * s;
+    pitch.value = g.pitch0 + (g.pitch1 - g.pitch0) * s;
+  }
+  if (u >= 1) standGlide = null;
 }
 
 function updateLazyEmbeds() {
@@ -2120,6 +2186,13 @@ const move = { f: false, b: false, l: false, r: false };
 const velocity = new THREE.Vector3();
 let dragging = false;
 let panelPointerLock = false;
+let armedForClicks = null; // lab iframe allowed to take clicks after a choose
+let suspendIframePointer = false;
+let standGlide = null;
+let pendingChoose = null;
+let dragPointerId = null;
+let dragMoved = false;
+let wantLookLock = false;
 let lastX = 0, lastY = 0, downX = 0, downY = 0;
 
 const gate = document.getElementById('gate');
@@ -2208,6 +2281,8 @@ function setOverview(on) {
     move.f = move.b = move.l = move.r = false;
     velocity.set(0, 0, 0);
     clearPadMove();
+    standGlide = null;
+    if (document.pointerLockElement) document.exitPointerLock();
     panelPointerLock = false;
     for (const h of hung) {
       h.iframe.style.pointerEvents = 'none';
@@ -2275,12 +2350,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyO') { setOverview(!overview.on); return; }
   if (e.code === 'KeyB') setDebug(!debugOn);
   if (overview.on) return; // walk keys idle in overview
-  if (e.code === 'KeyW' || e.code === 'ArrowUp') move.f = true;
-  if (e.code === 'KeyS' || e.code === 'ArrowDown') move.b = true;
-  if (e.code === 'KeyA' || e.code === 'ArrowLeft') move.l = true;
-  if (e.code === 'KeyD' || e.code === 'ArrowRight') move.r = true;
+  if (e.code === 'KeyW' || e.code === 'ArrowUp') { move.f = true; standGlide = null; }
+  if (e.code === 'KeyS' || e.code === 'ArrowDown') { move.b = true; standGlide = null; }
+  if (e.code === 'KeyA' || e.code === 'ArrowLeft') { move.l = true; standGlide = null; }
+  if (e.code === 'KeyD' || e.code === 'ArrowRight') { move.r = true; standGlide = null; }
   if (e.code === 'KeyR') {
     if (overview.on) setOverview(false);
+    standGlide = null;
     resetToFoyer();
     velocity.set(0, 0, 0);
     move.f = move.b = move.l = move.r = false;
@@ -2315,6 +2391,7 @@ function applyPadVector(dx, dy) {
   if (padKnob) padKnob.style.transform = `translate(${ux}px, ${uy}px)`;
   const dead = 14;
   move.f = uy < -dead; move.b = uy > dead; move.l = ux < -dead; move.r = ux > dead;
+  if (move.f || move.b || move.l || move.r) standGlide = null;
   mobilePad.classList.toggle('active', move.f || move.b || move.l || move.r);
 }
 mobilePad.addEventListener('pointerdown', (e) => {
@@ -2336,7 +2413,7 @@ mobilePad.addEventListener('pointerup', (e) => {
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
 stage.addEventListener('pointermove', (e) => {
-  if (overview.on || !entered || panelPointerLock || dragging) return;
+  if (overview.on || !entered || panelPointerLock || dragging || lookLockHeld()) return;
   // Don't fight look-drag; only refresh hover when idle
   const next = panelUnderPointer(e);
   if (next !== hoverPanel) {
@@ -2361,7 +2438,7 @@ stage.addEventListener('pointerleave', (e) => {
 
 // Keep pointer cursor while the mouse is over an interacting iframe (CSS layer is outside #stage).
 document.addEventListener('pointermove', (e) => {
-  if (overview.on || !entered || panelPointerLock || dragging) return;
+  if (overview.on || !entered || panelPointerLock || dragging || lookLockHeld()) return;
   const t = e.target;
   const over = hung.find((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
   if (over) {
@@ -2374,40 +2451,151 @@ document.addEventListener('pointermove', (e) => {
   }
 }, { passive: true, capture: true });
 
+function requestLookLock() {
+  const el = renderer.domElement;
+  if (document.pointerLockElement) return;
+  // unadjustedMovement when the browser accepts it; otherwise a bare request.
+  try {
+    const pending = el.requestPointerLock({ unadjustedMovement: true });
+    if (pending && typeof pending.then === 'function') {
+      pending.catch(() => {
+        if (document.pointerLockElement) return;
+        try { el.requestPointerLock(); } catch (err) {}
+      });
+    }
+  } catch (err) {
+    try { el.requestPointerLock(); } catch (err2) {}
+  }
+}
+
+function panelAimedAtCenter() {
+  raycaster.setFromCamera(centerNDC, camera);
+  const hits = raycaster.intersectObjects(hungPickMeshes(), false);
+  return panelFromHits(hits, 1.25);
+}
+
+function choosePanel(panel) {
+  // Exit pointer lock before the iframe is allowed to receive clicks.
+  if (document.pointerLockElement) document.exitPointerLock();
+  hoverPanel = panel;
+  suspendIframePointer = true;
+  panelPointerLock = true;
+  pendingChoose = panel;
+  wantLookLock = false;
+  dragging = false;
+  dragMoved = false;
+  stage.classList.remove('dragging');
+  iframesIgnorePointer();
+  armLab(panel);
+  beginStandGlide(panel);
+}
+
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
+  if (e.button != null && e.button !== 0) return;
   if (!overview.on) {
-    const panel = panelUnderPointer(e);
+    const panel = lookLockHeld() ? panelAimedAtCenter() : panelUnderPointer(e);
     if (panel) {
-      hoverPanel = panel;
-      setInteractTarget(panel);
-      panelPointerLock = true;
+      choosePanel(panel);
       return;
     }
   }
+  // Already looking via the lock — an empty click should not start a second drag.
+  if (lookLockHeld()) return;
+  pendingChoose = null;
   panelPointerLock = false;
   dragging = true;
+  dragMoved = false;
+  dragPointerId = e.pointerId;
   stage.classList.add('dragging');
   lastX = downX = e.clientX; lastY = downY = e.clientY;
-  try { stage.setPointerCapture(e.pointerId); } catch {}
+  iframesIgnorePointer();
+  try { stage.setPointerCapture(e.pointerId); } catch (err) {}
 });
-stage.addEventListener('pointermove', (e) => {
-  if (panelPointerLock) return;
+
+// Document-level so a drag that slides onto a CSS3D panel keeps turning.
+document.addEventListener('pointermove', (e) => {
   if (!dragging || reduceMotion) return;
+  if (dragPointerId != null && e.pointerId !== dragPointerId) return;
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) dragMoved = true;
   if (overview.on) {
     overview.theta -= dx * 0.005;
     overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
     return;
   }
+  if (lookLockHeld()) return;
   yaw.value -= dx * 0.0025;
   pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
-});
-stage.addEventListener('pointerup', () => {
-  panelPointerLock = false;
+}, true);
+
+function finishRoomPointer(e) {
+  if (!dragging && !pendingChoose) return;
+  if (dragPointerId != null && e && e.pointerId != null && e.pointerId !== dragPointerId && !pendingChoose) return;
+  const wasDragging = dragging;
+  const moved = dragMoved || Math.hypot(lastX - downX, lastY - downY) > 5;
+  const chose = pendingChoose;
+  try { if (e && e.pointerId != null) stage.releasePointerCapture(e.pointerId); } catch (err) {}
   dragging = false;
+  dragMoved = false;
+  dragPointerId = null;
   stage.classList.remove('dragging');
+  if (chose) {
+    pendingChoose = null;
+    // Enable the iframe only after this click has finished dispatching.
+    setTimeout(() => {
+      suspendIframePointer = false;
+      panelPointerLock = false;
+      armedForClicks = chose;
+      if (!dragging && !lookLockHeld()) setInteractTarget(chose);
+    }, 0);
+    return;
+  }
+  panelPointerLock = false;
+  if (wasDragging && !moved && !overview.on && entered) {
+    wantLookLock = true;
+    suspendIframePointer = true;
+    requestLookLock();
+    setTimeout(() => {
+      if (lookLockHeld() || dragging) return;
+      suspendIframePointer = false;
+      wantLookLock = false;
+      setInteractTarget(armedForClicks);
+    }, 120);
+    return;
+  }
+  suspendIframePointer = false;
+  if (wasDragging) setInteractTarget(armedForClicks);
+}
+document.addEventListener('pointerup', finishRoomPointer, true);
+document.addEventListener('pointercancel', finishRoomPointer, true);
+
+document.addEventListener('mousemove', (e) => {
+  if (!lookLockHeld()) return;
+  if (overview.on || reduceMotion || !entered) return;
+  yaw.value -= (e.movementX || 0) * 0.0025;
+  pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - (e.movementY || 0) * 0.002));
+});
+
+document.addEventListener('pointerlockchange', () => {
+  if (lookLockHeld()) {
+    suspendIframePointer = false;
+    dragging = false;
+    dragMoved = false;
+    dragPointerId = null;
+    stage.classList.remove('dragging');
+    iframesIgnorePointer();
+    return;
+  }
+  if (suspendIframePointer || dragging) return;
+  setInteractTarget(armedForClicks);
+});
+
+stage.addEventListener('click', () => {
+  if (!wantLookLock || lookLockHeld() || overview.on || !entered) return;
+  wantLookLock = false;
+  requestLookLock();
 });
 
 function resize() {
@@ -2498,24 +2686,31 @@ function frame() {
     // elevated orbit — no walk clamps / embeds
     applyCamera();
   } else if (!reduceMotion && entered) {
-    forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
-    right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
-    const wish = new THREE.Vector3();
-    if (move.f) wish.add(forward);
-    if (move.b) wish.sub(forward);
-    if (move.l) wish.sub(right);
-    if (move.r) wish.add(right);
-    if (wish.lengthSq() > 0) {
-      wish.normalize().multiplyScalar(7.2);
-      // 8/s took ~125ms to reach speed and felt late. 28/s is there in a couple of frames.
-      velocity.x += (wish.x - velocity.x) * Math.min(1, 28 * dt);
-      velocity.z += (wish.z - velocity.z) * Math.min(1, 28 * dt);
+    const walking = move.f || move.b || move.l || move.r;
+    if (walking) standGlide = null;
+    if (standGlide) {
+      stepStandGlide(dt);
+      velocity.set(0, 0, 0);
     } else {
-      velocity.x *= Math.pow(0.62, dt * 60);
-      velocity.z *= Math.pow(0.62, dt * 60);
+      forward.set(-Math.sin(yaw.value), 0, -Math.cos(yaw.value));
+      right.set(Math.cos(yaw.value), 0, -Math.sin(yaw.value));
+      const wish = new THREE.Vector3();
+      if (move.f) wish.add(forward);
+      if (move.b) wish.sub(forward);
+      if (move.l) wish.sub(right);
+      if (move.r) wish.add(right);
+      if (wish.lengthSq() > 0) {
+        wish.normalize().multiplyScalar(7.2);
+        // 8/s took ~125ms to reach speed and felt late. 28/s is there in a couple of frames.
+        velocity.x += (wish.x - velocity.x) * Math.min(1, 28 * dt);
+        velocity.z += (wish.z - velocity.z) * Math.min(1, 28 * dt);
+      } else {
+        velocity.x *= Math.pow(0.62, dt * 60);
+        velocity.z *= Math.pow(0.62, dt * 60);
+      }
+      pos.x += velocity.x * dt;
+      pos.z += velocity.z * dt;
     }
-    pos.x += velocity.x * dt;
-    pos.z += velocity.z * dt;
     pos.x = Math.max(-OUTER_W / 2 + margin, Math.min(OUTER_W / 2 - margin, pos.x));
     pos.z = Math.max(-OUTER_D / 2 + margin, Math.min(OUTER_D / 2 - margin, pos.z));
     pos.y = EYE;
