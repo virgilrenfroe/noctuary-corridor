@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=4bar10" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=4barexact" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -241,12 +241,12 @@
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
 // Desktop: one AudioBufferSourceNode at gain 0.46. The foyer pointer or key
 // calls resume() and source.start() in that turn. The element is not played.
-// iPhone/iPad: the buffer stays silent, so the element is the only speaker.
-// play() runs in the gesture, then one MediaElementSource into the same gain
-// (destination + analyser). The buffer source is not started on that path.
+// iPhone/iPad: one HTMLAudioElement at volume 0.46. Its src is a WAV of the
+// same decoded samples so the loop is exactly four bars, not the mp3 pad.
+// playbackRate stays 1. The buffer source is not started on that path.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4bar10';
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4barexact';
     const VOL = 0.46;
     const BPM = 96;
     const BARS = 4;
@@ -275,13 +275,74 @@
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
+    // iOS element loop. decodeAudioData trims the mp3 to 441000 samples, but
+    // the element duration is the padded container. A WAV of those samples
+    // loops exactly 16 beats. Still one element, and the buffer is not started.
+    function pcmToWavUrl(audioBuffer) {
+      const ch = audioBuffer.getChannelData(0);
+      const n = ch.length;
+      const ab = new ArrayBuffer(44 + n * 2);
+      const v = new DataView(ab);
+      const write = (off, str) => {
+        for (let i = 0; i < str.length; i++) v.setUint8(off + i, str.charCodeAt(i));
+      };
+      write(0, 'RIFF');
+      v.setUint32(4, 36 + n * 2, true);
+      write(8, 'WAVE');
+      write(12, 'fmt ');
+      v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true);
+      v.setUint32(24, audioBuffer.sampleRate, true);
+      v.setUint32(28, audioBuffer.sampleRate * 2, true);
+      v.setUint16(32, 2, true);
+      v.setUint16(34, 16, true);
+      write(36, 'data');
+      v.setUint32(40, n * 2, true);
+      let p = 44;
+      for (let i = 0; i < n; i++) {
+        const x = Math.max(-1, Math.min(1, ch[i]));
+        v.setInt16(p, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+        p += 2;
+      }
+      return URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }));
+    }
+
+    function prepareElementLoop() {
+      const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OC) return;
+      fetch(SRC, { credentials: 'same-origin', cache: 'force-cache' })
+        .then((r) => {
+          if (!r.ok) throw new Error('ambient fetch ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then((ab) => new OC(1, 44100, 44100).decodeAudioData(ab.slice(0)))
+        .then((buf) => {
+          if (!buf || elementSrcWired) return;
+          el.src = pcmToWavUrl(buf);
+          el.loop = true;
+          el.playbackRate = 1;
+          el.defaultPlaybackRate = 1;
+          try { el.load(); } catch {}
+          console.info('[cubicles] element loop is the decoded bed',
+            buf.length + ' samples', buf.duration.toFixed(3) + 's');
+        })
+        .catch((err) => console.warn('[cubicles] element wav loop failed', err));
+    }
+
     // Present on every browser. play() is only called on iOS.
     const el = new Audio();
     el.preload = 'auto';
     el.loop = true;
     el.playbackRate = 1;
     el.defaultPlaybackRate = 1;
-    try { el.preservesPitch = true; } catch {}
+    // A pitch-preserving stretcher sags this loop. Rate stays 1.
+    try { el.preservesPitch = false; } catch {}
+    el.addEventListener('ratechange', () => {
+      if (el.playbackRate === 1 && el.defaultPlaybackRate === 1) return;
+      el.playbackRate = 1;
+      el.defaultPlaybackRate = 1;
+    });
     el.volume = VOL;
     el.setAttribute('playsinline', '');
     el.crossOrigin = 'anonymous';
@@ -377,10 +438,7 @@
       src.buffer = buffer;
       src.loop = true;
       src.playbackRate.value = 1;
-      const dur = Math.max(0.5, buffer.duration);
-      const end = dur + 1e-4 >= LOOP_LEN ? Math.min(LOOP_LEN, dur) : dur;
-      src.loopStart = 0;
-      src.loopEnd = end;
+      // Whole buffer only. A custom end point is a second length and drifts.
       src.connect(gain);
       try { src.start(); }
       catch (err) {
@@ -493,7 +551,8 @@
       else kickDecode();
     }
 
-    kickDecode();
+    if (isIOS()) prepareElementLoop();
+    else kickDecode();
 
     window.__wormholeAmbient = {
       audio: el, audioB: null, tryPlay, vol: VOL,
