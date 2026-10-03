@@ -1325,7 +1325,8 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     mesh.receiveShadow = false;
     mesh.castShadow = false;
     mesh.raycast = () => {};
-    scene.add(mesh);
+    // stardark1: the poster plane read as a dark slab against the star sphere. Do not add it.
+    mesh.visible = false;
     const promoteVideoMap = () => {
       if (vid.readyState < 2) return;
       mat.map = tex;
@@ -1334,9 +1335,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     };
     vid.addEventListener('loadeddata', promoteVideoMap);
     vid.addEventListener('playing', promoteVideoMap);
-    const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
-    rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
-    scene.add(rim);
+    // stardark1: rim light only existed to lift the mural slab.
     const tryPlay = () => {
       if (!vid.src) return;
       try { vid.muted = true; vid.defaultMuted = true; } catch {}
