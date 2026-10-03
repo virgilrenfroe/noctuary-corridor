@@ -69,6 +69,9 @@
   /* Never show open-full chrome plate in floating embeds */
   body.embed .open-full { display: none !important; visibility: hidden !important; }
   body.still .hint { opacity: 0.35; }
+  /* Flow field: no title card and no pointer hint (full page and embed). */
+  body.particles .label,
+  body.particles .hint { display: none !important; }
   .open-full {
     display: none;
     position: fixed; z-index: 3;
@@ -95,7 +98,7 @@
 </head>
 <body>
 <script>
-(function(){const q=new URLSearchParams(location.search);if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}})();
+(function(){const q=new URLSearchParams(location.search);const demo=(q.get('demo')||'gravity').toLowerCase();if(q.has('embed')||q.has('still')){document.body.classList.add('embed');document.documentElement.classList.add('embed');document.documentElement.style.background='transparent';document.body.style.background='transparent';}if(demo==='particles'||demo==='flow')document.body.classList.add('particles');})();
 </script>
   <div class="chrome">
     <div class="label">
@@ -914,24 +917,50 @@ function buildParticles() {
   const yHi = embed ? 2.55 : 3.1;
   const positions = new Float32Array(N * 3);
   const velocities = new Float32Array(N * 3);
-  // Technique cubicles pass funnel=1. Other embeds keep the upright ribbon.
-  // Cubicle embeds opt in with funnel=1. The full panel (yellow/gold, no vertex colors)
-  // uses the same vertical funnel. Embed without the flag keeps the ribbon.
-  const funnel = !embed || params.has('funnel');
+  // funnel=1 (cubicle embeds) and the full particles panel: gold double helix.
+  // Other embeds keep the upright ribbon.
+  const helix = params.has('funnel') || !embed;
+  const tornado = !helix && !embed;
   // Tornado funnel, world units: wide mouth, narrow base, particles on a vertical spiral.
   const funnelTopR = 0.66;
   const funnelBotR = 0.09;
   const funnelH = 2.15;
   const funnelTurns = 4;
   const funnelCy = embed ? 1.4 : 1.02;
+  // Double helix: two strands of constant radius twisting around a vertical axis.
+  const helixR = 0.46;
+  const helixH = 1.85;
+  const helixTurns = 3;
+  const helixCy = embed ? 1.4 : 1.05;
   // Grove embed: each dot keeps a lane on a double spiral so the cloud is a ribbon, not a sprinkle.
-  const laneR = (embed || funnel) ? new Float32Array(N) : null;
-  const laneAng = (embed || funnel) ? new Float32Array(N) : null;
-  const laneU = funnel ? new Float32Array(N) : null;
+  const laneR = (embed || tornado || helix) ? new Float32Array(N) : null;
+  const laneAng = (embed || tornado || helix) ? new Float32Array(N) : null;
+  const laneU = (tornado || helix) ? new Float32Array(N) : null;
   // Keep the ribbon tight, but stretch its local spiral vertically so it stands upright.
   const ribbonX = embed ? 0.68 : 1;
   const ribbonY = embed ? 1.42 : 1;
-  if (funnel) {
+  if (helix) {
+    const half = N >> 1;
+    for (let i = 0; i < N; i++) {
+      const arm = i < half ? 0 : 1;
+      const j = i - arm * half;
+      const count = arm === 0 ? half : N - half;
+      const u = j / Math.max(1, count - 1);
+      const ang = u * Math.PI * 2 * helixTurns + arm * Math.PI;
+      const shell = 1 + (((j * 13) % 5) - 2) * 0.045;
+      const rad = helixR * shell;
+      laneU[i] = u;
+      laneR[i] = rad;
+      laneAng[i] = ang;
+      positions[i * 3] = Math.cos(ang) * rad;
+      positions[i * 3 + 1] = helixCy + (u - 0.5) * helixH;
+      positions[i * 3 + 2] = Math.sin(ang) * rad;
+      const w0 = 0.6;
+      velocities[i * 3] = -Math.sin(ang) * w0 * rad;
+      velocities[i * 3 + 1] = 0;
+      velocities[i * 3 + 2] = Math.cos(ang) * w0 * rad;
+    }
+  } else if (tornado) {
     const half = N >> 1;
     for (let i = 0; i < N; i++) {
       const arm = i < half ? 0 : 1;
@@ -987,11 +1016,11 @@ function buildParticles() {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  // Floating embed: warm orange + glossy purple only (no cream/white), bright on dark water.
-  const __ptColor = embed ? 0xff6a00 : ACCENT;
+  // Ribbon embeds stay orange/purple. The funnel=1 helix keeps the yellow/gold accent.
+  const __ptColor = (embed && !helix) ? 0xff6a00 : ACCENT;
   // Grove embed only: vertex color is the only change. No cream, ivory, or white swatches.
   let crispDot = null;
-  if (embed) {
+  if (embed && !helix) {
     const colors = new Float32Array(N * 3);
     const orange = [0xff4d00, 0xff6a00, 0xff8c1a];
     const purple = [0x9b30ff, 0xc44dff, 0xe070ff];
@@ -1018,12 +1047,26 @@ function buildParticles() {
     crispDot.needsUpdate = true;
   }
   // Embed: hard disc in pixels (no attenuation) so the ribbon reads as crisp points, not foggy squares.
-  // Material color is a multiplier only; embed stays white so vertex orange/purple are not tinted cream.
+  // Helix discs use the gold accent directly. Ribbon vertex orange/purple still multiply a white disc.
+  if (helix && embed) {
+    const hs = 64;
+    const hcanvas = document.createElement('canvas');
+    hcanvas.width = hcanvas.height = hs;
+    const hg = hcanvas.getContext('2d');
+    hg.clearRect(0, 0, hs, hs);
+    hg.fillStyle = '#ffffff';
+    hg.beginPath();
+    hg.arc(hs / 2, hs / 2, hs * 0.42, 0, Math.PI * 2);
+    hg.fill();
+    crispDot = new THREE.CanvasTexture(hcanvas);
+    crispDot.colorSpace = THREE.SRGBColorSpace;
+    crispDot.needsUpdate = true;
+  }
   const pts = new THREE.Points(
     geo,
     new THREE.PointsMaterial({
-      color: embed ? 0xffffff : __ptColor,
-      vertexColors: !!embed,
+      color: (embed && !helix) ? 0xffffff : __ptColor,
+      vertexColors: embed && !helix,
       map: crispDot || null,
       size: embed ? 4.0 : 0.045,
       sizeAttenuation: !embed,
@@ -1036,13 +1079,15 @@ function buildParticles() {
   // Visible cue so pointer drive is obvious
   const vortexMesh = new THREE.Mesh(
     new THREE.RingGeometry(
-      funnel ? funnelTopR * 0.9 : (embed ? 0.05 : 0.18),
-      funnel ? funnelTopR : (embed ? 0.09 : 0.28),
-      funnel ? 48 : 32
+      tornado ? funnelTopR * 0.9 : (embed ? 0.05 : 0.18),
+      tornado ? funnelTopR : (embed ? 0.09 : 0.28),
+      tornado ? 48 : 32
     ),
     new THREE.MeshBasicMaterial({ color: __ptColor, transparent: true, opacity: embed ? 0.75 : 0.55, side: THREE.DoubleSide })
   );
-  if (funnel) {
+  if (helix) {
+    vortexMesh.visible = false;
+  } else if (tornado) {
     vortexMesh.rotation.x = Math.PI / 2;
     vortexMesh.position.set(0, funnelCy + funnelH * 0.5, 0);
   } else {
@@ -1051,29 +1096,94 @@ function buildParticles() {
   }
   scene.add(vortexMesh);
 
-  const vortex = new THREE.Vector3(0, funnel ? funnelCy : 1.4, 0);
+  const vortex = new THREE.Vector3(0, helix ? helixCy : (tornado ? funnelCy : 1.4), 0);
   let funnelSpin = 0;
+  let helixSpin = 0;
   tick = (dt, t) => {
     if (still) return;
     // Resting pattern is always a vortex. Follow pointer only while dragging;
     // on release, return to the idle vortex (pointerActive alone must not stick).
-    if (pointerDown) {
+    if (helix) {
+      // Drag scatters the dots. The helix axis stays put so they have a shape to return to.
+      vortex.x = Math.sin(t * 0.3) * 0.16;
+      vortex.y = helixCy + Math.cos(t * 0.24) * 0.06;
+    } else if (pointerDown) {
       // Embed inset keeps the ribbon inside the frame instead of shattering on the walls.
       const edge = embed ? 0.52 : 0.15;
       vortex.x = THREE.MathUtils.clamp(pointerWorld.x, -xBound + edge, xBound - edge);
       vortex.y = THREE.MathUtils.clamp(pointerWorld.y, yLo + edge, yHi - edge);
     } else {
       // Idle vortex drift — default and post-interaction resting pattern
-      vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : (funnel ? 0.28 : 0.9));
-      vortex.y = (funnel ? funnelCy : (embed ? 1.4 : 1.35)) + Math.cos(t * 0.28) * (embed ? 0.22 : (funnel ? 0.1 : 0.35));
+      vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : (tornado ? 0.28 : 0.9));
+      vortex.y = (tornado ? funnelCy : (embed ? 1.4 : 1.35)) + Math.cos(t * 0.28) * (embed ? 0.22 : (tornado ? 0.1 : 0.35));
     }
-    vortexMesh.position.x = vortex.x;
-    vortexMesh.position.y = funnel ? vortex.y + funnelH * 0.5 : vortex.y;
-    if (funnel) vortexMesh.rotation.x = Math.PI / 2;
-    vortexMesh.rotation.z = t * 1.8;
-    vortexMesh.material.opacity = pointerDown ? 0.85 : 0.35;
+    if (!helix) {
+      vortexMesh.position.x = vortex.x;
+      vortexMesh.position.y = tornado ? vortex.y + funnelH * 0.5 : vortex.y;
+      if (tornado) vortexMesh.rotation.x = Math.PI / 2;
+      vortexMesh.rotation.z = t * 1.8;
+      vortexMesh.material.opacity = pointerDown ? 0.85 : 0.35;
+    }
 
-    if (funnel) {
+    if (helix) {
+      // Hold scatters them. Release is a slow spring back onto the twisting strands.
+      helixSpin += (pointerDown ? 0.2 : 0.6) * dt;
+      const ks = pointerDown ? 0 : 16;
+      const kd = pointerDown ? 0.35 : 8;
+      const xMax = embed ? 1.2 : 2.1;
+      const zMax = embed ? 1.05 : 1.5;
+      const y0 = embed ? 0.5 : 0.2;
+      const y1 = embed ? 2.35 : 2.85;
+      for (let i = 0; i < N; i++) {
+        const ix = i * 3;
+        let x = positions[ix];
+        let y = positions[ix + 1];
+        let z = positions[ix + 2];
+        const ang = laneAng[i] + helixSpin;
+        const homeX = vortex.x + Math.cos(ang) * laneR[i];
+        const homeY = vortex.y + (laneU[i] - 0.5) * helixH;
+        const homeZ = Math.sin(ang) * laneR[i];
+        let vx = velocities[ix];
+        let vy = velocities[ix + 1];
+        let vz = velocities[ix + 2];
+        if (pointerDown) {
+          const ox = x - vortex.x;
+          const oy = y - vortex.y;
+          const oz = z;
+          const orad = Math.hypot(ox, oz) + 0.25;
+          const sx = Math.sin(i * 12.9898);
+          const sy = Math.cos(i * 78.233);
+          const sz = Math.sin(i * 45.164);
+          vx += (ox / orad * 3.4 + sx * 1.9) * dt;
+          vy += (oy * 0.35 + sy * 2.3) * dt;
+          vz += (oz / orad * 3.4 + sz * 1.9) * dt;
+        }
+        vx += ((homeX - x) * ks - vx * kd) * dt;
+        vy += ((homeY - y) * ks - vy * kd) * dt;
+        vz += ((homeZ - z) * ks - vz * kd) * dt;
+        const sp = Math.hypot(vx, vy, vz);
+        const cap = pointerDown ? 2.2 : 3.4;
+        if (sp > cap) {
+          const sc = cap / sp;
+          vx *= sc; vy *= sc; vz *= sc;
+        }
+        x += vx * dt;
+        y += vy * dt;
+        z += vz * dt;
+        if (x > vortex.x + xMax) { x = vortex.x + xMax; vx *= -0.25; }
+        else if (x < vortex.x - xMax) { x = vortex.x - xMax; vx *= -0.25; }
+        if (z > zMax) { z = zMax; vz *= -0.25; }
+        else if (z < -zMax) { z = -zMax; vz *= -0.25; }
+        if (y > y1) { y = y1; vy *= -0.25; }
+        else if (y < y0) { y = y0; vy *= -0.25; }
+        velocities[ix] = vx;
+        velocities[ix + 1] = vy;
+        velocities[ix + 2] = vz;
+        positions[ix] = x;
+        positions[ix + 1] = y;
+        positions[ix + 2] = z;
+      }
+    } else if (tornado) {
       const omega = pointerDown ? 2.55 : 1.15;
       funnelSpin += omega * dt;
       const hold = pointerDown ? 10 : 18;
