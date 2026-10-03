@@ -1158,8 +1158,17 @@ function addOuterWall(w, h, x, y, z, rotY) {
   m.receiveShadow = true;
   scene.add(m);
 }
-// Stargazer wall only (−Z). Side and foyer walls removed.
+// Stargazer wall only (−Z). The other three sides are the ceiling star scene.
 addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
+function addStarWall(w, h, x, y, z, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), ceilMat);
+  m.position.set(x, y, z);
+  m.rotation.y = rotY;
+  scene.add(m);
+}
+addStarWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
+addStarWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+addStarWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
