@@ -1301,11 +1301,8 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       offX = 0.0;
       offY = 1.0 - repY;
     }
-    // starwrap1: full-frame equirect on the grove sphere. u=0.75 of the
-    // sphere faces −Z (the view from the foyer), so shift the portrait center there.
-    tex.repeat.set(1, 1);
-    tex.offset.set(-0.25, 0);
     tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
     const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
@@ -1316,26 +1313,37 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     poster.wrapT = THREE.ClampToEdgeWrapping;
     poster.repeat.copy(tex.repeat);
     poster.offset.copy(tex.offset);
+    // starband1: sharp portrait copies around the grove. Stars stay on the outer sphere.
+    // Repeat count matches the portrait aspect, so the frame is not stretched.
+    const bandH = OUTER_H * 0.9;
+    const bandR = Math.min(OUTER_W, OUTER_D) * 0.46;
+    const tileW = bandH * (720 / 974);
+    const repeats = Math.max(4, Math.round((Math.PI * 2 * bandR) / tileW));
+    tex.repeat.set(repeats, 1);
+    tex.offset.set(0, 0);
+    poster.wrapS = THREE.RepeatWrapping;
+    poster.repeat.set(repeats, 1);
+    poster.offset.set(0, 0);
     const mat = new THREE.MeshBasicMaterial({
       map: poster,
       toneMapped: false,
-      side: THREE.FrontSide,
+      side: THREE.BackSide,
       fog: false,
+      depthWrite: false,
     });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(muralW, muralH), mat);
-    mesh.position.set(0, muralH * 0.5 + 0.15, WALL_Z + 0.04);
-    mesh.rotation.y = 0;
-    mesh.receiveShadow = false;
-    mesh.castShadow = false;
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(bandR, bandR, bandH, Math.max(48, repeats * 8), 1, true),
+      mat
+    );
+    mesh.position.set(0, bandH * 0.5, 0);
     mesh.raycast = () => {};
-    // starwrap1: no flat poster plane. The video is the surrounding sphere.
+    mesh.frustumCulled = false;
+    scene.add(mesh);
     const promoteVideoMap = () => {
       if (vid.readyState < 2) return;
-      const skyMat = window.__groveSkyMat;
-      if (!skyMat) return;
-      skyMat.map = tex;
+      mat.map = tex;
       tex.needsUpdate = true;
-      skyMat.needsUpdate = true;
+      mat.needsUpdate = true;
     };
     vid.addEventListener('loadeddata', promoteVideoMap);
     vid.addEventListener('playing', promoteVideoMap);
@@ -1609,11 +1617,6 @@ const sky = new THREE.Mesh(
 sky.position.y = OUTER_H * 0.35;
 sky.frustumCulled = false;
 scene.add(sky);
-window.__groveSkyMat = sky.material;
-if (window.__stargazingWall && window.__stargazingWall.vid && window.__stargazingWall.vid.readyState >= 2) {
-  window.__stargazingWall.tex.needsUpdate = true;
-  sky.material.map = window.__stargazingWall.tex;
-}
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
