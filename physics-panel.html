@@ -961,21 +961,22 @@ function buildParticles() {
   const vortex = new THREE.Vector3(0, 1.4, 0);
   tick = (dt, t) => {
     if (still) return;
-    // Drive vortex from raycasted pointer on the interaction plane (mouse + touch)
-    if (pointerActive || pointerDown) {
+    // Resting pattern is always a vortex. Follow pointer only while dragging;
+    // on release, return to the idle vortex (pointerActive alone must not stick).
+    if (pointerDown) {
       vortex.x = THREE.MathUtils.clamp(pointerWorld.x, -xBound + 0.15, xBound - 0.15);
       vortex.y = THREE.MathUtils.clamp(pointerWorld.y, yLo + 0.15, yHi - 0.15);
     } else {
-      // Gentle idle drift until the pointer engages
+      // Idle vortex drift — default and post-interaction resting pattern
       vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : 0.9);
       vortex.y = (embed ? 1.4 : 1.35) + Math.cos(t * 0.28) * (embed ? 0.22 : 0.35);
     }
     vortexMesh.position.x = vortex.x;
     vortexMesh.position.y = vortex.y;
     vortexMesh.rotation.z = t * 1.8;
-    vortexMesh.material.opacity = pointerDown ? 0.85 : (pointerActive ? 0.6 : 0.35);
+    vortexMesh.material.opacity = pointerDown ? 0.85 : 0.35;
 
-    const strength = pointerDown ? 2.4 : (pointerActive ? 1.75 : 0.85);
+    const strength = pointerDown ? 2.4 : 0.85;
     for (let i = 0; i < N; i++) {
       const ix = i * 3;
       let x = positions[ix];
