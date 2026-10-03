@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Space+Mono:wght@400&display=swap" rel="stylesheet" />
+<title>Noctuary — eight-ball</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #07060a; touch-action: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .name {
+    position: fixed; left: 16px; top: 16px; z-index: 2;
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 650; font-size: 1.35rem; letter-spacing: -0.03em;
+    color: #f4efe6; pointer-events: none;
+  }
+  .name span {
+    display: block; margin-top: 4px;
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-weight: 400; font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: rgba(244,239,230,0.5);
+  }
+  .hint {
+    position: fixed; left: 16px; bottom: 16px; z-index: 2;
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,244,230,0.55); pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div class="name">Eight-ball<span>fifteen · break</span></div>
+<div class="hint">click to break</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/",
+    "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import * as CANNON from 'cannon-es';
+
+const BALL_R = 0.12;
+const BALL_MASS = 0.17;
+const BALL_D = BALL_R * 2;
+const ROW_GAP = BALL_D * Math.sqrt(3) / 2;
+
+/** Standard solid colors 1–7; 8 black; 9–15 stripe of 1–7. */
+const BALL_COLORS = {
+  1: 0xf0c24b,  // yellow
+  2: 0x2a5fd4,  // blue
+  3: 0xc62828,  // red
+  4: 0x6b3fa0,  // purple
+  5: 0xe07020,  // orange
+  6: 0x2e7d32,  // green
+  7: 0x6b1e2a,  // maroon / burgundy
+  8: 0x0a0a0c,  // black
+};
+
+/**
+ * Rack numbers: apex (row 0) = 1, center of row 2 = 8,
+ * back corners one solid + one stripe.
+ * Rows nearest→farthest from camera (apex first).
+ */
+const RACK = [
+  [1],
+  [9, 2],
+  [10, 8, 11],
+  [3, 12, 7, 14],
+  [15, 4, 13, 6, 5],
+];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.92;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#07060a');
+scene.fog = new THREE.Fog('#07060a', 6.5, 16);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 40);
+// Slightly above the felt, looking at the full triangle
+camera.position.set(0, 1.55, 2.85);
+camera.lookAt(0, 0.05, 0.15);
+
+const hemi = new THREE.HemisphereLight(0x3a3550, 0x0a080c, 0.55);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffe8d0, 1.15);
+key.position.set(2.2, 4.8, 3.4);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 16;
+key.shadow.camera.left = -3;
+key.shadow.camera.right = 3;
+key.shadow.camera.top = 3;
+key.shadow.camera.bottom = -3;
+scene.add(key);
+const fill = new THREE.PointLight(0x6a5a90, 18, 12);
+fill.position.set(-2.4, 2.2, 1.5);
+scene.add(fill);
+const rim = new THREE.PointLight(0x204060, 10, 10);
+rim.position.set(0.5, 1.8, -2.5);
+scene.add(rim);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+if ('environmentIntensity' in scene) scene.environmentIntensity = 0.72;
+
+// —— Table dimensions (felt playing surface) ——
+const FELT_W = 2.05;    // X extent
+const FELT_L = 3.35;    // Z extent
+const FELT_Y = 0;
+const FELT_THICK = 0.06;
+const RAIL_H = 0.09;
+const RAIL_T = 0.08;
+
+const feltMat = new THREE.MeshStandardMaterial({
+  color: 0x1a5c38,
+  roughness: 0.88,
+  metalness: 0.02,
+});
+const woodMat = new THREE.MeshStandardMaterial({
+  color: 0x2a1810,
+  roughness: 0.55,
+  metalness: 0.08,
+});
+const woodTopMat = new THREE.MeshStandardMaterial({
+  color: 0x3a2418,
+  roughness: 0.48,
+  metalness: 0.1,
+});
+
+// Felt top
+const feltMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(FELT_W, FELT_THICK, FELT_L),
+  feltMat
+);
+feltMesh.position.y = FELT_Y - FELT_THICK / 2;
+feltMesh.receiveShadow = true;
+scene.add(feltMesh);
+
+// Table apron / under-slab
+const apron = new THREE.Mesh(
+  new THREE.BoxGeometry(FELT_W + 0.22, 0.28, FELT_L + 0.22),
+  woodMat
+);
+apron.position.y = FELT_Y - FELT_THICK - 0.14;
+apron.receiveShadow = true;
+scene.add(apron);
+
+// Four cushion rails (visual)
+function addRail(w, h, d, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodTopMat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+const railY = FELT_Y + RAIL_H / 2;
+const halfW = FELT_W / 2;
+const halfL = FELT_L / 2;
+// Long rails (±X)
+addRail(RAIL_T, RAIL_H, FELT_L + RAIL_T * 2, -halfW - RAIL_T / 2, railY, 0);
+addRail(RAIL_T, RAIL_H, FELT_L + RAIL_T * 2, halfW + RAIL_T / 2, railY, 0);
+// Short rails (±Z)
+addRail(FELT_W, RAIL_H, RAIL_T, 0, railY, -halfL - RAIL_T / 2);
+addRail(FELT_W, RAIL_H, RAIL_T, 0, railY, halfL + RAIL_T / 2);
+
+// Dim room floor under the table
+const roomFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 18),
+  new THREE.MeshStandardMaterial({ color: 0x0c0a10, roughness: 0.95, metalness: 0 })
+);
+roomFloor.rotation.x = -Math.PI / 2;
+roomFloor.position.y = -0.45;
+scene.add(roomFloor);
+
+// —— Physics world (same approach as buildStacking) ——
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+world.allowSleep = true;
+world.defaultContactMaterial.friction = 0.15;
+world.defaultContactMaterial.restitution = 0.4;
+world.solver.iterations = 12;
+
+const matBall = new CANNON.Material('ball');
+const matFelt = new CANNON.Material('felt');
+const matCushion = new CANNON.Material('cushion');
+
+world.addContactMaterial(new CANNON.ContactMaterial(matBall, matBall, {
+  friction: 0.04,
+  restitution: 0.92,
+}));
+world.addContactMaterial(new CANNON.ContactMaterial(matBall, matFelt, {
+  friction: 0.22,
+  restitution: 0.35,
+}));
+world.addContactMaterial(new CANNON.ContactMaterial(matBall, matCushion, {
+  friction: 0.08,
+  restitution: 0.75,
+}));
+
+// Static felt ground (box matching visual top)
+const feltBody = new CANNON.Body({
+  mass: 0,
+  material: matFelt,
+  shape: new CANNON.Box(new CANNON.Vec3(FELT_W / 2, FELT_THICK / 2, FELT_L / 2)),
+  position: new CANNON.Vec3(0, FELT_Y - FELT_THICK / 2, 0),
+});
+world.addBody(feltBody);
+
+// Four cushion bodies
+function addCushionBody(hx, hy, hz, x, y, z) {
+  const body = new CANNON.Body({
+    mass: 0,
+    material: matCushion,
+    shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)),
+    position: new CANNON.Vec3(x, y, z),
+  });
+  world.addBody(body);
+}
+addCushionBody(RAIL_T / 2, RAIL_H / 2, (FELT_L + RAIL_T * 2) / 2, -halfW - RAIL_T / 2, railY, 0);
+addCushionBody(RAIL_T / 2, RAIL_H / 2, (FELT_L + RAIL_T * 2) / 2, halfW + RAIL_T / 2, railY, 0);
+addCushionBody(FELT_W / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, -halfL - RAIL_T / 2);
+addCushionBody(FELT_W / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, halfL + RAIL_T / 2);
+
+function makeNumberTexture(num) {
+  const s = 128;
+  const cnv = document.createElement('canvas');
+  cnv.width = cnv.height = s;
+  const ctx = cnv.getContext('2d');
+  ctx.clearRect(0, 0, s, s);
+  ctx.beginPath();
+  ctx.arc(s / 2, s / 2, s * 0.46, 0, Math.PI * 2);
+  ctx.fillStyle = '#f7f4ee';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(s / 2, s / 2, s * 0.46, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(20,16,12,0.18)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = num === 8 ? '#111114' : '#1a1520';
+  ctx.font = 'bold 64px "Bricolage Grotesque", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(num), s / 2, s / 2 + 2);
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function ballBaseColor(num) {
+  if (num >= 9) return 0xf4f0e8; // striped: white body
+  return BALL_COLORS[num];
+}
+
+function stripeColor(num) {
+  return BALL_COLORS[num - 8];
+}
+
+function makeBallMesh(num) {
+  const group = new THREE.Group();
+  const isStripe = num >= 9;
+  const isEight = num === 8;
+
+  const bodyMat = new THREE.MeshPhysicalMaterial({
+    color: ballBaseColor(num),
+    roughness: isEight ? 0.22 : 0.14,
+    metalness: 0.02,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 1.05,
+  });
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_R, 40, 32),
+    bodyMat
+  );
+  sphere.castShadow = true;
+  sphere.receiveShadow = true;
+  group.add(sphere);
+
+  if (isStripe) {
+    // Equatorial band as a latitude slice of a slightly larger sphere (child, not a photo texture)
+    const band = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        BALL_R * 1.004,
+        40,
+        16,
+        0,
+        Math.PI * 2,
+        Math.PI * 0.38,
+        Math.PI * 0.24
+      ),
+      new THREE.MeshPhysicalMaterial({
+        color: stripeColor(num),
+        roughness: 0.16,
+        metalness: 0.02,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.14,
+        envMapIntensity: 1.0,
+      })
+    );
+    band.castShadow = true;
+    group.add(band);
+  }
+
+  // Number discs — CircleGeometry children, opposite sides, roll with the ball
+  const discR = BALL_R * 0.32;
+  const numTex = makeNumberTexture(num);
+  const discMat = new THREE.MeshBasicMaterial({
+    map: numTex,
+    transparent: true,
+    depthWrite: false,
+  });
+  const discGeo = new THREE.CircleGeometry(discR, 28);
+  const d1 = new THREE.Mesh(discGeo, discMat);
+  const d2 = new THREE.Mesh(discGeo, discMat.clone());
+  const lift = BALL_R * 1.002;
+  d1.position.set(0, 0, lift);
+  d2.position.set(0, 0, -lift);
+  d2.rotation.y = Math.PI;
+  group.add(d1);
+  group.add(d2);
+
+  // Orient so a number face is roughly readable at rest (stripe band equatorial)
+  if (isStripe) {
+    // Band already around Y-up equator; numbers on ±Z — rotate so band is vertical-ish relative to table? Keep as-is.
+  }
+
+  return group;
+}
+
+function syncMesh(mesh, body) {
+  mesh.position.copy(body.position);
+  mesh.quaternion.copy(body.quaternion);
+}
+
+// Place rack: apex nearest camera (+Z), pointing toward +Z
+const rackCenterZ = 0.55; // triangle center-ish on table
+const apexZ = rackCenterZ + 2 * ROW_GAP; // row 0 toward camera
+const ballY = FELT_Y + BALL_R + 0.001;
+
+const balls = [];
+let apexBall = null;
+
+for (let row = 0; row < RACK.length; row++) {
+  const nums = RACK[row];
+  const n = nums.length;
+  const z = apexZ - row * ROW_GAP;
+  const x0 = -((n - 1) * BALL_D) / 2;
+  for (let col = 0; col < n; col++) {
+    const num = nums[col];
+    const x = x0 + col * BALL_D;
+    const mesh = makeBallMesh(num);
+    mesh.position.set(x, ballY, z);
+    // Slight random yaw so numbers aren't all identical orientation
+    mesh.rotation.y = ((num * 37) % 360) * (Math.PI / 180);
+    scene.add(mesh);
+
+    const body = new CANNON.Body({
+      mass: BALL_MASS,
+      material: matBall,
+      shape: new CANNON.Sphere(BALL_R),
+      position: new CANNON.Vec3(x, ballY, z),
+      linearDamping: 0.28,
+      angularDamping: 0.32,
+      sleepSpeedLimit: 0.12,
+      sleepTimeLimit: 0.4,
+    });
+    // Match visual yaw
+    body.quaternion.setFromEuler(0, mesh.rotation.y, 0);
+    world.addBody(body);
+
+    const entry = { mesh, body, num };
+    balls.push(entry);
+    if (num === 1) apexBall = entry;
+  }
+}
+
+if (balls.length !== 15) {
+  console.error('[eight-ball] expected 15 balls, got', balls.length);
+}
+
+// —— Interaction: click break into apex, or drag a ball ——
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ballY);
+const hit = new THREE.Vector3();
+const prevHit = new THREE.Vector3();
+let pointerDown = false;
+let broke = false;
+let grabbed = null;
+let grabOffset = new THREE.Vector3();
+let throwVel = new THREE.Vector3();
+let lastSampleT = 0;
+
+const canvasEl = renderer.domElement;
+canvasEl.style.cursor = 'crosshair';
+
+function setNDC(e) {
+  const rect = canvasEl.getBoundingClientRect();
+  const w = Math.max(1, rect.width);
+  const h = Math.max(1, rect.height);
+  ndc.x = ((e.clientX - rect.left) / w) * 2 - 1;
+  ndc.y = -((e.clientY - rect.top) / h) * 2 + 1;
+}
+
+function pickBall() {
+  raycaster.setFromCamera(ndc, camera);
+  // Raycast against sphere children
+  const targets = [];
+  for (const b of balls) {
+    b.mesh.traverse((o) => {
+      if (o.isMesh && o.geometry && o.geometry.type === 'SphereGeometry') targets.push(o);
+    });
+  }
+  const hits = raycaster.intersectObjects(targets, false);
+  if (hits.length) {
+    let obj = hits[0].object;
+    while (obj && !balls.find((b) => b.mesh === obj)) obj = obj.parent;
+    return balls.find((b) => b.mesh === obj) || null;
+  }
+  if (!raycaster.ray.intersectPlane(tablePlane, hit)) return null;
+  let best = null;
+  let bestD = BALL_R * 2.2;
+  for (const b of balls) {
+    const d = Math.hypot(b.body.position.x - hit.x, b.body.position.z - hit.z);
+    if (d < bestD) { bestD = d; best = b; }
+  }
+  return best;
+}
+
+function breakRack() {
+  if (!apexBall) return;
+  for (const b of balls) b.body.wakeUp();
+  // Impulse into the apex along the table (−Z into the rack), slight lateral scatter
+  const side = (Math.random() - 0.5) * 0.35;
+  apexBall.body.applyImpulse(
+    new CANNON.Vec3(side, 0, -1.85),
+    new CANNON.Vec3(0, 0, 0)
+  );
+  // Tiny nudge on neighbors so the rack unlocks cleanly
+  for (const b of balls) {
+    if (b === apexBall) continue;
+    if (Math.hypot(b.body.position.x - apexBall.body.position.x,
+                   b.body.position.z - apexBall.body.position.z) < BALL_D * 2.2) {
+      b.body.applyImpulse(
+        new CANNON.Vec3((Math.random() - 0.5) * 0.08, 0, (Math.random() - 0.5) * 0.06),
+        new CANNON.Vec3(0, 0, 0)
+      );
+    }
+  }
+  broke = true;
+}
+
+function onPointerDown(e) {
+  setNDC(e);
+  pointerDown = true;
+  try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+  const picked = pickBall();
+  if (picked) {
+    grabbed = picked;
+    grabbed.body.wakeUp();
+    grabbed.body.velocity.set(0, 0, 0);
+    grabbed.body.angularVelocity.set(0, 0, 0);
+    raycaster.setFromCamera(ndc, camera);
+    if (raycaster.ray.intersectPlane(tablePlane, hit)) {
+      grabOffset.set(
+        grabbed.body.position.x - hit.x,
+        0,
+        grabbed.body.position.z - hit.z
+      );
+      prevHit.copy(hit);
+      throwVel.set(0, 0, 0);
+      lastSampleT = performance.now();
+    }
+    canvasEl.style.cursor = 'grabbing';
+  } else if (!broke) {
+    breakRack();
+  } else {
+    // Subsequent empty clicks: re-break into whoever is near apex position, or the 1-ball
+    breakRack();
+  }
+}
+
+function onPointerMove(e) {
+  setNDC(e);
+  if (!grabbed || !pointerDown) return;
+  raycaster.setFromCamera(ndc, camera);
+  if (!raycaster.ray.intersectPlane(tablePlane, hit)) return;
+  const now = performance.now();
+  const sampleDt = Math.max(0.008, (now - lastSampleT) / 1000);
+  throwVel.set(
+    (hit.x - prevHit.x) / sampleDt,
+    0,
+    (hit.z - prevHit.z) / sampleDt
+  );
+  prevHit.copy(hit);
+  lastSampleT = now;
+  const tx = hit.x + grabOffset.x;
+  const tz = hit.z + grabOffset.z;
+  const margin = BALL_R + 0.02;
+  grabbed.body.wakeUp();
+  grabbed.body.position.x = THREE.MathUtils.clamp(tx, -halfW + margin, halfW - margin);
+  grabbed.body.position.y = ballY;
+  grabbed.body.position.z = THREE.MathUtils.clamp(tz, -halfL + margin, halfL - margin);
+  grabbed.body.velocity.set(0, 0, 0);
+  grabbed.body.angularVelocity.set(0, 0, 0);
+}
+
+function onPointerUp() {
+  if (grabbed) {
+    grabbed.body.wakeUp();
+    const speed = Math.hypot(throwVel.x, throwVel.z);
+    if (speed > 0.15) {
+      const boost = Math.min(2.4, 0.35 + speed * 0.22);
+      const nx = throwVel.x / speed;
+      const nz = throwVel.z / speed;
+      // Horizontal shove only — do not explode upward
+      grabbed.body.applyImpulse(
+        new CANNON.Vec3(nx * boost, 0, nz * boost),
+        new CANNON.Vec3(0, 0, 0)
+      );
+    }
+  }
+  grabbed = null;
+  pointerDown = false;
+  canvasEl.style.cursor = 'crosshair';
+}
+
+canvasEl.addEventListener('pointerdown', onPointerDown, { passive: true });
+canvasEl.addEventListener('pointermove', onPointerMove, { passive: true });
+canvasEl.addEventListener('pointerup', onPointerUp, { passive: true });
+canvasEl.addEventListener('pointercancel', onPointerUp, { passive: true });
+
+function resize() {
+  camera.aspect = innerWidth / Math.max(1, innerHeight);
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize);
+
+const clock = new THREE.Clock();
+
+function frame() {
+  clock.getDelta();
+  if (!grabbed) {
+    world.fixedStep();
+  } else {
+    // Still step contacts lightly while holding so others can settle
+    world.fixedStep();
+  }
+  for (const b of balls) {
+    // Keep balls from tunneling under felt
+    if (b.body.position.y < ballY - 0.02) {
+      b.body.position.y = ballY;
+      if (b.body.velocity.y < 0) b.body.velocity.y *= -0.2;
+    }
+    syncMesh(b.mesh, b.body);
+  }
+  key.intensity = 1.1 + Math.sin(clock.elapsedTime * 0.45) * 0.04;
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
