@@ -82,125 +82,77 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
-// The Hobbit — successive short opening phrases (click stamps & advances)
-const phrases = [
-  'In a hole in the ground there lived a hobbit.',
-  'Not a nasty, dirty, wet hole…',
-  '…filled with the ends of worms and an oozy smell…',
-  '…nor yet a dry, bare, sandy hole…',
-  '…it was a hobbit-hole, and that means comfort.',
-  'It had a perfectly round door like a porthole…',
-  '…painted green, with a shiny yellow brass knob…',
-  'This hobbit was a very well-to-do hobbit…',
-  '…and his name was Baggins.'
+// Googly-eye decals — successive drawn eyes (click stamps & advances)
+const eyes = [
+  { pair: false, gaze: [-0.55, 0.12], sclera: 0.74 },
+  { pair: false, gaze: [0.62, -0.18], sclera: 0.8 },
+  { pair: false, gaze: [0.04, 0.72], sclera: 0.66 },
+  { pair: false, gaze: [-0.22, -0.68], sclera: 0.86 },
+  { pair: true, gaze: [-0.48, 0.22], sclera: 0.58 },
+  { pair: true, gaze: [0.52, -0.16], sclera: 0.62 },
+  { pair: true, gaze: [0.06, 0.58], sclera: 0.54 },
+  { pair: true, gazeL: [-0.72, 0.08], gazeR: [0.66, -0.1], sclera: 0.6 },
+  { pair: false, gaze: [0.38, 0.34], sclera: 0.92 }
 ];
-const DEFAULT_PHRASE = phrases[0];
-let phraseIndex = 0;
+let eyeIndex = 0;
 
-function currentPhrase() {
-  return phrases[phraseIndex] || DEFAULT_PHRASE;
+function setEyeIndex(i) {
+  if (!eyes.length) return;
+  eyeIndex = ((i % eyes.length) + eyes.length) % eyes.length;
 }
-function setPhraseIndex(i) {
-  if (!phrases.length) return;
-  phraseIndex = ((i % phrases.length) + phrases.length) % phrases.length;
-}
-function nextPhrase() { setPhraseIndex(phraseIndex + 1); }
-function prevPhrase() { setPhraseIndex(phraseIndex - 1); }
+function nextEye() { setEyeIndex(eyeIndex + 1); }
+function prevEye() { setEyeIndex(eyeIndex - 1); }
 
 const textureCache = new Map();
 
-function wrapLines(ctx, text, maxWidth, maxLines = 3) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    const trial = line ? line + ' ' + word : word;
-    if (ctx.measureText(trial).width <= maxWidth) {
-      line = trial;
-    } else {
-      if (line) lines.push(line);
-      line = word;
-      if (lines.length >= maxLines - 1) break;
-    }
-  }
-  if (lines.length < maxLines && line) {
-    // if we stopped early because maxLines, append remaining as truncated last line
-    if (lines.length === maxLines - 1) {
-      const rest = words.slice(words.indexOf(line)).join(' ');
-      let last = rest;
-      while (ctx.measureText(last + '…').width > maxWidth && last.length > 4) {
-        last = last.slice(0, -1);
-      }
-      if (ctx.measureText(rest).width > maxWidth) last = last.replace(/\s+\S*$/, '') + '…';
-      lines.push(last);
-    } else {
-      lines.push(line);
-    }
-  }
-  // leftover beyond maxLines → ensure last ends with …
-  if (words.length && lines.join(' ') !== text && !lines[lines.length - 1]?.endsWith('…')) {
-    const last = lines[lines.length - 1] || '';
-    let t = last;
-    while (ctx.measureText(t + '…').width > maxWidth && t.length > 4) t = t.slice(0, -1);
-    lines[lines.length - 1] = t.replace(/\s+\S*$/, '').trimEnd() + '…';
-  }
-  return lines.length ? lines : [text];
+function drawGooglyEye(ctx, cx, cy, r, gx, gy) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fill();
+  ctx.lineWidth = Math.max(3, r * 0.07);
+  ctx.strokeStyle = '#12141a';
+  ctx.stroke();
+
+  const maxOff = r * 0.42;
+  const px = cx + Math.max(-1, Math.min(1, gx)) * maxOff;
+  const py = cy + Math.max(-1, Math.min(1, gy)) * maxOff;
+  const pr = r * 0.46;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI * 2);
+  ctx.fillStyle = '#16181e';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(px - pr * 0.32, py - pr * 0.34, Math.max(2, pr * 0.26), 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
 }
 
-function makePhraseTexture(phrase) {
-  const key = phrase;
-  if (textureCache.has(key)) return textureCache.get(key);
+function makeEyeTexture(index) {
+  const eye = eyes[index];
+  if (textureCache.has(index)) return textureCache.get(index);
   const size = 512;
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
   const ctx = c.getContext('2d');
   ctx.clearRect(0, 0, size, size);
-  const pad = 28;
-  ctx.fillStyle = 'rgba(8,10,16,0.62)';
-  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 36);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(240,194,75,0.55)';
-  ctx.lineWidth = 4;
-  roundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, 36);
-  ctx.stroke();
-
-  ctx.fillStyle = '#f0c24b';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const maxW = size - pad * 2 - 36;
-  let fontSize = phrase.length < 28 ? 42 : phrase.length < 48 ? 34 : 28;
-  let lines;
-  do {
-    ctx.font = `600 ${fontSize}px Georgia, "Times New Roman", serif`;
-    lines = wrapLines(ctx, phrase, maxW, 3);
-    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
-    if (widest <= maxW || fontSize <= 20) break;
-    fontSize -= 2;
-  } while (fontSize > 18);
-
-  const lineH = fontSize * 1.25;
-  const blockH = lines.length * lineH;
-  let y = size / 2 - blockH / 2 + lineH / 2;
-  for (const line of lines) {
-    ctx.fillText(line, size / 2, y);
-    y += lineH;
+  const base = size * (eye.sclera || 0.7) * 0.42;
+  if (eye.pair) {
+    const gap = base * 1.15;
+    const r = base * 0.72;
+    const gL = eye.gazeL || eye.gaze;
+    const gR = eye.gazeR || eye.gaze;
+    drawGooglyEye(ctx, size / 2 - gap, size / 2, r, gL[0], gL[1]);
+    drawGooglyEye(ctx, size / 2 + gap, size / 2, r, gR[0], gR[1]);
+  } else {
+    drawGooglyEye(ctx, size / 2, size / 2, base, eye.gaze[0], eye.gaze[1]);
   }
-
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
-  textureCache.set(key, tex);
+  textureCache.set(index, tex);
   return tex;
-}
-function roundRect(ctx, x, y, w, h, r) {
-  const rr = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.arcTo(x + w, y, x + w, y + h, rr);
-  ctx.arcTo(x + w, y + h, x, y + h, rr);
-  ctx.arcTo(x, y + h, x, y, rr);
-  ctx.arcTo(x, y, x + w, y, rr);
-  ctx.closePath();
 }
 
 const decals = [];
@@ -222,15 +174,13 @@ const ptr = new THREE.Vector2();
 const mouseHelper = new THREE.Object3D();
 
 function stamp(intersect) {
-  const phrase = currentPhrase();
-  const map = makePhraseTexture(phrase);
+  const map = makeEyeTexture(eyeIndex);
   const n = intersect.face.normal.clone();
   n.transformDirection(target.matrixWorld);
   n.multiplyScalar(10); n.add(intersect.point);
   mouseHelper.position.copy(intersect.point);
   mouseHelper.lookAt(n);
-  // larger than single-word blobs so opening lines stay readable
-  const size = 0.72 + Math.random() * 0.12;
+  const size = 0.48 + (eyes[eyeIndex].sclera || 0.7) * 0.28 + Math.random() * 0.08;
   const mat = new THREE.MeshStandardMaterial({
     ...decalMatBase,
     map
@@ -240,7 +190,7 @@ function stamp(intersect) {
     mat
   );
   scene.add(m); decals.push(m);
-  nextPhrase();
+  nextEye();
 }
 
 function clearDecals() {
@@ -316,11 +266,11 @@ if (typeof ResizeObserver !== 'undefined') {
 
 // Silent keyboard cycle (no on-screen language chrome)
 addEventListener('keydown', (e) => {
-  if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextPhrase(); return; }
-  if (e.key === '[') { prevPhrase(); return; }
+  if (e.key === 'n' || e.key === 'N' || e.key === ']') { nextEye(); return; }
+  if (e.key === '[') { prevEye(); return; }
   if (e.key >= '1' && e.key <= '9') {
     const i = parseInt(e.key, 10) - 1;
-    if (i < phrases.length) setPhraseIndex(i);
+    if (i < eyes.length) setEyeIndex(i);
   }
 });
 
