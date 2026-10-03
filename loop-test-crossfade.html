@@ -3,86 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Wormhole bed · equal-power crossfade loop</title>
+<title>Wormhole bed · loop</title>
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; background: #05060a; color: #f2ebe0; }
-  body {
-    font-family: "Instrument Sans", system-ui, sans-serif;
-    display: grid; place-items: center; text-align: center;
-  }
-  main { max-width: 36rem; padding: 24px; }
-  p { letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; opacity: 0.7; }
-  h1 { font-weight: 500; font-size: 1.4rem; letter-spacing: 0.02em; }
-  #state { margin-top: 1.5rem; font-variant-numeric: tabular-nums; }
+  body { font-family: system-ui, sans-serif; display: grid; place-items: center; text-align: center; }
+  main { padding: 24px; }
+  h1 { font-weight: 500; font-size: 1.3rem; }
+  audio { width: min(90vw, 28rem); margin-top: 1.5rem; }
 </style>
 </head>
 <body>
 <main>
-  <p>Noctuary · loop test</p>
-  <h1>Four-chord bed, 40&nbsp;ms equal-power crossfade</h1>
-  <div id="state">Loading…</div>
+  <h1>Tap the player</h1>
+  <audio controls loop playsinline preload="auto" src="demo-assets/audio/wormhole-loop.mp3?v=player1"></audio>
 </main>
-<script>
-(() => {
-  const BED = "demo-assets/audio/wormhole-loop.wav?v=tap1";
-  const state = document.getElementById("state");
-  let started = false;
-  let pcm = null;
-
-  function wavToFloat(buf) {
-    const v = new DataView(buf);
-    if (v.getUint32(0, false) !== 0x52494646) throw new Error("not a wav");
-    let off = 12;
-    let rate = 44100, channels = 1, bits = 16, dataOff = 0, dataLen = 0;
-    while (off + 8 <= v.byteLength) {
-      const id = String.fromCharCode(v.getUint8(off), v.getUint8(off+1), v.getUint8(off+2), v.getUint8(off+3));
-      const size = v.getUint32(off + 4, true);
-      if (id === "fmt ") {
-        channels = v.getUint16(off + 8, true);
-        rate = v.getUint32(off + 12, true);
-        bits = v.getUint16(off + 22, true);
-      } else if (id === "data") {
-        dataOff = off + 8;
-        dataLen = size;
-        break;
-      }
-      off += 8 + size + (size % 2);
-    }
-    if (!dataLen || bits !== 16 || channels !== 1) throw new Error("need 16-bit mono wav");
-    const n = dataLen / 2;
-    const out = new Float32Array(n);
-    for (let i = 0; i < n; i++) out[i] = v.getInt16(dataOff + i * 2, true) / 32768;
-    return { samples: out, rate };
-  }
-
-  const ready = fetch(BED).then((r) => {
-    if (!r.ok) throw new Error("fetch " + r.status);
-    return r.arrayBuffer();
-  }).then((ab) => {
-    pcm = wavToFloat(ab);
-    state.textContent = "Tap to play";
-  }).catch((err) => {
-    state.textContent = "Could not load";
-    console.error(err);
-  });
-
-  const el = new Audio(BED);
-  el.loop = true;
-  el.preload = "auto";
-  el.setAttribute("playsinline", "");
-
-  function start() {
-    if (started) return;
-    started = true;
-    // Must be the tap itself. A promise callback is too late for iOS.
-    const play = el.play();
-    if (play && play.catch) play.catch(() => { started = false; state.textContent = "Tap again"; });
-    state.textContent = "Playing";
-  }
-
-  window.addEventListener("pointerdown", start);
-})();
-</script>
 </body>
 </html>
