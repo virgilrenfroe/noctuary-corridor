@@ -67,8 +67,8 @@
 </style>
 </head>
 <body>
-<div class="name" id="name">Velvet<span>drag it aside to pass</span></div>
-<div class="hint"><span class="desk">drag the cloth aside · WASD walk</span><span class="mob">drag the cloth aside · pad walk</span></div>
+<div class="name" id="name">Velvet<span>deep pile</span></div>
+<div class="hint"><span class="desk">pull a point · WASD walk</span><span class="mob">pull a point · pad walk</span></div>
 <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
   <div class="pad-base"></div>
   <div class="pad-cross" aria-hidden="true"></div>
@@ -301,6 +301,11 @@ function stepCloth(cloth, dt) {
     p.pos.z += vz * 0.985 + Math.sin(cloth.t * 0.85 + x * 0.4) * windAmp * falloff * dt * dt * 12;
     if (p.pos.y < 0.08) { p.pos.y = 0.08; p.prev.y = p.pos.y; }
   }
+  if (grab && grab.cloth === cloth) {
+    const held = parts[grab.index];
+    held.pos.copy(grab.target);
+    held.prev.copy(grab.target);
+  }
   for (let iter = 0; iter < 4; iter++) {
     for (const c of cloth.constraints) {
       const pa = parts[c.a];
@@ -309,7 +314,6 @@ function stepCloth(cloth, dt) {
       const dy = pb.pos.y - pa.pos.y;
       const dz = pb.pos.z - pa.pos.z;
       const dist = Math.hypot(dx, dy, dz) || 0.0001;
-      if (cloth.settled && dist > c.rest * 1.55) c.rest = c.rest * 0.65 + dist * 0.35;
       const diff = (dist - c.rest) / dist;
       const ox = dx * 0.5 * diff, oy = dy * 0.5 * diff, oz = dz * 0.5 * diff;
       if (!pa.pinned) { pa.pos.x += ox; pa.pos.y += oy; pa.pos.z += oz; }
@@ -388,7 +392,8 @@ function placeGrab(e) {
   raycaster.setFromCamera(ndc, camera);
   grabPlane.set(new THREE.Vector3(0, 0, 1), -grab.cloth.group.position.z);
   if (!raycaster.ray.intersectPlane(grabPlane, hit)) return;
-  grab.cloth.group.position.x = Math.max(-1.35, Math.min(1.35, grab.baseX + (hit.x - grab.pointerX)));
+  grab.cloth.group.worldToLocal(hit);
+  grab.target.copy(hit);
 }
 renderer.domElement.addEventListener('pointerdown', (e) => {
   pointerNdc(e);
@@ -396,7 +401,13 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   const hits = raycaster.intersectObjects(cloths.filter(c => c.live).map(c => c.mesh), false);
   if (hits.length) {
     const cloth = cloths.find(c => c.mesh === hits[0].object);
-    grab = { cloth, pointerX: hits[0].point.x, baseX: cloth.group.position.x };
+    const local = cloth.group.worldToLocal(hits[0].point.clone());
+    let bestI = 0, bestD = Infinity;
+    cloth.particles.forEach((p, i) => {
+      const d = p.pos.distanceTo(local);
+      if (d < bestD) { bestD = d; bestI = i; }
+    });
+    grab = { cloth, index: bestI, target: local.clone() };
     looking = false;
     renderer.domElement.setPointerCapture(e.pointerId);
     return;
@@ -413,12 +424,6 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   pitch = Math.max(-0.7, Math.min(0.6, pitch));
   lx = e.clientX; ly = e.clientY;
 });
-function gapOpen(cloth, x) {
-  const left = cloth.group.position.x - CLOTH_HALF;
-  const right = cloth.group.position.x + CLOTH_HALF;
-  return x < left + 0.25 || x > right - 0.25;
-}
-
 const endZ = cloths[cloths.length - 1].group.position.z + 3;
 let shown = -1;
 const clock = new THREE.Clock();
@@ -430,12 +435,6 @@ function frame() {
   const sp = 3.1 * dt;
   let nx = camera.position.x + (Math.sin(yaw) * forward + Math.cos(yaw) * strafe) * sp;
   let nz = camera.position.z + (Math.cos(yaw) * forward - Math.sin(yaw) * strafe) * sp;
-  if (nz > camera.position.z) {
-    for (const cloth of cloths) {
-      const planeZ = cloth.group.position.z;
-      if (camera.position.z < planeZ - 0.35 && nz > planeZ - 0.35 && !gapOpen(cloth, nx)) nz = planeZ - 0.42;
-    }
-  }
   camera.position.x = nx;
   camera.position.z = nz;
   camera.position.x = Math.max(-1.55, Math.min(1.55, camera.position.x));
