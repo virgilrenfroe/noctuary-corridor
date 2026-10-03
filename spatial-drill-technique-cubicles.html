@@ -393,12 +393,13 @@
         analyser.smoothingTimeConstant = 0.25;
         analyser.minDecibels = -84;
         analyser.maxDecibels = -10;
-        // Series: gain → analyser → destination (analyser cannot steal speakers)
+        // Fan-out. Analyser is a tap for the bass pulse only. Routing speakers
+        // through the analyser left the foyer silent while the beats still moved.
+        gain.connect(ctx.destination);
         gain.connect(analyser);
-        analyser.connect(ctx.destination);
         freqData = new Uint8Array(analyser.frequencyBinCount);
         graphWired = true;
-        console.info('[cubicles] ambient Gain+Analyser series wired (speakers)');
+        console.info('[cubicles] ambient gain → speakers and analyser (tap)');
         return true;
       } catch (err) {
         console.warn('[cubicles] Web Audio wire failed — element.volume path', err);
