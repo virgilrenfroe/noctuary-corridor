@@ -142,6 +142,36 @@ ceiling.rotation.x = Math.PI / 2;
 ceiling.position.set(0, 3.35, length / 2 - 2);
 scene.add(ceiling);
 
+const brass = new THREE.MeshStandardMaterial({ color: 0xd7b56a, roughness: 0.22, metalness: 0.92 });
+const glow = new THREE.MeshBasicMaterial({ color: 0xffe0a8 });
+function addSconce(side, z) {
+  const g = new THREE.Group();
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 0.28), brass);
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.22, 8), brass);
+  arm.rotation.z = Math.PI / 2;
+  arm.position.x = -side * 0.12;
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.09, 12), brass);
+  cup.position.set(-side * 0.24, -0.04, 0);
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), glow);
+  flame.position.set(-side * 0.24, 0.06, 0);
+  const wash = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42, 20),
+    new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.45, depthWrite: false })
+  );
+  wash.position.set(side * 0.02, 0, 0);
+  wash.rotation.y = -side * Math.PI / 2;
+  const light = new THREE.PointLight(0xffb070, 18, 7.5, 2);
+  light.position.copy(flame.position);
+  g.add(plate, arm, cup, flame, wash, light);
+  g.position.set(side * 1.9, 1.7, z);
+  scene.add(g);
+}
+for (let i = 0; i < FABRICS.length; i++) {
+  const z = 2.4 + i * SPACING - 0.35;
+  addSconce(-1, z);
+  addSconce(1, z);
+}
+
 function weaveTexture(fabric) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
