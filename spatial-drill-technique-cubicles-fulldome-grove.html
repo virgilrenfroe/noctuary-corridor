@@ -239,10 +239,11 @@
 <script>
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// One audible loop: a single AudioBufferSourceNode at gain 0.46.
-// The foyer pointer or key calls resume() and source.start() in that turn.
-// The source feeds one GainNode. That gain connects to context.destination
-// (speakers) and to the bass analyser (knuckle pulse). Nothing else plays.
+// Desktop: one AudioBufferSourceNode at gain 0.46. The foyer pointer or key
+// calls resume() and source.start() in that turn. The element is not played.
+// iPhone/iPad: the buffer stays silent, so the element is the only speaker.
+// play() runs in the gesture, then one MediaElementSource into the same gain
+// (destination + analyser). The buffer source is not started on that path.
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4bar10';
@@ -265,6 +266,27 @@
     let bassSmooth = 0;
     let bassFloor = 0;
     let decodePromise = null;
+    let elementLatched = false;
+    let elementSrcWired = false;
+
+    function isIOS() {
+      const ua = navigator.userAgent || '';
+      return /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    // Present on every browser. play() is only called on iOS.
+    const el = new Audio();
+    el.preload = 'auto';
+    el.loop = true;
+    el.playbackRate = 1;
+    el.defaultPlaybackRate = 1;
+    try { el.preservesPitch = true; } catch {}
+    el.volume = VOL;
+    el.setAttribute('playsinline', '');
+    el.crossOrigin = 'anonymous';
+    el.src = SRC;
+    try { el.load(); } catch {}
 
     function ensureAudioCtx() {
       if (audioCtx || graphFailed) return audioCtx;
@@ -289,6 +311,8 @@
     }
 
     function kickDecode() {
+      // Do not construct the live context at load on iOS. The gesture creates it.
+      if (isIOS()) return null;
       if (buffer || decodePromise) return decodePromise;
       const ctx = ensureAudioCtx();
       if (!ctx) return null;
@@ -301,7 +325,7 @@
         .then((buf) => {
           buffer = buf;
           console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
-          if (startArmed) startOnce();
+          if (startArmed && !isIOS()) startOnce();
           return buf;
         })
         .catch((err) => {
@@ -344,7 +368,7 @@
 
     // One looping source. A second call is a no-op.
     function startOnce() {
-      if (bufferSource || started) return false;
+      if (isIOS() || bufferSource || started || elementSrcWired) return false;
       const ctx = audioCtx;
       if (!ctx || !buffer) return false;
       if (!wireOnce() || !gain) return false;
@@ -370,6 +394,60 @@
       console.info('[cubicles] wormhole ambient playing (one buffer, gain=' + VOL + ')');
       try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
       return true;
+    }
+
+    // iOS only. play() is synchronous in the gesture, before any await.
+    // MediaElementSource is the only graph output. No buffer source.
+    function startElementSpeaker() {
+      if (elementLatched) {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        if (el.paused || el.ended) {
+          try { el.play(); } catch {}
+        }
+        return;
+      }
+      elementLatched = true;
+      try { el.loop = true; el.volume = VOL; } catch {}
+      let p;
+      try { p = el.play(); }
+      catch (err) {
+        elementLatched = false;
+        console.warn('[cubicles] ambient element play threw', err);
+        return;
+      }
+      if (p && p.catch) p.catch((err) => console.warn('[cubicles] ambient element play blocked', err));
+      const ctx = ensureAudioCtx();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      try {
+        if (!graphWired) {
+          gain = ctx.createGain();
+          // Element volume is already VOL. Do not attenuate a second time.
+          gain.gain.value = 1;
+          analyser = ctx.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.25;
+          analyser.minDecibels = -84;
+          analyser.maxDecibels = -10;
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+          gain.connect(ctx.destination);
+          gain.connect(analyser);
+          graphWired = true;
+        }
+        if (!elementSrcWired) {
+          const mes = ctx.createMediaElementSource(el);
+          mes.connect(gain);
+          elementSrcWired = true;
+        }
+      } catch (err) {
+        console.warn('[cubicles] element graph failed — direct element output', err);
+      }
+      started = true;
+      mode = 'element';
+      console.info('[cubicles] wormhole ambient playing (one element, vol=' + VOL + ')');
+      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
     }
 
     function sampleBass() {
@@ -399,6 +477,10 @@
     // First foyer pointer or key: resume and start in this turn when the
     // buffer is already decoded. Later clicks only resume the same context.
     function tryPlay() {
+      if (isIOS()) {
+        startElementSpeaker();
+        return;
+      }
       const ctx = ensureAudioCtx();
       if (!ctx) return;
       resumeCtx();
@@ -414,7 +496,7 @@
     kickDecode();
 
     window.__wormholeAmbient = {
-      audio: null, audioB: null, tryPlay, vol: VOL,
+      audio: el, audioB: null, tryPlay, vol: VOL,
       bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
@@ -429,6 +511,7 @@
     document.addEventListener('keydown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
+        if (mode === 'element') { try { el.pause(); } catch {} }
         if (audioCtx && audioCtx.state === 'running') {
           try { audioCtx.suspend(); } catch {}
         }
