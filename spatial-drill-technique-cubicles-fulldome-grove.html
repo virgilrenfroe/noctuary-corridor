@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambstable1" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambstable2" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -299,10 +299,12 @@
 // Prefer AudioBufferSource loop when decode is ready at gesture; else one HTMLAudioElement.
 // NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
 // playbackRate locked to 1. Gain clamped via setTargetAtTime. Analyser in series for water beat.
-// Loop trims to 8 bars @ 96 BPM (20.000s) so the seam is the musical 1→4 phrase boundary.
+// Bed is 8 bars @ 96 BPM. The file crossfades the tail into the head so a hard loop meets.
+// Loop the whole decoded buffer when it is only slightly past 20.000s (~36ms of pad).
+// Clamping that to LOOP_LEN cuts the smoothed tail and brings the click back.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambstable1';
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambstable2';
     const VOL = 0.46;
     const VOL_MAX = 0.55;
     const BPM = 96;
@@ -469,7 +471,10 @@
       src.buffer = buffer;
       src.loop = true;
       src.playbackRate.value = 1; // hard lock — no tempo/pitch drift
-      const end = Math.min(LOOP_LEN, Math.max(0.5, buffer.duration));
+      const dur = Math.max(0.5, buffer.duration);
+      // Whole smoothed buffer if decode is only a pad past 8 bars. Cutting
+      // at LOOP_LEN drops ~36ms and reopens the seam.
+      const end = (dur > LOOP_LEN && dur - LOOP_LEN < 0.08) ? dur : Math.min(LOOP_LEN, dur);
       src.loopStart = 0;
       src.loopEnd = end;
       src.connect(gain);
@@ -682,7 +687,7 @@
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, ambstable1)',
+    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, ambstable2)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
