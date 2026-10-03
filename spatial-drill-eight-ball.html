@@ -34,8 +34,8 @@
 </style>
 </head>
 <body>
-<div class="name">Eight-ball<span>fifteen · break</span></div>
-<div class="hint">click to break</div>
+<div class="name">Eight-ball<span>sixteen · break</span></div>
+<div class="hint">click or drag the cue ball to break</div>
 
 <script type="importmap">
 {
@@ -71,7 +71,7 @@ const BALL_COLORS = {
 /**
  * Rack numbers: apex (row 0) = 1, center of row 2 = 8,
  * back corners one solid + one stripe.
- * Rows nearest→farthest from camera (apex first).
+ * Rows apex→foot: apex (row 0) points toward the cue ball at +Z.
  */
 const RACK = [
   [1],
@@ -96,9 +96,9 @@ scene.background = new THREE.Color('#07060a');
 scene.fog = new THREE.Fog('#07060a', 6.5, 16);
 
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 40);
-// Slightly above the felt, looking at the full triangle
-camera.position.set(0, 1.55, 2.85);
-camera.lookAt(0, 0.05, 0.15);
+// Cue end is +Z. Camera sits behind the head spot, looking down the table at the rack.
+camera.position.set(0, 1.32, 2.46);
+camera.lookAt(0, 0.0, -0.4);
 
 const hemi = new THREE.HemisphereLight(0x3a3550, 0x0a080c, 0.55);
 scene.add(hemi);
@@ -166,7 +166,7 @@ apron.position.y = FELT_Y - FELT_THICK - 0.14;
 apron.receiveShadow = true;
 scene.add(apron);
 
-// Four cushion rails (visual)
+// Cushion rails with openings at six pockets (visual)
 function addRail(w, h, d, x, y, z) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodTopMat);
   mesh.position.set(x, y, z);
@@ -178,12 +178,46 @@ function addRail(w, h, d, x, y, z) {
 const railY = FELT_Y + RAIL_H / 2;
 const halfW = FELT_W / 2;
 const halfL = FELT_L / 2;
-// Long rails (±X)
-addRail(RAIL_T, RAIL_H, FELT_L + RAIL_T * 2, -halfW - RAIL_T / 2, railY, 0);
-addRail(RAIL_T, RAIL_H, FELT_L + RAIL_T * 2, halfW + RAIL_T / 2, railY, 0);
-// Short rails (±Z)
-addRail(FELT_W, RAIL_H, RAIL_T, 0, railY, -halfL - RAIL_T / 2);
-addRail(FELT_W, RAIL_H, RAIL_T, 0, railY, halfL + RAIL_T / 2);
+// Jaw openings: corners and side pockets. Wide enough for a ball center to cross the hole.
+const CORNER_JAW = 0.30;
+const SIDE_GAP = 0.50;
+
+const longLen = (halfL - CORNER_JAW) - SIDE_GAP / 2;
+const longZ = (SIDE_GAP / 2 + (halfL - CORNER_JAW)) / 2;
+function addLongSide(x) {
+  addRail(RAIL_T, RAIL_H, longLen, x, railY, longZ);
+  addRail(RAIL_T, RAIL_H, longLen, x, railY, -longZ);
+}
+addLongSide(-halfW - RAIL_T / 2);
+addLongSide(halfW + RAIL_T / 2);
+
+const shortLen = FELT_W - CORNER_JAW * 2;
+addRail(shortLen, RAIL_H, RAIL_T, 0, railY, -halfL - RAIL_T / 2);
+addRail(shortLen, RAIL_H, RAIL_T, 0, railY, halfL + RAIL_T / 2);
+
+// Pocket mouths — four corners and two side pockets. Dark wells, not cushions.
+const POCKET_R = 0.165;
+const pockets = [
+  { x: -halfW, z: -halfL },
+  { x:  halfW, z: -halfL },
+  { x: -halfW, z:  halfL },
+  { x:  halfW, z:  halfL },
+  { x: -halfW, z:  0 },
+  { x:  halfW, z:  0 },
+];
+const pocketMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.96, metalness: 0.04 });
+const mouthGeo = new THREE.CircleGeometry(POCKET_R, 28);
+const mouthMat = new THREE.MeshBasicMaterial({ color: 0x07080c });
+const wellGeo = new THREE.CylinderGeometry(POCKET_R * 0.92, POCKET_R * 0.5, 0.42, 20);
+for (const pk of pockets) {
+  const mouth = new THREE.Mesh(mouthGeo, mouthMat);
+  mouth.rotation.x = -Math.PI / 2;
+  mouth.position.set(pk.x, 0.006, pk.z);
+  scene.add(mouth);
+  const well = new THREE.Mesh(wellGeo, pocketMat);
+  well.position.set(pk.x, -0.18, pk.z);
+  scene.add(well);
+}
 
 // Dim room floor under the table
 const roomFloor = new THREE.Mesh(
@@ -227,7 +261,7 @@ const feltBody = new CANNON.Body({
 });
 world.addBody(feltBody);
 
-// Four cushion bodies
+// Cushion bodies — same gaps as the visual rails so balls can reach pockets
 function addCushionBody(hx, hy, hz, x, y, z) {
   const body = new CANNON.Body({
     mass: 0,
@@ -237,10 +271,14 @@ function addCushionBody(hx, hy, hz, x, y, z) {
   });
   world.addBody(body);
 }
-addCushionBody(RAIL_T / 2, RAIL_H / 2, (FELT_L + RAIL_T * 2) / 2, -halfW - RAIL_T / 2, railY, 0);
-addCushionBody(RAIL_T / 2, RAIL_H / 2, (FELT_L + RAIL_T * 2) / 2, halfW + RAIL_T / 2, railY, 0);
-addCushionBody(FELT_W / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, -halfL - RAIL_T / 2);
-addCushionBody(FELT_W / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, halfL + RAIL_T / 2);
+function addLongCushions(x) {
+  addCushionBody(RAIL_T / 2, RAIL_H / 2, longLen / 2, x, railY, longZ);
+  addCushionBody(RAIL_T / 2, RAIL_H / 2, longLen / 2, x, railY, -longZ);
+}
+addLongCushions(-halfW - RAIL_T / 2);
+addLongCushions(halfW + RAIL_T / 2);
+addCushionBody(shortLen / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, -halfL - RAIL_T / 2);
+addCushionBody(shortLen / 2, RAIL_H / 2, RAIL_T / 2, 0, railY, halfL + RAIL_T / 2);
 
 function makeNumberTexture(num) {
   const s = 128;
@@ -349,18 +387,56 @@ function makeBallMesh(num) {
   return group;
 }
 
+function makeCueBallMesh() {
+  const group = new THREE.Group();
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(BALL_R, 40, 32),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf4f1ea,
+      roughness: 0.1,
+      metalness: 0.02,
+      clearcoat: 0.92,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.12,
+    })
+  );
+  sphere.castShadow = true;
+  sphere.receiveShadow = true;
+  group.add(sphere);
+  return group;
+}
+
 function syncMesh(mesh, body) {
   mesh.position.copy(body.position);
   mesh.quaternion.copy(body.quaternion);
 }
 
-// Place rack: apex nearest camera (+Z), pointing toward +Z
-const rackCenterZ = 0.55; // triangle center-ish on table
-const apexZ = rackCenterZ + 2 * ROW_GAP; // row 0 toward camera
+// Rack at the foot (−Z), apex pointing toward the cue (+Z). Cue on the head spot.
 const ballY = FELT_Y + BALL_R + 0.001;
+const HEAD_SPOT_Z = FELT_L * 0.25;
+// Back row clears the foot rail; apex still aims at the cue ball.
+const backRowZ = -halfL + BALL_R + 0.20;
+const apexZ = backRowZ + 4 * ROW_GAP;
 
 const balls = [];
 let apexBall = null;
+let cueBall = null;
+
+function addBallBody(mesh, x, y, z) {
+  const body = new CANNON.Body({
+    mass: BALL_MASS,
+    material: matBall,
+    shape: new CANNON.Sphere(BALL_R),
+    position: new CANNON.Vec3(x, y, z),
+    linearDamping: 0.28,
+    angularDamping: 0.32,
+    sleepSpeedLimit: 0.12,
+    sleepTimeLimit: 0.4,
+  });
+  body.quaternion.setFromEuler(0, mesh.rotation.y, 0);
+  world.addBody(body);
+  return body;
+}
 
 for (let row = 0; row < RACK.length; row++) {
   const nums = RACK[row];
@@ -372,46 +448,43 @@ for (let row = 0; row < RACK.length; row++) {
     const x = x0 + col * BALL_D;
     const mesh = makeBallMesh(num);
     mesh.position.set(x, ballY, z);
-    // Slight random yaw so numbers aren't all identical orientation
     mesh.rotation.y = ((num * 37) % 360) * (Math.PI / 180);
     scene.add(mesh);
 
-    const body = new CANNON.Body({
-      mass: BALL_MASS,
-      material: matBall,
-      shape: new CANNON.Sphere(BALL_R),
-      position: new CANNON.Vec3(x, ballY, z),
-      linearDamping: 0.28,
-      angularDamping: 0.32,
-      sleepSpeedLimit: 0.12,
-      sleepTimeLimit: 0.4,
-    });
-    // Match visual yaw
-    body.quaternion.setFromEuler(0, mesh.rotation.y, 0);
-    world.addBody(body);
-
-    const entry = { mesh, body, num };
+    const body = addBallBody(mesh, x, ballY, z);
+    const entry = { mesh, body, num, cue: false, sunk: false, prevX: x, prevZ: z };
     balls.push(entry);
     if (num === 1) apexBall = entry;
   }
 }
 
-if (balls.length !== 15) {
-  console.error('[eight-ball] expected 15 balls, got', balls.length);
+{
+  const mesh = makeCueBallMesh();
+  mesh.position.set(0, ballY, HEAD_SPOT_Z);
+  scene.add(mesh);
+  const body = addBallBody(mesh, 0, ballY, HEAD_SPOT_Z);
+  cueBall = { mesh, body, num: 0, cue: true, sunk: false, prevX: 0, prevZ: HEAD_SPOT_Z };
+  balls.push(cueBall);
 }
 
-// —— Interaction: click break into apex, or drag a ball ——
+if (balls.length !== 16) {
+  console.error('[eight-ball] expected 16 balls, got', balls.length);
+}
+
+// —— Interaction: click or drag strikes the cue ball toward the rack ——
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ballY);
 const hit = new THREE.Vector3();
 const prevHit = new THREE.Vector3();
 let pointerDown = false;
-let broke = false;
+let cueAim = false;
 let grabbed = null;
 let grabOffset = new THREE.Vector3();
 let throwVel = new THREE.Vector3();
 let lastSampleT = 0;
+let dragDist = 0;
+const POCKET_CAPTURE = POCKET_R;
 
 const canvasEl = renderer.domElement;
 canvasEl.style.cursor = 'crosshair';
@@ -426,9 +499,9 @@ function setNDC(e) {
 
 function pickBall() {
   raycaster.setFromCamera(ndc, camera);
-  // Raycast against sphere children
   const targets = [];
   for (const b of balls) {
+    if (b.sunk) continue;
     b.mesh.traverse((o) => {
       if (o.isMesh && o.geometry && o.geometry.type === 'SphereGeometry') targets.push(o);
     });
@@ -443,68 +516,103 @@ function pickBall() {
   let best = null;
   let bestD = BALL_R * 2.2;
   for (const b of balls) {
+    if (b.sunk) continue;
     const d = Math.hypot(b.body.position.x - hit.x, b.body.position.z - hit.z);
     if (d < bestD) { bestD = d; best = b; }
   }
   return best;
 }
 
-function breakRack() {
-  if (!apexBall) return;
-  for (const b of balls) b.body.wakeUp();
-  // Impulse into the apex along the table (−Z into the rack), slight lateral scatter
-  const side = (Math.random() - 0.5) * 0.35;
-  apexBall.body.applyImpulse(
-    new CANNON.Vec3(side, 0, -1.85),
+function cueStrikeDir() {
+  let dx = 0;
+  let dz = -1;
+  if (apexBall && !apexBall.sunk) {
+    dx = apexBall.body.position.x - cueBall.body.position.x;
+    dz = apexBall.body.position.z - cueBall.body.position.z;
+  }
+  const len = Math.hypot(dx, dz) || 1;
+  return { x: dx / len, z: dz / len };
+}
+
+function strikeCue(power) {
+  if (!cueBall || cueBall.sunk) return;
+  const dir = cueStrikeDir();
+  cueBall.body.wakeUp();
+  cueBall.body.applyImpulse(
+    new CANNON.Vec3(dir.x * power, 0, dir.z * power),
     new CANNON.Vec3(0, 0, 0)
   );
-  // Tiny nudge on neighbors so the rack unlocks cleanly
-  for (const b of balls) {
-    if (b === apexBall) continue;
-    if (Math.hypot(b.body.position.x - apexBall.body.position.x,
-                   b.body.position.z - apexBall.body.position.z) < BALL_D * 2.2) {
-      b.body.applyImpulse(
-        new CANNON.Vec3((Math.random() - 0.5) * 0.08, 0, (Math.random() - 0.5) * 0.06),
-        new CANNON.Vec3(0, 0, 0)
-      );
-    }
+}
+
+function overPocket(x0, z0, x1, z1) {
+  for (const pk of pockets) {
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const fx = x0 - pk.x;
+    const fz = z0 - pk.z;
+    const a = dx * dx + dz * dz;
+    let t = 0;
+    if (a > 1e-10) t = Math.max(0, Math.min(1, -(fx * dx + fz * dz) / a));
+    const cx = fx + t * dx;
+    const cz = fz + t * dz;
+    if (cx * cx + cz * cz <= POCKET_CAPTURE * POCKET_CAPTURE) return true;
   }
-  broke = true;
+  return false;
+}
+
+function sinkBall(b) {
+  if (b.sunk) return;
+  b.sunk = true;
+  world.removeBody(b.body);
+  if (grabbed === b) grabbed = null;
+  b.dropY = b.mesh.position.y;
 }
 
 function onPointerDown(e) {
   setNDC(e);
   pointerDown = true;
+  dragDist = 0;
+  throwVel.set(0, 0, 0);
+  lastSampleT = performance.now();
   try { canvasEl.setPointerCapture(e.pointerId); } catch (_) {}
   const picked = pickBall();
-  if (picked) {
+  raycaster.setFromCamera(ndc, camera);
+  if (raycaster.ray.intersectPlane(tablePlane, hit)) prevHit.copy(hit);
+
+  // Object balls can still be dragged; the break itself is always the cue ball.
+  if (picked && !picked.cue) {
+    cueAim = false;
     grabbed = picked;
     grabbed.body.wakeUp();
     grabbed.body.velocity.set(0, 0, 0);
     grabbed.body.angularVelocity.set(0, 0, 0);
-    raycaster.setFromCamera(ndc, camera);
-    if (raycaster.ray.intersectPlane(tablePlane, hit)) {
-      grabOffset.set(
-        grabbed.body.position.x - hit.x,
-        0,
-        grabbed.body.position.z - hit.z
-      );
-      prevHit.copy(hit);
-      throwVel.set(0, 0, 0);
-      lastSampleT = performance.now();
-    }
+    grabOffset.set(
+      grabbed.body.position.x - hit.x,
+      0,
+      grabbed.body.position.z - hit.z
+    );
     canvasEl.style.cursor = 'grabbing';
-  } else if (!broke) {
-    breakRack();
-  } else {
-    // Subsequent empty clicks: re-break into whoever is near apex position, or the 1-ball
-    breakRack();
+    return;
+  }
+
+  cueAim = true;
+  if (picked && picked.cue) {
+    grabbed = picked;
+    grabbed.body.wakeUp();
+    grabbed.body.velocity.set(0, 0, 0);
+    grabbed.body.angularVelocity.set(0, 0, 0);
+    grabOffset.set(
+      grabbed.body.position.x - hit.x,
+      0,
+      grabbed.body.position.z - hit.z
+    );
+    canvasEl.style.cursor = 'grabbing';
   }
 }
 
 function onPointerMove(e) {
   setNDC(e);
-  if (!grabbed || !pointerDown) return;
+  if (!pointerDown) return;
   raycaster.setFromCamera(ndc, camera);
   if (!raycaster.ray.intersectPlane(tablePlane, hit)) return;
   const now = performance.now();
@@ -514,8 +622,10 @@ function onPointerMove(e) {
     0,
     (hit.z - prevHit.z) / sampleDt
   );
+  dragDist += Math.hypot(hit.x - prevHit.x, hit.z - prevHit.z);
   prevHit.copy(hit);
   lastSampleT = now;
+  if (!grabbed || grabbed.sunk) return;
   const tx = hit.x + grabOffset.x;
   const tz = hit.z + grabOffset.z;
   const margin = BALL_R + 0.02;
@@ -528,21 +638,27 @@ function onPointerMove(e) {
 }
 
 function onPointerUp() {
-  if (grabbed) {
+  if (grabbed && !grabbed.cue && !grabbed.sunk) {
     grabbed.body.wakeUp();
     const speed = Math.hypot(throwVel.x, throwVel.z);
     if (speed > 0.15) {
       const boost = Math.min(2.4, 0.35 + speed * 0.22);
       const nx = throwVel.x / speed;
       const nz = throwVel.z / speed;
-      // Horizontal shove only — do not explode upward
       grabbed.body.applyImpulse(
         new CANNON.Vec3(nx * boost, 0, nz * boost),
         new CANNON.Vec3(0, 0, 0)
       );
     }
+  } else if (cueAim) {
+    // Click or drag sends the cue down the table at the rack. Drag length is power.
+    const power = dragDist > 0.04
+      ? THREE.MathUtils.clamp(0.9 + dragDist * 1.6, 0.9, 1.7)
+      : 1.35;
+    strikeCue(power);
   }
   grabbed = null;
+  cueAim = false;
   pointerDown = false;
   canvasEl.style.cursor = 'crosshair';
 }
@@ -569,12 +685,33 @@ function frame() {
     // Still step contacts lightly while holding so others can settle
     world.fixedStep();
   }
-  for (const b of balls) {
-    // Keep balls from tunneling under felt
-    if (b.body.position.y < ballY - 0.02) {
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+    if (b.sunk) {
+      b.dropY -= 0.05;
+      b.mesh.position.y = b.dropY;
+      if (b.dropY < -1.5) {
+        scene.remove(b.mesh);
+        balls.splice(i, 1);
+      }
+      continue;
+    }
+    const x = b.body.position.x;
+    const z = b.body.position.z;
+    const y = b.body.position.y;
+    const leftTable = Math.abs(x) > halfW - 0.01 || Math.abs(z) > halfL - 0.01;
+    const inPocket = y < ballY + BALL_R && overPocket(b.prevX, b.prevZ, x, z);
+    if ((inPocket || leftTable) && b !== grabbed) {
+      syncMesh(b.mesh, b.body);
+      sinkBall(b);
+      continue;
+    }
+    if (y < ballY - 0.02) {
       b.body.position.y = ballY;
       if (b.body.velocity.y < 0) b.body.velocity.y *= -0.2;
     }
+    b.prevX = b.body.position.x;
+    b.prevZ = b.body.position.z;
     syncMesh(b.mesh, b.body);
   }
   key.intensity = 1.1 + Math.sin(clock.elapsedTime * 0.45) * 0.04;
