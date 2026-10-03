@@ -239,10 +239,10 @@
 <script>
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// One audible player: a single looping HTMLAudioElement at volume 0.46.
-// Started once on the first foyer pointer or key. No AudioBufferSourceNode.
-// MediaElementSource is the only graph output (gain 1 → destination) plus
-// one analyser tap, so the bass pulse is not a second copy of the bed.
+// One audible loop: a single AudioBufferSourceNode at gain 0.46.
+// The foyer pointer or key calls resume() and source.start() in that turn.
+// The source feeds one GainNode. That gain connects to context.destination
+// (speakers) and to the bass analyser (knuckle pulse). Nothing else plays.
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4bar10';
@@ -252,39 +252,19 @@
     const LOOP_LEN = (60 / BPM) * 4 * BARS; // 10.000s
 
     let audioCtx = null;
+    let buffer = null;
+    let bufferSource = null;
     let gain = null;
     let analyser = null;
     let freqData = null;
     let graphWired = false;
     let graphFailed = false;
     let started = false;
-    let playRequested = false;
-    let mode = 'element';
+    let startArmed = false;
+    let mode = 'buffer';
     let bassSmooth = 0;
     let bassFloor = 0;
-    let elementSrcWired = false;
-
-    const el = new Audio();
-    el.preload = 'auto';
-    el.loop = true;
-    el.playbackRate = 1;
-    el.defaultPlaybackRate = 1;
-    el.preservesPitch = true;
-    el.volume = 0;
-    el.setAttribute('playsinline', '');
-    try { el.setAttribute('fetchpriority', 'high'); } catch {}
-    el.src = SRC;
-    try { el.load(); } catch {}
-    el.addEventListener('error', () => console.warn('[cubicles] ambient media error', el.error), { once: true });
-    el.addEventListener('ratechange', () => {
-      if (el.playbackRate !== 1) {
-        try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
-      }
-    });
-
-    function lockRate() {
-      try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
-    }
+    let decodePromise = null;
 
     function ensureAudioCtx() {
       if (audioCtx || graphFailed) return audioCtx;
@@ -302,45 +282,94 @@
     function resumeCtx() {
       const ctx = audioCtx || ensureAudioCtx();
       if (ctx && ctx.state === 'suspended') {
+        // Fire inside the gesture. Do not await: a non-gesture resume never settles.
         ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
       }
       return ctx;
     }
 
-    // Element → gain (unity) → destination, and the same gain → analyser.
-    // createMediaElementSource takes the element off the device output, so
-    // this graph is the only audible path. Never add a buffer source.
-    function wireOnce() {
-      if (elementSrcWired || graphFailed) return;
+    function kickDecode() {
+      if (buffer || decodePromise) return decodePromise;
       const ctx = ensureAudioCtx();
-      if (!ctx) return;
+      if (!ctx) return null;
+      decodePromise = fetch(SRC, { credentials: 'same-origin', cache: 'force-cache' })
+        .then((r) => {
+          if (!r.ok) throw new Error('ambient fetch ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then((ab) => ctx.decodeAudioData(ab.slice(0)))
+        .then((buf) => {
+          buffer = buf;
+          console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
+          if (startArmed) startOnce();
+          return buf;
+        })
+        .catch((err) => {
+          console.warn('[cubicles] ambient decode failed', err);
+          decodePromise = null;
+          return null;
+        });
+      return decodePromise;
+    }
+
+    // One gain, two outputs: speakers and the analyser tap. The analyser is
+    // not in series, so it cannot mute the foyer.
+    function wireOnce() {
+      if (graphWired || graphFailed) return false;
+      const ctx = ensureAudioCtx();
+      if (!ctx) return false;
       try {
-        if (!gain) {
-          gain = ctx.createGain();
-          gain.gain.value = 1;
-        }
-        if (!analyser) {
-          analyser = ctx.createAnalyser();
-          analyser.fftSize = 2048;
-          analyser.smoothingTimeConstant = 0.25;
-          analyser.minDecibels = -84;
-          analyser.maxDecibels = -10;
-          freqData = new Uint8Array(analyser.frequencyBinCount);
-        }
-        if (!graphWired) {
-          gain.connect(ctx.destination);
-          gain.connect(analyser);
-          graphWired = true;
-        }
-        const mes = ctx.createMediaElementSource(el);
-        mes.connect(gain);
-        elementSrcWired = true;
-        mode = 'element';
-        console.info('[cubicles] ambient element → destination + analyser tap');
+        gain = ctx.createGain();
+        gain.gain.value = VOL;
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.25;
+        analyser.minDecibels = -84;
+        analyser.maxDecibels = -10;
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        gain.connect(ctx.destination);
+        gain.connect(analyser);
+        graphWired = true;
+        console.info('[cubicles] ambient gain', VOL, '→ destination + analyser');
+        return true;
       } catch (err) {
-        console.warn('[cubicles] MediaElementSource wire failed — element output only', err);
+        console.warn('[cubicles] Web Audio wire failed', err);
         graphFailed = true;
+        gain = null;
+        analyser = null;
+        freqData = null;
+        return false;
       }
+    }
+
+    // One looping source. A second call is a no-op.
+    function startOnce() {
+      if (bufferSource || started) return false;
+      const ctx = audioCtx;
+      if (!ctx || !buffer) return false;
+      if (!wireOnce() || !gain) return false;
+      try { gain.gain.value = VOL; } catch {}
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.playbackRate.value = 1;
+      const dur = Math.max(0.5, buffer.duration);
+      const end = dur + 1e-4 >= LOOP_LEN ? Math.min(LOOP_LEN, dur) : dur;
+      src.loopStart = 0;
+      src.loopEnd = end;
+      src.connect(gain);
+      try { src.start(); }
+      catch (err) {
+        console.warn('[cubicles] ambient BufferSource start failed', err);
+        try { src.disconnect(); } catch {}
+        return false;
+      }
+      bufferSource = src;
+      started = true;
+      mode = 'buffer';
+      console.info('[cubicles] wormhole ambient playing (one buffer, gain=' + VOL + ')');
+      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
+      return true;
     }
 
     function sampleBass() {
@@ -362,58 +391,30 @@
       return Math.min(1, punch / 0.28);
     }
 
-    function markPlaying() {
-      if (started) return;
-      started = true;
-      mode = 'element';
-      lockRate();
-      console.info('[cubicles] wormhole ambient playing (element only, vol=' + VOL + ')');
-      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
+    function lockRate() {
+      if (!bufferSource) return;
+      try { bufferSource.playbackRate.value = 1; } catch {}
     }
 
-    function playElement() {
-      try { el.loop = true; el.volume = VOL; } catch {}
-      lockRate();
-      let p;
-      try { p = el.play(); }
-      catch (err) {
-        playRequested = false;
-        console.warn('[cubicles] ambient element play threw', err);
-        return;
-      }
-      if (p && typeof p.then === 'function') {
-        p.then(markPlaying).catch((err) => {
-          if (!started) playRequested = false;
-          console.warn('[cubicles] ambient element play blocked', err);
-        });
-      } else {
-        markPlaying();
-      }
-    }
-
-    // First foyer pointer or key starts the one element. Later events only
-    // resume that same element after a hide; they never build another player.
+    // First foyer pointer or key: resume and start in this turn when the
+    // buffer is already decoded. Later clicks only resume the same context.
     function tryPlay() {
-      if (playRequested) {
-        if (started && (el.paused || el.ended)) {
-          resumeCtx();
-          playElement();
-        }
+      const ctx = ensureAudioCtx();
+      if (!ctx) return;
+      resumeCtx();
+      if (bufferSource || started) {
+        lockRate();
         return;
       }
-      playRequested = true;
-      try { el.loop = true; el.volume = VOL; } catch {}
-      lockRate();
-      const ctx = ensureAudioCtx();
-      if (ctx && ctx.state === 'suspended') {
-        ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
-      }
-      wireOnce();
-      playElement();
+      startArmed = true;
+      if (buffer) startOnce();
+      else kickDecode();
     }
+
+    kickDecode();
 
     window.__wormholeAmbient = {
-      audio: el, audioB: null, tryPlay, vol: VOL,
+      audio: null, audioB: null, tryPlay, vol: VOL,
       bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
@@ -428,21 +429,21 @@
     document.addEventListener('keydown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        try { el.pause(); } catch {}
         if (audioCtx && audioCtx.state === 'running') {
           try { audioCtx.suspend(); } catch {}
         }
       } else if (started) {
-        resumeCtx();
+        // Not a click. The next pointer or key resumes the same source.
         lockRate();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (element only, vol=' + VOL + ', 4bar10)',
+    console.info('[cubicles] wormhole ambient ready (one buffer, gain=' + VOL + ', 4bar10)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
-})();;
+})();
+
 </script>
 <script type="module">
 import * as THREE from 'three';
