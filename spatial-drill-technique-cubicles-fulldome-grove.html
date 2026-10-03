@@ -249,10 +249,10 @@
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
 // Stable SINGLE bed only — no dual-A/B crossfade (seams/crackle/pitch drift).
-// One AudioBufferSourceNode, started only after AudioContext.resume() on the gesture.
-// The HTMLAudioElement is preloaded but never played (a media-element seek loop clicks).
+// Foyer gesture calls el.play() in that turn (speakers, volume 0.46) and starts
+// one AudioBufferSourceNode into gain → destination and the analyser tap.
 // NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
-// playbackRate locked to 1. Gain clamped via setTargetAtTime. Analyser in series for water beat.
+// playbackRate locked to 1. Gain set straight to 0.46 (no ramp from 0).
 // Bed is 4 bars of 4/4 @ 96 BPM (10.000s): start on beat 1, end on beat 4.
 // A 40ms equal-power overlap is baked into the file so the join slope matches.
 (function installWormholeAmbient() {
@@ -286,7 +286,7 @@
     el.playbackRate = 1;
     el.defaultPlaybackRate = 1;
     el.preservesPitch = true;
-    el.volume = 0; // element is never the bed; buffer gain carries the level
+    el.volume = 0; // raised to VOL on the foyer gesture; element is the speaker bed
     el.setAttribute('playsinline', '');
     try { el.setAttribute('fetchpriority', 'high'); } catch {}
     el.src = SRC;
@@ -325,12 +325,13 @@
         try {
           gain.gain.cancelScheduledValues(t);
           const cur = gain.gain.value;
-          gain.gain.setValueAtTime(Number.isFinite(cur) ? cur : 0, t);
-          gain.gain.setTargetAtTime(target, t, Math.max(0.008, tau));
+          gain.gain.setValueAtTime(target, t);
+          gain.gain.value = target;
         } catch {
           try { gain.gain.value = target; } catch {}
         }
-        try { el.volume = mode === 'element' && !elementSrcWired ? target : (elementSrcWired ? 1 : 0); } catch {}
+        // Do not mute the element when the buffer is the analyser bed.
+        try { el.volume = elementSrcWired ? 1 : target; } catch {}
       } else {
         try { el.volume = target; } catch {}
       }
@@ -386,7 +387,7 @@
       if (!ctx || ctx.state !== 'running') return false;
       try {
         gain = ctx.createGain();
-        gain.gain.value = 0;
+        gain.gain.value = VOL;
         analyser = ctx.createAnalyser();
         // ~21 Hz/bin so bins 1–6 are the kick (~22–150 Hz), not the mid drone.
         analyser.fftSize = 2048;
@@ -547,7 +548,6 @@
       tryWireWhenRunning();
       if (!graphWired || !buffer) return false;
       if (!startBufferSource()) return false;
-      try { el.pause(); } catch {}
       lockRate();
       setGainSmooth(VOL, 0.015);
       markPlaying('buffer');
@@ -556,12 +556,25 @@
 
     let playStarting = false;
 
-    // Gesture starts one looping buffer source. resume() is called in this turn,
-    // before any await, so the browser still counts it as the user gesture.
-    // The HTMLAudioElement is never played (its seek-loop was the click).
+    // Gesture: element.play() in this turn (speakers) and the buffer source
+    // (analyser pulse + context.destination at VOL).
+    function startElementBed() {
+      try { el.volume = VOL; } catch {}
+      lockRate();
+      if (!el.paused && !el.ended) return;
+      let p;
+      try { p = el.play(); }
+      catch (err) {
+        console.warn('[cubicles] ambient element play threw', err);
+        return;
+      }
+      if (p && p.catch) p.catch((err) => console.warn('[cubicles] ambient element play blocked', err));
+    }
+
     async function tryPlay() {
       const ctx = ensureAudioCtx();
       if (!ctx) return;
+      startElementBed();
       lockRate();
       if (started && mode === 'buffer' && bufferSource && ctx.state === 'running') {
         lockRate();
@@ -585,7 +598,6 @@
           console.warn('[cubicles] ambient decode not ready');
           return;
         }
-        try { el.pause(); } catch {}
         if (mode === 'buffer' && bufferSource) {
           lockRate();
           setGainSmooth(VOL, 0.03);
