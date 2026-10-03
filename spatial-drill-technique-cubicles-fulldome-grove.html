@@ -1019,58 +1019,12 @@ async function setupCathedralEnvAndBloom() {
   const pmrem = new THREE.PMREMGenerator(renderer);
   try { pmrem.compileEquirectangularShader(); } catch (_) {}
 
-  let usedLocalHdrBg = false;
-  // Vendored Poly Haven HDR → soft blurred background (cathedral atmosphere)
-  try {
-    const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
-    const localCandidates = [
-      './demo-assets/hdr/small_cathedral_02_1k.hdr',
-      './demo-assets/hdr/neon_photostudio_1k.hdr',
-    ];
-    let hdr = null;
-    let hdrSrc = null;
-    for (const url of localCandidates) {
-      try {
-        hdr = await new RGBELoader().loadAsync(url);
-        hdrSrc = url;
-        break;
-      } catch (_) { /* try next */ }
-    }
-    if (!hdr) {
-      try {
-        hdr = await new RGBELoader().loadAsync(
-          'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
-        );
-        hdrSrc = 'cdn:venice_sunset';
-      } catch (_) {}
-    }
-    if (hdr) {
-      tintHdrTowardMagentaGold(hdr, chromeVariant);
-      const bgRT = pmrem.fromEquirectangular(hdr);
-      scene.background = bgRT.texture;
-      scene.backgroundBlurriness = 0.68;
-      scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
-      // Keep a copy for optional env fallback if synth fails
-      window.__sketchCHdrEnv = bgRT.texture;
-      hdr.dispose();
-      usedLocalHdrBg = true;
-      console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
-    }
-  } catch (loaderErr) {
-    console.warn('[cubicles] RGBELoader unavailable', loaderErr);
-  }
-
   // Sketch C chrome reflections: punchy magenta/gold synth with hot specular windows (mercury beads)
   try {
     const synth = makeMagentaGoldEquirect(mobileLike ? 256 : 512, chromeVariant);
     const env = pmrem.fromEquirectangular(synth).texture;
     scene.environment = env;
     scene.environmentIntensity = chromeVariant === 2 ? 1.05 : chromeVariant === 3 ? 1.25 : 1.2;
-    if (!scene.background || scene.background.isColor) {
-      scene.background = env;
-      scene.backgroundBlurriness = 0.48;
-      scene.backgroundIntensity = 0.34;
-    }
     synth.dispose();
     // Explicit envMap bind — helps InstancedMesh / delayed chrome mats under SwiftShader
     window.__sketchCEnvTex = env;
@@ -1086,8 +1040,7 @@ async function setupCathedralEnvAndBloom() {
     // Re-bind once trees finish chromeify/clone (async GLB)
     setTimeout(bindChromeEnv, 800);
     setTimeout(bindChromeEnv, 2200);
-    console.info('[cubicles] magenta/gold synth envMap (mercury)', 'chrome=' + chromeVariant, CHROME_LOOK,
-      usedLocalHdrBg ? '+HDR bg' : 'synth-only');
+    console.info('[cubicles] magenta/gold synth envMap (mercury)', 'chrome=' + chromeVariant, CHROME_LOOK);
   } catch (pmErr) {
     console.warn('[cubicles] equirect PMREM failed — fromScene / HDR fallback', pmErr);
     if (window.__sketchCHdrEnv) {
