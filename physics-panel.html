@@ -1022,19 +1022,83 @@ function buildParticles() {
   // Grove embed only: vertex color is the only change. No cream, ivory, or white swatches.
   let crispDot = null;
   let helixBeads = null;
+  let beadMat = null;
+  const metalName = (params.get('metal') || '').trim().toLowerCase();
   const _bead = new THREE.Object3D();
   if (helix) {
     // Polished steel beads. Env map is on the material only so floor and other demos stay put.
+    // metal= swaps the bead finish only. Missing or unknown values stay this silver.
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    const beadMat = new THREE.MeshPhysicalMaterial({
+    // Sketches, not the default. Each stays metalness 1 so the helix reads as beads, not tinted dots.
+    const helixMetals = {
+      copper: {
+        // Warm polished copper. Clearcoat is the white glint; the body stays copper.
+        color: 0xc4622d,
+        roughness: 0.14,
+        envMapIntensity: 1.5,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.05,
+      },
+      brass: {
+        // Deeper yellow brass so the polished highlight is not the same value as the body.
+        color: 0xa6842e,
+        roughness: 0.12,
+        envMapIntensity: 1.6,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.04,
+      },
+      violet: {
+        // Near-black plum metal. A tight magenta sheen, not a solid purple fill.
+        color: 0x1c1028,
+        roughness: 0.24,
+        envMapIntensity: 1.55,
+        sheen: 1,
+        sheenColor: 0xff4ad0,
+        sheenRoughness: 0.15,
+      },
+      oil: {
+        // White metal base; instance colors paint green and magenta patches the film then shifts.
+        color: 0xffffff,
+        roughness: 0.1,
+        envMapIntensity: 1.35,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.05,
+        iridescence: 0.4,
+        iridescenceIOR: 1.8,
+        iridescenceThicknessRange: [300, 860],
+      },
+    };
+    const metalLook = helixMetals[metalName] || null;
+    beadMat = new THREE.MeshPhysicalMaterial(Object.assign({
       color: 0xc5ccd4,
       metalness: 1,
       roughness: 0.18,
       envMap,
       envMapIntensity: 1.2,
-    });
+    }, metalLook || {}));
+    if (metalName === 'oil' && metalLook) {
+      // One shared film would average to cyan on a bead a few pixels wide.
+      // Each instance keeps its own thickness so neighbors land on different hues.
+      beadMat.customProgramCacheKey = () => 'helix-oil-film';
+      beadMat.onBeforeCompile = (shader) => {
+        shader.uniforms.uFilmShift = { value: 0 };
+        beadMat.userData.filmShader = shader;
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying float vFilm;')
+          .replace(
+            '#include <begin_vertex>',
+            '#include <begin_vertex>\n vFilm = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);'
+          );
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying float vFilm;\nuniform float uFilmShift;')
+          .replace(
+            'material.iridescenceThickness = iridescenceThicknessMaximum;',
+            'material.iridescenceThickness = mix(300.0, 860.0, fract(vFilm + uFilmShift));'
+          );
+      };
+    }
     const beadGeo = new THREE.SphereGeometry(embed ? 0.03 : 0.02, 16, 12);
     helixBeads = new THREE.InstancedMesh(beadGeo, beadMat, N);
     helixBeads.frustumCulled = false;
@@ -1044,6 +1108,19 @@ function buildParticles() {
       helixBeads.setMatrixAt(i, _bead.matrix);
     }
     helixBeads.instanceMatrix.needsUpdate = true;
+    if (metalName === 'oil') {
+      // Patches, not confetti: a run of beads shares a green or magenta metal.
+      const oilPalette = [0x1f9a6c, 0x147a62, 0x5ed6a2, 0xe23d92, 0xc21878, 0xff5cad];
+      const oilColor = new THREE.Color();
+      for (let i = 0; i < N; i++) {
+        const band = Math.floor(i / 16);
+        const h = Math.abs(Math.sin(band * 12.9898) * 43758.5453);
+        const idx = Math.floor((h % 1) * oilPalette.length);
+        oilColor.setHex(oilPalette[idx]);
+        helixBeads.setColorAt(i, oilColor);
+      }
+      helixBeads.instanceColor.needsUpdate = true;
+    }
     scene.add(helixBeads);
   }
   if (embed && !helix) {
@@ -1300,6 +1377,10 @@ function buildParticles() {
         helixBeads.setMatrixAt(i, _bead.matrix);
       }
       helixBeads.instanceMatrix.needsUpdate = true;
+      if (metalName === 'oil' && beadMat.userData.filmShader) {
+        // Drift the film so a bead walks from green through magenta instead of sitting on one hue.
+        beadMat.userData.filmShader.uniforms.uFilmShift.value = (t * 0.07) % 1;
+      }
     }
   };
 }
