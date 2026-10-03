@@ -1279,6 +1279,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       : 1;
     const tex = new THREE.VideoTexture(vid);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.flipY = false;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
@@ -1315,8 +1316,8 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     poster.offset.copy(tex.offset);
     // starband1: sharp portrait copies around the grove. Stars stay on the outer sphere.
     // Repeat count matches the portrait aspect, so the frame is not stretched.
-    const bandH = OUTER_H * 0.9;
-    const bandR = Math.min(OUTER_W, OUTER_D) * 0.46;
+    const bandH = OUTER_H * 1.35;
+    const bandR = Math.min(OUTER_W, OUTER_D) * 0.42;
     const tileW = bandH * (720 / 974);
     const repeats = Math.max(4, Math.round((Math.PI * 2 * bandR) / tileW));
     tex.repeat.set(repeats, 1);
@@ -1335,7 +1336,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       new THREE.CylinderGeometry(bandR, bandR, bandH, Math.max(48, repeats * 8), 1, true),
       mat
     );
-    mesh.position.set(0, bandH * 0.5, 0);
+    mesh.position.set(0, bandH * 0.42, 0);
     mesh.raycast = () => {};
     mesh.frustumCulled = false;
     scene.add(mesh);
