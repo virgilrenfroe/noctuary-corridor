@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambstable2" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=4bar10" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -249,20 +249,20 @@
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
 // Stable SINGLE bed only — no dual-A/B crossfade (seams/crackle/pitch drift).
-// Prefer AudioBufferSource loop when decode is ready at gesture; else one HTMLAudioElement.
+// One AudioBufferSourceNode, started only after AudioContext.resume() on the gesture.
+// The HTMLAudioElement is preloaded but never played (a media-element seek loop clicks).
 // NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
 // playbackRate locked to 1. Gain clamped via setTargetAtTime. Analyser in series for water beat.
-// Bed is 8 bars @ 96 BPM. The file crossfades the tail into the head so a hard loop meets.
-// Loop the whole decoded buffer when it is only slightly past 20.000s (~36ms of pad).
-// Clamping that to LOOP_LEN cuts the smoothed tail and brings the click back.
+// Bed is 4 bars of 4/4 @ 96 BPM (10.000s): start on beat 1, end on beat 4.
+// A 40ms equal-power overlap is baked into the file so the join slope matches.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambstable2';
+    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4bar10';
     const VOL = 0.46;
     const VOL_MAX = 0.55;
     const BPM = 96;
-    const BARS = 8;
-    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s
+    const BARS = 4;
+    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 10.000s
 
     let audioCtx = null;
     let buffer = null;
@@ -286,7 +286,7 @@
     el.playbackRate = 1;
     el.defaultPlaybackRate = 1;
     el.preservesPitch = true;
-    el.volume = VOL;
+    el.volume = 0; // element is never the bed; buffer gain carries the level
     el.setAttribute('playsinline', '');
     try { el.setAttribute('fetchpriority', 'high'); } catch {}
     el.src = SRC;
@@ -425,9 +425,8 @@
       src.loop = true;
       src.playbackRate.value = 1; // hard lock — no tempo/pitch drift
       const dur = Math.max(0.5, buffer.duration);
-      // Whole smoothed buffer if decode is only a pad past 8 bars. Cutting
-      // at LOOP_LEN drops ~36ms and reopens the seam.
-      const end = (dur > LOOP_LEN && dur - LOOP_LEN < 0.08) ? dur : Math.min(LOOP_LEN, dur);
+      // Exactly four bars. Encoder pad past 10.000s is silence, not musical tail.
+      const end = dur + 1e-4 >= LOOP_LEN ? LOOP_LEN : dur;
       src.loopStart = 0;
       src.loopEnd = end;
       src.connect(gain);
@@ -554,68 +553,56 @@
       return true;
     }
 
-    const tryPlay = () => {
-      const ctx = resumeCtx();
-      kickDecode();
+    let playStarting = false;
+
+    // Gesture starts one looping buffer source. resume() is called in this turn,
+    // before any await, so the browser still counts it as the user gesture.
+    // The HTMLAudioElement is never played (its seek-loop was the click).
+    async function tryPlay() {
+      const ctx = ensureAudioCtx();
+      if (!ctx) return;
       lockRate();
-      if (ctx && typeof ctx.addEventListener === 'function') {
-        const onState = () => {
-          if (ctx.state === 'running') {
-            tryWireWhenRunning();
-            try { ctx.removeEventListener('statechange', onState); } catch {}
+      if (started && mode === 'buffer' && bufferSource && ctx.state === 'running') {
+        lockRate();
+        return;
+      }
+      if (playStarting) return;
+      playStarting = true;
+      const resumePromise = ctx.state === 'suspended' ? ctx.resume() : null;
+      try {
+        if (resumePromise) {
+          try { await resumePromise; }
+          catch (err) {
+            console.warn('[cubicles] AudioContext resume failed', err);
+            return;
           }
-        };
-        try { ctx.addEventListener('statechange', onState); } catch {}
-      }
-      tryWireWhenRunning();
-
-      // Anti-thrash + no mid-play handoff (staying on the bed that started prevents pitch/crackle)
-      if (started) {
-        if (mode === 'buffer' && bufferSource && ctx && ctx.state === 'running') {
-          lockRate();
+        }
+        if (ctx.state !== 'running') return;
+        kickDecode();
+        const buf = buffer || (decodePromise ? await decodePromise : null);
+        if (!buf) {
+          console.warn('[cubicles] ambient decode not ready');
           return;
         }
-        if (mode === 'element' && !el.paused) {
-          lockRate();
-          tryWireWhenRunning();
-          return;
-        }
-        // Resume after visibility suspend — same bed, no recreate if possible
-        if (mode === 'buffer' && buffer && graphWired) {
-          if (!bufferSource) startBufferSource();
+        try { el.pause(); } catch {}
+        if (mode === 'buffer' && bufferSource) {
           lockRate();
           setGainSmooth(VOL, 0.03);
           return;
         }
-        if (mode === 'element') {
-          playInflight = true;
-          lockRate();
-          tryWireWhenRunning();
-          const p = el.play();
-          if (p && p.catch) p.catch(() => { playInflight = false; });
-          else playInflight = false;
-          setGainSmooth(VOL, 0.03);
-          return;
+        if (!startOnBuffer()) {
+          console.warn('[cubicles] ambient buffer start failed');
         }
+      } finally {
+        playStarting = false;
       }
-
-      if (playInflight) return;
-
-      // Prefer buffer if already decoded + ctx running (stable single-bed, rate=1)
-      if (buffer && ctx && ctx.state === 'running') {
-        if (startOnBuffer()) return;
-      }
-
-      // Sync gesture path: element.play() immediately — stay on element for this session
-      // (no later buffer handoff → no dual-bed drift / pitch dip)
-      startOnElement();
-    };
+    }
 
     kickDecode();
 
     window.__wormholeAmbient = {
       audio: el, audioB: null, tryPlay, vol: VOL,
-      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0.04,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
       get started() { return started; },
@@ -640,7 +627,7 @@
         tryPlay();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, ambstable2)',
+    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, 4bar10)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
