@@ -39,6 +39,7 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { fitEmbedOrbit } from './embed-fit.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
@@ -326,6 +327,7 @@ addEventListener('keydown', (e) => {
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(3, 4, 2); scene.add(d);
 addEventListener('resize', fitRenderer);
+if (document.body.classList.contains('embed') && !document.body.classList.contains('wall')) fitEmbedOrbit(camera, controls, scene);
 (function tick(){ requestAnimationFrame(tick); target.rotation.y += 0.003; controls.update(); renderer.render(scene, camera); })();
 
 </script>

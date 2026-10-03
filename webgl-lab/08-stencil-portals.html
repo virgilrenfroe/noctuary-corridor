@@ -38,6 +38,7 @@ const err = document.getElementById('err');
 window.addEventListener('error', e => { err.style.display='block'; err.textContent = e.message || String(e.error||e); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { fitEmbedOrbit } from './embed-fit.js';
 
 const __embed = document.body.classList.contains('embed');
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:__embed, premultipliedAlpha:!__embed });
@@ -197,6 +198,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
+if (document.body.classList.contains('embed') && !document.body.classList.contains('wall')) fitEmbedOrbit(camera, controls, mainScene);
 (function tick(){
   requestAnimationFrame(tick);
   const t = performance.now()*0.001;

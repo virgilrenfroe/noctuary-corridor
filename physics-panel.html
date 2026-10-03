@@ -118,6 +118,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { fitEmbedOrbit } from './webgl-lab/embed-fit.js';
 import * as CANNON from 'cannon-es';
 
 const params = new URLSearchParams(location.search);
@@ -1149,6 +1150,7 @@ const builders = {
   stacking: buildStacking,
 };
 (builders[demo] || buildGravity)();
+if (embed && (demo === 'cloth' || demo === 'particles')) fitEmbedOrbit(camera, null, scene, { margin: 1.6 });
 
 function frame() {
   const dt = Math.min(0.033, clock.getDelta());

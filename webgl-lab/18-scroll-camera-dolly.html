@@ -72,6 +72,7 @@ const __floatClearBg = () => { if (document.body.classList.contains('embed')) sc
 scene.background = new THREE.Color(0x0b0d14); __floatClearBg();
 scene.fog = new THREE.Fog(0x0b0d14, 8, 40);
 const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 100);
+if (document.body.classList.contains('embed')) { camera.fov = 64; camera.near = 0.05; camera.updateProjectionMatrix(); }
 
 // Path
 const curve = new THREE.CatmullRomCurve3([

@@ -46,6 +46,7 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { fitEmbedOrbit } from './embed-fit.js';
 
 function makeRenderer(opts={}) {
   // Floating embed (?embed=1, not ?wall=1): alpha clear like the other labs.
@@ -220,6 +221,7 @@ composer.addPass(god);
 composer.addPass(new OutputPass());
 
 onResize(camera, renderer, composer);
+if (document.body.classList.contains('embed') && !document.body.classList.contains('wall')) fitEmbedOrbit(camera, controls, scene);
 (function tick(){
   requestAnimationFrame(tick);
   // project light panel to NDC for ray origin

@@ -41,6 +41,7 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { fitEmbedOrbit } from './embed-fit.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
@@ -130,6 +131,7 @@ new RGBELoader().load('https://threejs.org/examples/textures/equirectangular/ven
 }, undefined, () => {});
 
 onResize(camera, renderer);
+if (document.body.classList.contains('embed') && !document.body.classList.contains('wall')) fitEmbedOrbit(camera, controls, scene);
 (function tick(){
   requestAnimationFrame(tick);
   torus.rotation.y += 0.004; torus.rotation.x += 0.002;
