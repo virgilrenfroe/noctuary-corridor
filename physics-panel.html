@@ -916,6 +916,9 @@ function buildParticles() {
   // Grove embed: each dot keeps a lane on a double spiral so the cloud is a ribbon, not a sprinkle.
   const laneR = embed ? new Float32Array(N) : null;
   const laneAng = embed ? new Float32Array(N) : null;
+  // Keep the ribbon tight, but stretch its local spiral vertically so it stands upright.
+  const ribbonX = embed ? 0.68 : 1;
+  const ribbonY = embed ? 1.42 : 1;
   if (embed) {
     const cy = 1.4;
     const half = N >> 1;
@@ -931,12 +934,12 @@ function buildParticles() {
       const rad = r0 + (r1 - r0) * u + (((j * 13) % 5) - 2) * 0.004;
       laneR[i] = rad;
       laneAng[i] = ang;
-      positions[i * 3] = Math.cos(ang) * rad;
-      positions[i * 3 + 1] = cy + Math.sin(ang) * rad;
+      positions[i * 3] = Math.cos(ang) * rad * ribbonX;
+      positions[i * 3 + 1] = cy + Math.sin(ang) * rad * ribbonY;
       positions[i * 3 + 2] = (((j * 7) % 5) - 2) * 0.008;
       const omega0 = 1.15;
-      velocities[i * 3] = -Math.sin(ang) * omega0 * rad;
-      velocities[i * 3 + 1] = Math.cos(ang) * omega0 * rad;
+      velocities[i * 3] = -Math.sin(ang) * omega0 * rad * ribbonX;
+      velocities[i * 3 + 1] = Math.cos(ang) * omega0 * rad * ribbonY;
       velocities[i * 3 + 2] = 0;
     }
   } else {
@@ -1002,6 +1005,7 @@ function buildParticles() {
     new THREE.RingGeometry(embed ? 0.05 : 0.18, embed ? 0.09 : 0.28, 32),
     new THREE.MeshBasicMaterial({ color: __ptColor, transparent: true, opacity: embed ? 0.75 : 0.55, side: THREE.DoubleSide })
   );
+  if (embed) vortexMesh.scale.set(ribbonX, ribbonY, 1);
   vortexMesh.position.set(0, 1.4, 0.05);
   scene.add(vortexMesh);
 
@@ -1034,23 +1038,27 @@ function buildParticles() {
         const ix = i * 3;
         let x = positions[ix];
         let y = positions[ix + 1];
-        const dx = x - vortex.x;
-        const dy = y - vortex.y;
+        // Solve the curl in the ribbon's normalized ellipse so it stays upright
+        // while following the pointer, rather than relaxing back to a round loop.
+        const dx = (x - vortex.x) / ribbonX;
+        const dy = (y - vortex.y) / ribbonY;
         const r = Math.hypot(dx, dy) + 1e-4;
         const inv = 1 / r;
         const tx = -dy * inv;
         const ty = dx * inv;
         const nx = dx * inv;
         const ny = dy * inv;
-        const vTang = velocities[ix] * tx + velocities[ix + 1] * ty;
-        const vRad = velocities[ix] * nx + velocities[ix + 1] * ny;
+        const localVX = velocities[ix] / ribbonX;
+        const localVY = velocities[ix + 1] / ribbonY;
+        const vTang = localVX * tx + localVY * ty;
+        const vRad = localVX * nx + localVY * ny;
         const tangTarget = omega * laneR[i];
         const radTarget = -(r - laneR[i]) * hold;
         const newVTang = vTang + (tangTarget - vTang) * blend;
         const newVRad = vRad + (radTarget - vRad) * blend;
         const wobble = pointerDown ? Math.sin(t * 1.4 + laneAng[i]) * 0.04 : 0;
-        velocities[ix] = tx * newVTang + nx * newVRad;
-        velocities[ix + 1] = ty * (newVTang + wobble) + ny * newVRad;
+        velocities[ix] = ribbonX * (tx * newVTang + nx * newVRad);
+        velocities[ix + 1] = ribbonY * (ty * (newVTang + wobble) + ny * newVRad);
         x += velocities[ix] * dt;
         y += velocities[ix + 1] * dt;
         positions[ix] = x;
