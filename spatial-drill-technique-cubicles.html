@@ -2897,7 +2897,7 @@ function updateBeatLabs(_t) {
   if (reduceMotion) return;
   const bed = window.__wormholeAmbient;
   const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
-  const AMP_SCALE = 0.52;
+  const AMP_SCALE = 0.26;
   if (bass < 0.002 && !bed?.analyser) {
     for (const h of hung) {
       if (h._beatApplied) {
