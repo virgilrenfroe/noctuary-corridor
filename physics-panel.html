@@ -121,6 +121,7 @@
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { fitEmbedOrbit } from './webgl-lab/embed-fit.js';
 import * as CANNON from 'cannon-es';
 
@@ -1016,10 +1017,35 @@ function buildParticles() {
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  // Ribbon embeds stay orange/purple. The funnel=1 helix keeps the yellow/gold accent.
+  // Ribbon embeds stay orange/purple. Helix particles are reflective metal, not flat sprites.
   const __ptColor = (embed && !helix) ? 0xff6a00 : ACCENT;
   // Grove embed only: vertex color is the only change. No cream, ivory, or white swatches.
   let crispDot = null;
+  let helixBeads = null;
+  const _bead = new THREE.Object3D();
+  if (helix) {
+    // Polished steel beads. Env map is on the material only so floor and other demos stay put.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+    const beadMat = new THREE.MeshPhysicalMaterial({
+      color: 0xc5ccd4,
+      metalness: 1,
+      roughness: 0.18,
+      envMap,
+      envMapIntensity: 1.2,
+    });
+    const beadGeo = new THREE.SphereGeometry(embed ? 0.03 : 0.02, 16, 12);
+    helixBeads = new THREE.InstancedMesh(beadGeo, beadMat, N);
+    helixBeads.frustumCulled = false;
+    for (let i = 0; i < N; i++) {
+      _bead.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+      _bead.updateMatrix();
+      helixBeads.setMatrixAt(i, _bead.matrix);
+    }
+    helixBeads.instanceMatrix.needsUpdate = true;
+    scene.add(helixBeads);
+  }
   if (embed && !helix) {
     const colors = new Float32Array(N * 3);
     const orange = [0xff4d00, 0xff6a00, 0xff8c1a];
@@ -1046,35 +1072,23 @@ function buildParticles() {
     crispDot.colorSpace = THREE.SRGBColorSpace;
     crispDot.needsUpdate = true;
   }
-  // Embed: hard disc in pixels (no attenuation) so the ribbon reads as crisp points, not foggy squares.
-  // Helix discs use the gold accent directly. Ribbon vertex orange/purple still multiply a white disc.
-  if (helix && embed) {
-    const hs = 64;
-    const hcanvas = document.createElement('canvas');
-    hcanvas.width = hcanvas.height = hs;
-    const hg = hcanvas.getContext('2d');
-    hg.clearRect(0, 0, hs, hs);
-    hg.fillStyle = '#ffffff';
-    hg.beginPath();
-    hg.arc(hs / 2, hs / 2, hs * 0.42, 0, Math.PI * 2);
-    hg.fill();
-    crispDot = new THREE.CanvasTexture(hcanvas);
-    crispDot.colorSpace = THREE.SRGBColorSpace;
-    crispDot.needsUpdate = true;
+  // Embed ribbon: hard disc in pixels (no attenuation) so it reads as crisp points, not foggy squares.
+  // Helix does not use this sprite. Ribbon vertex orange/purple still multiply a white disc.
+  if (!helix) {
+    const pts = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        color: (embed && !helix) ? 0xffffff : __ptColor,
+        vertexColors: embed && !helix,
+        map: crispDot || null,
+        size: embed ? 4.0 : 0.045,
+        sizeAttenuation: !embed,
+        transparent: true, opacity: embed ? 1 : 0.9, depthWrite: false,
+        alphaTest: embed ? 0.45 : 0,
+      })
+    );
+    scene.add(pts);
   }
-  const pts = new THREE.Points(
-    geo,
-    new THREE.PointsMaterial({
-      color: (embed && !helix) ? 0xffffff : __ptColor,
-      vertexColors: embed && !helix,
-      map: crispDot || null,
-      size: embed ? 4.0 : 0.045,
-      sizeAttenuation: !embed,
-      transparent: true, opacity: embed ? 1 : 0.9, depthWrite: false,
-      alphaTest: embed ? 0.45 : 0,
-    })
-  );
-  scene.add(pts);
 
   // Visible cue so pointer drive is obvious
   const vortexMesh = new THREE.Mesh(
@@ -1279,6 +1293,14 @@ function buildParticles() {
       }
     }
     geo.attributes.position.needsUpdate = true;
+    if (helixBeads) {
+      for (let i = 0; i < N; i++) {
+        _bead.position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+        _bead.updateMatrix();
+        helixBeads.setMatrixAt(i, _bead.matrix);
+      }
+      helixBeads.instanceMatrix.needsUpdate = true;
+    }
   };
 }
 
