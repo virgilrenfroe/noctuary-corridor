@@ -1279,7 +1279,6 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       : 1;
     const tex = new THREE.VideoTexture(vid);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.flipY = false;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
@@ -1314,32 +1313,32 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     poster.wrapT = THREE.ClampToEdgeWrapping;
     poster.repeat.copy(tex.repeat);
     poster.offset.copy(tex.offset);
-    // starband1: sharp portrait copies around the grove. Stars stay on the outer sphere.
-    // Repeat count matches the portrait aspect, so the frame is not stretched.
-    const bandH = OUTER_H * 1.35;
-    const bandR = Math.min(OUTER_W, OUTER_D) * 0.42;
-    const tileW = bandH * (720 / 974);
-    const repeats = Math.max(4, Math.round((Math.PI * 2 * bandR) / tileW));
-    tex.repeat.set(repeats, 1);
+    // starband3: full upright portraits on planes around the grove, not a cylinder rim.
+    tex.repeat.set(1, 1);
     tex.offset.set(0, 0);
-    poster.wrapS = THREE.RepeatWrapping;
-    poster.repeat.set(repeats, 1);
+    poster.repeat.set(1, 1);
     poster.offset.set(0, 0);
     const mat = new THREE.MeshBasicMaterial({
       map: poster,
       toneMapped: false,
-      side: THREE.BackSide,
+      side: THREE.DoubleSide,
       fog: false,
       depthWrite: false,
     });
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(bandR, bandR, bandH, Math.max(48, repeats * 8), 1, true),
-      mat
-    );
-    mesh.position.set(0, bandH * 0.42, 0);
-    mesh.raycast = () => {};
-    mesh.frustumCulled = false;
-    scene.add(mesh);
+    const figH = 7.2;
+    const figW = figH * (720 / 974);
+    const figR = 11;
+    const copies = 6;
+    const ring = new THREE.Group();
+    for (let i = 0; i < copies; i++) {
+      const a = (i / copies) * Math.PI * 2;
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(figW, figH), mat);
+      plane.position.set(Math.sin(a) * figR, figH * 0.5 + 0.2, Math.cos(a) * figR);
+      plane.lookAt(0, plane.position.y, 0);
+      plane.raycast = () => {};
+      ring.add(plane);
+    }
+    scene.add(ring);
     const promoteVideoMap = () => {
       if (vid.readyState < 2) return;
       mat.map = tex;
