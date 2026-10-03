@@ -1882,6 +1882,7 @@ function placeBaldCypresses() {
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
+  const kneeBases = []; // rest pose for bass-synced dome knuckle pulse
   const branchInst = new THREE.InstancedMesh(taxBranchGeo, cypressTrunkMat, n * (branchPer + flutePer));
   const needleInst = new THREE.InstancedMesh(taxNeedleGeo, cypressFoliageMat, n * needlePer);
   const tuftInst = new THREE.InstancedMesh(taxTuftGeo, cypressFoliageMat, n * tuftPer);
@@ -1944,6 +1945,11 @@ function placeBaldCypresses() {
       dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.18, ang, (taxHash(base + 90 + k) - 0.5) * 0.18);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
+      kneeBases.push({
+        px: dummy.position.x, py: dummy.position.y, pz: dummy.position.z,
+        rx: dummy.rotation.x, ry: dummy.rotation.y, rz: dummy.rotation.z,
+        sx, sy, sz,
+      });
       kneeInst.setMatrixAt(ki++, dummy.matrix);
     }
 
@@ -2116,6 +2122,12 @@ function placeBaldCypresses() {
     meshes: { knees: ki, branches: bi, needles: ni, tufts: ti, cards: ci, crown: cri },
     instanced: true,
     source: 'procedural-bald-cypress-taxodium',
+  };
+  // Metallic dome knuckles in the water — bass pulse uses the lab AnalyserNode
+  window.__sketchCKnees = {
+    inst: kneeInst,
+    bases: kneeBases,
+    dummy: new THREE.Object3D(),
   };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return n;
@@ -2893,10 +2905,11 @@ stage.addEventListener('wheel', (e) => {
 /** Bass punch on the visible floating labs (CSS3D iframes, not the empty hit group).
  *  ~52% larger on a real sub-bass hit, back to rest between hits.
  *  Tempo, pitch, and the ambient loop are untouched. */
-function updateBeatLabs(_t) {
+function updateBeatLabs(_t, bassOpt) {
   if (reduceMotion) return;
   const bed = window.__wormholeAmbient;
-  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
+  // One getBass() sample per frame (it smooths in place). Knees share this value.
+  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
   const AMP_SCALE = 0.13;
   if (bass < 0.002 && !bed?.analyser) {
     for (const h of hung) {
@@ -2916,6 +2929,30 @@ function updateBeatLabs(_t) {
     h.cssObj.scale.set(cs, cs, cs);
     h._beatApplied = true;
   }
+}
+
+/** Metallic cypress knees (dome knuckles sitting in the water).
+ *  Same AnalyserNode bass as the floating labs, same AMP_SCALE 0.13
+ *  (~13% larger on a full hit). No faces or hands. */
+function updateBeatKnees(bassOpt) {
+  if (reduceMotion) return;
+  const pack = window.__sketchCKnees;
+  if (!pack?.inst || !pack.bases?.length) return;
+  const bed = window.__wormholeAmbient;
+  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
+  if (bass < 0.002 && !bed?.analyser) return;
+  const AMP_SCALE = 0.13;
+  const { inst, bases, dummy } = pack;
+  const s = 1 + bass * AMP_SCALE;
+  for (let i = 0; i < bases.length; i++) {
+    const b = bases[i];
+    dummy.position.set(b.px, b.py, b.pz);
+    dummy.rotation.set(b.rx, b.ry, b.rz);
+    dummy.scale.set(b.sx * s, b.sy * s, b.sz * s);
+    dummy.updateMatrix();
+    inst.setMatrixAt(i, dummy.matrix);
+  }
+  inst.instanceMatrix.needsUpdate = true;
 }
 
 const clock = new THREE.Clock();
@@ -2972,7 +3009,10 @@ function frame() {
     }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
-    updateBeatLabs(_tSpark);
+    const _bed = window.__wormholeAmbient;
+    const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
+    updateBeatLabs(_tSpark, _bass);
+    updateBeatKnees(_bass);
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
