@@ -21,41 +21,60 @@
 <main>
   <p>Noctuary · loop test</p>
   <h1>Four-chord bed, 40&nbsp;ms equal-power crossfade</h1>
-  <div id="state">Click anywhere to play</div>
+  <div id="state">Loading…</div>
 </main>
 <script>
 (() => {
-  const BED = "demo-assets/audio/wormhole-ambient.mp3";
-  const FADE_SEC = 0.04;
+  const BED = "demo-assets/audio/wormhole-loop.wav?v=wav1";
   const state = document.getElementById("state");
   let started = false;
+  let pcm = null;
 
-  function bakeEqualPowerLoop(buffer) {
-    const rate = buffer.sampleRate;
-    const fade = Math.round(FADE_SEC * rate);
-    const src = buffer.getChannelData(0);
-    const n = src.length;
-    if (fade < 2 || fade >= n) throw new Error("bed is shorter than the crossfade");
-    const baked = new Float32Array(n - fade);
-    baked.set(src.subarray(0, n - fade));
-    for (let i = 0; i < fade; i++) {
-      const ang = (i / fade) * Math.PI / 2;
-      baked[i] = src[i] * Math.sin(ang) + src[n - fade + i] * Math.cos(ang);
+  function wavToFloat(buf) {
+    const v = new DataView(buf);
+    if (v.getUint32(0, false) !== 0x52494646) throw new Error("not a wav");
+    let off = 12;
+    let rate = 44100, channels = 1, bits = 16, dataOff = 0, dataLen = 0;
+    while (off + 8 <= v.byteLength) {
+      const id = String.fromCharCode(v.getUint8(off), v.getUint8(off+1), v.getUint8(off+2), v.getUint8(off+3));
+      const size = v.getUint32(off + 4, true);
+      if (id === "fmt ") {
+        channels = v.getUint16(off + 8, true);
+        rate = v.getUint32(off + 12, true);
+        bits = v.getUint16(off + 22, true);
+      } else if (id === "data") {
+        dataOff = off + 8;
+        dataLen = size;
+        break;
+      }
+      off += 8 + size + (size % 2);
     }
-    return baked;
+    if (!dataLen || bits !== 16 || channels !== 1) throw new Error("need 16-bit mono wav");
+    const n = dataLen / 2;
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = v.getInt16(dataOff + i * 2, true) / 32768;
+    return { samples: out, rate };
   }
 
-  async function start() {
-    if (started) return;
+  const ready = fetch(BED).then((r) => {
+    if (!r.ok) throw new Error("fetch " + r.status);
+    return r.arrayBuffer();
+  }).then((ab) => {
+    pcm = wavToFloat(ab);
+    state.textContent = "Tap to play";
+  }).catch((err) => {
+    state.textContent = "Could not load";
+    console.error(err);
+  });
+
+  function start() {
+    if (started || !pcm) return;
     started = true;
-    state.textContent = "Decoding…";
-    const ctx = new AudioContext();
-    if (ctx.state !== "running") await ctx.resume();
-    const encoded = await (await fetch(BED)).arrayBuffer();
-    const decoded = await ctx.decodeAudioData(encoded);
-    const samples = bakeEqualPowerLoop(decoded);
-    const loop = ctx.createBuffer(1, samples.length, decoded.sampleRate);
-    loop.copyToChannel(samples, 0);
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC();
+    if (ctx.state !== "running") ctx.resume();
+    const loop = ctx.createBuffer(1, pcm.samples.length, pcm.rate);
+    loop.copyToChannel(pcm.samples, 0);
     const source = ctx.createBufferSource();
     source.buffer = loop;
     source.loop = true;
@@ -65,12 +84,12 @@
   }
 
   window.addEventListener("pointerdown", () => {
-    start().catch((err) => {
+    ready.then(start).catch((err) => {
       started = false;
       state.textContent = "Could not play";
       console.error(err);
     });
-  }, { once: false });
+  });
 })();
 </script>
 </body>
