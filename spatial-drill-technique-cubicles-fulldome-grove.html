@@ -1250,14 +1250,28 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     poster.magFilter = THREE.LinearFilter;
     poster.generateMipmaps = false;
     poster.anisotropy = maxAniso;
-    // 720×974 frame onto a 32×12 wall: full width, rows 180–450 (telescope + person).
+    // 720×974 frame, rows 180–450 (telescope + person), mapped onto the center 32×12.
+    // The foyer view is wider than the back wall, so the side walls show as purple
+    // beside a plane that already spans x=±16. Extend past those corners.
     const STAR_SRC_W = 720, STAR_SRC_H = 974, STAR_COVER_TOP = 180;
     const starCoverH = STAR_SRC_W * (OUTER_H / OUTER_W);
+    const fovV = (48 * Math.PI) / 180;
+    const dist = SPAWN.z - WALL_Z;
+    const halfH = Math.atan(Math.tan(fovV / 2) * 2.4); // cover ultrawide foyer views
+    const figW = Math.max(OUTER_W, 2 * dist * Math.tan(halfH) * 1.12);
+    // A hair above the foyer frustum so the ceiling sliver above the wall is covered too.
+    const topY = SPAWN.y + dist * Math.tan((SPAWN.pitch || 0) + fovV / 2);
+    const figH = Math.max(OUTER_H, 2 * (topY - OUTER_H / 2) * 1.2);
     const applyStarCover = (map) => {
       map.wrapS = THREE.ClampToEdgeWrapping;
       map.wrapT = THREE.ClampToEdgeWrapping;
-      map.repeat.set(1, starCoverH / STAR_SRC_H);
-      map.offset.set(0, (STAR_SRC_H - (STAR_COVER_TOP + starCoverH)) / STAR_SRC_H);
+      // Center 32×12 keeps rows 180–450 unstretched. Past that, clamp edge pixels.
+      const repeatX = figW / OUTER_W;
+      const repeatY = (starCoverH / STAR_SRC_H) * (figH / OUTER_H);
+      const uvBot = 0.5 - (OUTER_H / 2) / figH;
+      const vBottom = (STAR_SRC_H - (STAR_COVER_TOP + starCoverH)) / STAR_SRC_H;
+      map.repeat.set(repeatX, repeatY);
+      map.offset.set(0.5 * (1 - repeatX), vBottom - uvBot * repeatY);
     };
     applyStarCover(tex);
     applyStarCover(poster);
@@ -1268,11 +1282,10 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       side: THREE.FrontSide,
       fog: false,
       depthWrite: true,
-      depthTest: true,
+      // Side walls are closer than the back corners. Skip the depth test so the
+      // wings past x=±16 paint over that purple. Nearer objects draw later.
+      depthTest: false,
     });
-    // Entire far wall. Cover crop above keeps the person unstretched.
-    const figW = OUTER_W;
-    const figH = OUTER_H;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(figW, figH), mat);
     mesh.name = 'stargazer-portrait';
     mesh.position.set(0, OUTER_H / 2, WALL_Z);
@@ -1280,7 +1293,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     mesh.receiveShadow = false;
     mesh.castShadow = false;
     mesh.raycast = () => {};
-    mesh.renderOrder = 2;
+    mesh.renderOrder = 1;
     scene.add(mesh);
 
     const promoteVideoMap = () => {
@@ -1342,7 +1355,9 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       posterFirst: true,
     };
     console.info('[cubicles] stargazer covers far wall', figW.toFixed(2) + '×' + figH.toFixed(2),
-      'cover rows', STAR_COVER_TOP + '–' + (STAR_COVER_TOP + starCoverH).toFixed(0), 'of', STAR_SRC_H, 'poster until gesture');
+      'at', mesh.position.x.toFixed(2), mesh.position.y.toFixed(2), mesh.position.z.toFixed(2),
+      'center crop rows', STAR_COVER_TOP + '–' + (STAR_COVER_TOP + starCoverH).toFixed(0),
+      'wings past', (OUTER_W / 2).toFixed(0), 'poster until gesture');
   } catch (err) {
     console.warn('[cubicles] stargazing portrait failed', err);
   }
@@ -2674,6 +2689,15 @@ function updateBeatKnees(bassOpt) {
   }
   inst.instanceMatrix.needsUpdate = true;
 }
+
+// Portrait draws after the outer walls (so wings cover the side-wall purple)
+// and before everything else (knees, water, labs) which keep the depth test.
+scene.traverse((obj) => {
+  if (!obj.isMesh && !obj.isLine && !obj.isLineSegments && !obj.isInstancedMesh) return;
+  if (obj.name === 'stargazer-portrait') return;
+  if (obj.material === wallMat || obj.material === ceilMat) { obj.renderOrder = 0; return; }
+  if (obj.renderOrder < 2) obj.renderOrder = 2;
+});
 
 const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
