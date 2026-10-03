@@ -706,7 +706,7 @@ if (wantAisle) {
 
 const CELLS = [
   { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=float3' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float3' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=orpu2' },
   { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=float3' },
   { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=float3' },
   { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=float3' },
@@ -1506,6 +1506,8 @@ for (let i = 0; i < CELLS.length; i++) {
     embedArmed: false,
     canInteract: false,
     embedUrl: meta.src,
+    cssBaseScale: scale,
+    beatPhase: i * 1.618 + col * 0.37 + row * 0.21,
   });
 }
 window.__hungLabs = hung;
@@ -2792,6 +2794,37 @@ stage.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 
+
+/** Bass-reactive scale pulse on floating examples. Positions stay put (no bob/yaw).
+ *  AnalyserNode getBass, same envelope as 578f8eb. AMP_SCALE 0.20 is stronger than
+ *  the ~55% pulse (0.035) and the later ±6.8% (0.068) so the beat reads clearly.
+ *  Tempo, pitch, and the ambient loop are untouched. */
+function updateBeatLabs(t) {
+  if (reduceMotion) return;
+  const bed = window.__wormholeAmbient;
+  const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
+  const AMP_SCALE = 0.20; // ±20% at full local bass (was 0.068 / ~55% era 0.035)
+  if (bass < 0.002 && !bed?.analyser) {
+    for (const h of hung) {
+      if (h._beatApplied) {
+        h.group.scale.set(1, 1, 1);
+        h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
+        h._beatApplied = false;
+      }
+    }
+    return;
+  }
+  for (const h of hung) {
+    const ph = h.beatPhase || 0;
+    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
+    const s = 1 + local * AMP_SCALE;
+    h.group.scale.set(s, s, s);
+    const cs = h.cssBaseScale * s;
+    h.cssObj.scale.set(cs, cs, cs);
+    h._beatApplied = true;
+  }
+}
+
 const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
@@ -2846,6 +2879,7 @@ function frame() {
     }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
+    updateBeatLabs(_tSpark);
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
