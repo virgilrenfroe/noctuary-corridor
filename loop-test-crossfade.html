@@ -25,7 +25,7 @@
 </main>
 <script>
 (() => {
-  const BED = "demo-assets/audio/wormhole-loop.wav?v=wav1";
+  const BED = "demo-assets/audio/wormhole-loop.wav?v=tap1";
   const state = document.getElementById("state");
   let started = false;
   let pcm = null;
@@ -67,29 +67,21 @@
     console.error(err);
   });
 
+  const el = new Audio(BED);
+  el.loop = true;
+  el.preload = "auto";
+  el.setAttribute("playsinline", "");
+
   function start() {
-    if (started || !pcm) return;
+    if (started) return;
     started = true;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AC();
-    if (ctx.state !== "running") ctx.resume();
-    const loop = ctx.createBuffer(1, pcm.samples.length, pcm.rate);
-    loop.copyToChannel(pcm.samples, 0);
-    const source = ctx.createBufferSource();
-    source.buffer = loop;
-    source.loop = true;
-    source.connect(ctx.destination);
-    source.start();
-    state.textContent = "Playing · one looping buffer";
+    // Must be the tap itself. A promise callback is too late for iOS.
+    const play = el.play();
+    if (play && play.catch) play.catch(() => { started = false; state.textContent = "Tap again"; });
+    state.textContent = "Playing";
   }
 
-  window.addEventListener("pointerdown", () => {
-    ready.then(start).catch((err) => {
-      started = false;
-      state.textContent = "Could not play";
-      console.error(err);
-    });
-  });
+  window.addEventListener("pointerdown", start);
 })();
 </script>
 </body>
