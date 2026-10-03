@@ -915,16 +915,18 @@ function buildParticles() {
   const positions = new Float32Array(N * 3);
   const velocities = new Float32Array(N * 3);
   // Technique cubicles pass funnel=1. Other embeds keep the upright ribbon.
-  const funnel = embed && params.has('funnel');
+  // Cubicle embeds opt in with funnel=1. The full panel (yellow/gold, no vertex colors)
+  // uses the same vertical funnel. Embed without the flag keeps the ribbon.
+  const funnel = !embed || params.has('funnel');
   // Tornado funnel, world units: wide mouth, narrow base, particles on a vertical spiral.
   const funnelTopR = 0.66;
   const funnelBotR = 0.09;
   const funnelH = 2.15;
   const funnelTurns = 4;
-  const funnelCy = 1.4;
+  const funnelCy = embed ? 1.4 : 1.02;
   // Grove embed: each dot keeps a lane on a double spiral so the cloud is a ribbon, not a sprinkle.
-  const laneR = embed ? new Float32Array(N) : null;
-  const laneAng = embed ? new Float32Array(N) : null;
+  const laneR = (embed || funnel) ? new Float32Array(N) : null;
+  const laneAng = (embed || funnel) ? new Float32Array(N) : null;
   const laneU = funnel ? new Float32Array(N) : null;
   // Keep the ribbon tight, but stretch its local spiral vertically so it stands upright.
   const ribbonX = embed ? 0.68 : 1;
@@ -1062,8 +1064,8 @@ function buildParticles() {
       vortex.y = THREE.MathUtils.clamp(pointerWorld.y, yLo + edge, yHi - edge);
     } else {
       // Idle vortex drift — default and post-interaction resting pattern
-      vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : 0.9);
-      vortex.y = (embed ? 1.4 : 1.35) + Math.cos(t * 0.28) * (embed ? 0.22 : 0.35);
+      vortex.x = Math.sin(t * 0.35) * (embed ? 0.55 : (funnel ? 0.28 : 0.9));
+      vortex.y = (funnel ? funnelCy : (embed ? 1.4 : 1.35)) + Math.cos(t * 0.28) * (embed ? 0.22 : (funnel ? 0.1 : 0.35));
     }
     vortexMesh.position.x = vortex.x;
     vortexMesh.position.y = funnel ? vortex.y + funnelH * 0.5 : vortex.y;
