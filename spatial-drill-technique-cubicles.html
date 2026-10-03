@@ -349,6 +349,7 @@
     let playInflight = false;
     let mode = 'none'; // 'buffer' | 'element'
     let bassSmooth = 0;
+    let bassFloor = 0;
     let decodePromise = null;
     let elementSrcWired = false;
 
@@ -460,10 +461,11 @@
         gain = ctx.createGain();
         gain.gain.value = 0;
         analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.72;
-        analyser.minDecibels = -90;
-        analyser.maxDecibels = -28;
+        // ~21 Hz/bin so bins 1–6 are the kick (~22–150 Hz), not the mid drone.
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.25;
+        analyser.minDecibels = -84;
+        analyser.maxDecibels = -10;
         // Series: gain → analyser → destination (analyser cannot steal speakers)
         gain.connect(analyser);
         analyser.connect(ctx.destination);
@@ -531,24 +533,47 @@
       if (!analyser || !freqData) return 0;
       try { analyser.getByteFrequencyData(freqData); }
       catch { return 0; }
+      // Bins 1–6 @ fftSize 2048 ≈ 22–150 Hz (sub-bass hits).
+      // The old fftSize 256 path read bins 1–7 (~170–1400 Hz) and skipped
+      // bin 0, which held the entire kick, so the beat never moved the scale.
       let sum = 0;
-      const n = Math.min(7, freqData.length - 1);
-      for (let i = 1; i <= n; i++) sum += freqData[i];
-      const avg = sum / n / 255;
-      return Math.min(1, Math.pow(avg, 0.85) * 1.15);
+      const last = Math.min(6, freqData.length - 1);
+      for (let i = 1; i <= last; i++) sum += freqData[i];
+      return sum / last / 255;
     }
 
     function getBass() {
       const raw = sampleBass();
-      const k = raw > bassSmooth ? 0.38 : 0.09;
+      const k = raw > bassSmooth ? 0.62 : 0.16;
       bassSmooth += (raw - bassSmooth) * k;
-      return bassSmooth;
+      // Slow floor: a held drone is not a hit. Punch is the rise above it.
+      bassFloor += (bassSmooth - bassFloor) * 0.012;
+      const punch = Math.max(0, bassSmooth - bassFloor);
+      return Math.min(1, punch / 0.28);
+    }
+
+    function attachElementToAnalyser() {
+      // The gesture path plays the HTMLAudioElement before AudioContext is
+      // running, then stays on that element. Gain+Analyser were wired with
+      // nothing feeding them, so getBass() stayed 0. Route the element in
+      // once the context is running. Do not touch rate, loop, or pitch.
+      if (mode !== 'element' || elementSrcWired || graphFailed) return;
+      if (!graphWired || !gain || !audioCtx) return;
+      try {
+        const t = audioCtx.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(clampGain(VOL), t);
+      } catch {
+        try { gain.gain.value = clampGain(VOL); } catch {}
+      }
+      if (wireElementSource()) setGainSmooth(VOL, 0.02);
     }
 
     function tryWireWhenRunning() {
       const ctx = audioCtx || ensureAudioCtx();
       if (!ctx || ctx.state !== 'running') return;
       if (!graphWired && !graphFailed) wireGainAnalyser();
+      if (mode === 'element') attachElementToAnalyser();
     }
 
     function markPlaying(which) {
@@ -622,6 +647,7 @@
         }
         if (mode === 'element' && !el.paused) {
           lockRate();
+          tryWireWhenRunning();
           return;
         }
         // Resume after visibility suspend — same bed, no recreate if possible
@@ -634,6 +660,7 @@
         if (mode === 'element') {
           playInflight = true;
           lockRate();
+          tryWireWhenRunning();
           const p = el.play();
           if (p && p.catch) p.catch(() => { playInflight = false; });
           else playInflight = false;
@@ -2861,15 +2888,14 @@ stage.addEventListener('wheel', (e) => {
 
 
 
-/** Bass-reactive scale pulse on floating examples. Positions stay put (no bob/yaw).
- *  AnalyserNode getBass, same envelope as 578f8eb. AMP_SCALE 0.20 is stronger than
- *  the ~55% pulse (0.035) and the later ±6.8% (0.068) so the beat reads clearly.
+/** Bass punch on the visible floating labs (CSS3D iframes, not the empty hit group).
+ *  ~52% larger on a real sub-bass hit, back to rest between hits.
  *  Tempo, pitch, and the ambient loop are untouched. */
-function updateBeatLabs(t) {
+function updateBeatLabs(_t) {
   if (reduceMotion) return;
   const bed = window.__wormholeAmbient;
   const bass = bed && typeof bed.getBass === 'function' ? bed.getBass() : 0;
-  const AMP_SCALE = 0.20; // ±20% at full local bass (was 0.068 / ~55% era 0.035)
+  const AMP_SCALE = 0.52;
   if (bass < 0.002 && !bed?.analyser) {
     for (const h of hung) {
       if (h._beatApplied) {
@@ -2880,10 +2906,9 @@ function updateBeatLabs(t) {
     }
     return;
   }
+  const s = 1 + bass * AMP_SCALE;
   for (const h of hung) {
-    const ph = h.beatPhase || 0;
-    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
-    const s = 1 + local * AMP_SCALE;
+    // cssObj is the iframe the grove actually shows. group is only an invisible hit plane.
     h.group.scale.set(s, s, s);
     const cs = h.cssBaseScale * s;
     h.cssObj.scale.set(cs, cs, cs);
