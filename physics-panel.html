@@ -925,11 +925,24 @@ function buildParticles() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   // Floating embed: brighten + enlarge so curl field reads against dark swamp chrome.
   const __ptColor = embed ? 0xfff6c8 : ACCENT;
+  // Grove embed only: warm orange and cream lights moving through glossy purple.
+  // Count, size, and motion stay as they were; vertex color is the only change.
+  if (embed) {
+    const colors = new Float32Array(N * 3);
+    const swatches = [0xff8618, 0xffa040, 0xfff2cc, 0xfff7e4, 0xd2a6ff, 0xb07cff];
+    const tmp = new THREE.Color();
+    for (let i = 0; i < N; i++) {
+      tmp.setHex(swatches[i % swatches.length]);
+      tmp.toArray(colors, i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  }
   // Embed: size in pixels (no attenuation) so curl field stays readable at panel distance.
   const pts = new THREE.Points(
     geo,
     new THREE.PointsMaterial({
-      color: __ptColor,
+      color: embed ? 0xffffff : __ptColor,
+      vertexColors: !!embed,
       size: embed ? 5.5 : 0.045,
       sizeAttenuation: !embed,
       transparent: true, opacity: embed ? 1 : 0.9, depthWrite: false,
