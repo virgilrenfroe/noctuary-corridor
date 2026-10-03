@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wormhole bed · equal-power crossfade loop</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #05060a; color: #f2ebe0; }
+  body {
+    font-family: "Instrument Sans", system-ui, sans-serif;
+    display: grid; place-items: center; text-align: center;
+  }
+  main { max-width: 36rem; padding: 24px; }
+  p { letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px; opacity: 0.7; }
+  h1 { font-weight: 500; font-size: 1.4rem; letter-spacing: 0.02em; }
+  #state { margin-top: 1.5rem; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <p>Noctuary · loop test</p>
+  <h1>Four-chord bed, 40&nbsp;ms equal-power crossfade</h1>
+  <div id="state">Click anywhere to play</div>
+</main>
+<script>
+(() => {
+  const BED = "demo-assets/audio/wormhole-ambient.mp3";
+  const FADE_SEC = 0.04;
+  const state = document.getElementById("state");
+  let started = false;
+
+  function bakeEqualPowerLoop(buffer) {
+    const rate = buffer.sampleRate;
+    const fade = Math.round(FADE_SEC * rate);
+    const src = buffer.getChannelData(0);
+    const n = src.length;
+    if (fade < 2 || fade >= n) throw new Error("bed is shorter than the crossfade");
+    const baked = new Float32Array(n - fade);
+    baked.set(src.subarray(0, n - fade));
+    for (let i = 0; i < fade; i++) {
+      const ang = (i / fade) * Math.PI / 2;
+      baked[i] = src[i] * Math.sin(ang) + src[n - fade + i] * Math.cos(ang);
+    }
+    return baked;
+  }
+
+  async function start() {
+    if (started) return;
+    started = true;
+    state.textContent = "Decoding…";
+    const ctx = new AudioContext();
+    if (ctx.state !== "running") await ctx.resume();
+    const encoded = await (await fetch(BED)).arrayBuffer();
+    const decoded = await ctx.decodeAudioData(encoded);
+    const samples = bakeEqualPowerLoop(decoded);
+    const loop = ctx.createBuffer(1, samples.length, decoded.sampleRate);
+    loop.copyToChannel(samples, 0);
+    const source = ctx.createBufferSource();
+    source.buffer = loop;
+    source.loop = true;
+    source.connect(ctx.destination);
+    source.start();
+    state.textContent = "Playing · one looping buffer";
+  }
+
+  window.addEventListener("pointerdown", () => {
+    start().catch((err) => {
+      started = false;
+      state.textContent = "Could not play";
+      console.error(err);
+    });
+  }, { once: false });
+})();
+</script>
+</body>
+</html>
