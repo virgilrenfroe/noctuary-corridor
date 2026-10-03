@@ -693,9 +693,11 @@
       get mode() { return mode; },
       lockRate,
     };
-    window.addEventListener('pointerdown', tryPlay, { once: false });
-    window.addEventListener('touchstart', tryPlay, { once: false, passive: true });
-    window.addEventListener('keydown', tryPlay, { once: false });
+    // Capture the first gesture anywhere in this document, not just on the walk pad.
+    document.addEventListener('pointerdown', tryPlay, { capture: true });
+    document.addEventListener('touchstart', tryPlay, { capture: true, passive: true });
+    document.addEventListener('click', tryPlay, { capture: true });
+    document.addEventListener('keydown', tryPlay, { once: false });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         try { el.pause(); } catch {}
