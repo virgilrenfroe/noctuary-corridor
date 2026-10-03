@@ -182,15 +182,6 @@
 <body>
   <div id="stage" aria-label="Technique cubicles stage"></div>
   <div class="veil" aria-hidden="true"></div>
-  <div class="layer">
-    <div class="chip" id="chip" aria-live="polite">
-      <p class="tag" id="chip-tag">Cell</p>
-      <h2 id="chip-title">—</h2>
-      <p id="chip-hint"></p>
-    </div>
-    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · click panel to stand · click empty or drag look · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · click panel to stand · drag look</span></div>
-  </div>
-
   <!-- Visual-only: crossbar walkpad (chrome metal). Silent first tap unlocks audio. -->
   <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
     <div class="pad-base"></div>
@@ -248,36 +239,29 @@
 <script>
 /* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// Stable SINGLE bed only — no dual-A/B crossfade (seams/crackle/pitch drift).
-// Foyer gesture calls el.play() in that turn (speakers, volume 0.46) and starts
-// one AudioBufferSourceNode into gain → destination and the analyser tap.
-// NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
-// playbackRate locked to 1. Gain set straight to 0.46 (no ramp from 0).
-// Bed is 4 bars of 4/4 @ 96 BPM (10.000s): start on beat 1, end on beat 4.
-// A 40ms equal-power overlap is baked into the file so the join slope matches.
+// One audible player: a single looping HTMLAudioElement at volume 0.46.
+// Started once on the first foyer pointer or key. No AudioBufferSourceNode.
+// MediaElementSource is the only graph output (gain 1 → destination) plus
+// one analyser tap, so the bass pulse is not a second copy of the bed.
 (function installWormholeAmbient() {
   try {
     const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=4bar10';
     const VOL = 0.46;
-    const VOL_MAX = 0.55;
     const BPM = 96;
     const BARS = 4;
     const LOOP_LEN = (60 / BPM) * 4 * BARS; // 10.000s
 
     let audioCtx = null;
-    let buffer = null;
-    let bufferSource = null;
     let gain = null;
     let analyser = null;
     let freqData = null;
     let graphWired = false;
     let graphFailed = false;
     let started = false;
-    let playInflight = false;
-    let mode = 'none'; // 'buffer' | 'element'
+    let playRequested = false;
+    let mode = 'element';
     let bassSmooth = 0;
     let bassFloor = 0;
-    let decodePromise = null;
     let elementSrcWired = false;
 
     const el = new Audio();
@@ -286,55 +270,20 @@
     el.playbackRate = 1;
     el.defaultPlaybackRate = 1;
     el.preservesPitch = true;
-    el.volume = 0; // raised to VOL on the foyer gesture; element is the speaker bed
+    el.volume = 0;
     el.setAttribute('playsinline', '');
     try { el.setAttribute('fetchpriority', 'high'); } catch {}
     el.src = SRC;
     try { el.load(); } catch {}
-    try {
-      fetch(SRC, { priority: 'high', credentials: 'same-origin', cache: 'force-cache' }).catch(() => {});
-    } catch {}
     el.addEventListener('error', () => console.warn('[cubicles] ambient media error', el.error), { once: true });
-    el.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (element fallback)'), { once: true });
-    // Lock rate — some engines nudge playbackRate under pressure; snap back.
     el.addEventListener('ratechange', () => {
       if (el.playbackRate !== 1) {
         try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
       }
     });
 
-    function clampGain(v) {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return 0;
-      return Math.max(0, Math.min(VOL_MAX, n));
-    }
-
     function lockRate() {
       try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
-      if (bufferSource) {
-        try { bufferSource.playbackRate.cancelScheduledValues(audioCtx ? audioCtx.currentTime : 0); } catch {}
-        try { bufferSource.playbackRate.value = 1; } catch {}
-      }
-    }
-
-    function setGainSmooth(v, tauSec) {
-      const target = clampGain(v);
-      const tau = tauSec == null ? 0.03 : tauSec;
-      if (graphWired && gain && audioCtx) {
-        const t = audioCtx.currentTime;
-        try {
-          gain.gain.cancelScheduledValues(t);
-          const cur = gain.gain.value;
-          gain.gain.setValueAtTime(target, t);
-          gain.gain.value = target;
-        } catch {
-          try { gain.gain.value = target; } catch {}
-        }
-        // Do not mute the element when the buffer is the analyser bed.
-        try { el.volume = elementSrcWired ? 1 : target; } catch {}
-      } else {
-        try { el.volume = target; } catch {}
-      }
     }
 
     function ensureAudioCtx() {
@@ -351,112 +300,46 @@
     }
 
     function resumeCtx() {
-      const ctx = ensureAudioCtx();
+      const ctx = audioCtx || ensureAudioCtx();
       if (ctx && ctx.state === 'suspended') {
         ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
       }
       return ctx;
     }
 
-    function kickDecode() {
-      if (buffer || decodePromise) return decodePromise;
+    // Element → gain (unity) → destination, and the same gain → analyser.
+    // createMediaElementSource takes the element off the device output, so
+    // this graph is the only audible path. Never add a buffer source.
+    function wireOnce() {
+      if (elementSrcWired || graphFailed) return;
       const ctx = ensureAudioCtx();
-      if (!ctx) return null;
-      decodePromise = fetch(SRC, { credentials: 'same-origin', cache: 'force-cache', priority: 'high' })
-        .then((r) => {
-          if (!r.ok) throw new Error('ambient fetch ' + r.status);
-          return r.arrayBuffer();
-        })
-        .then((ab) => ctx.decodeAudioData(ab.slice(0)))
-        .then((buf) => {
-          buffer = buf;
-          console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
-          return buf;
-        })
-        .catch((err) => {
-          console.warn('[cubicles] ambient decode failed — element loop fallback', err);
-          decodePromise = null;
-          return null;
-        });
-      return decodePromise;
-    }
-
-    function wireGainAnalyser() {
-      if (graphWired || graphFailed) return false;
-      const ctx = ensureAudioCtx();
-      if (!ctx || ctx.state !== 'running') return false;
+      if (!ctx) return;
       try {
-        gain = ctx.createGain();
-        gain.gain.value = VOL;
-        analyser = ctx.createAnalyser();
-        // ~21 Hz/bin so bins 1–6 are the kick (~22–150 Hz), not the mid drone.
-        analyser.fftSize = 2048;
-        analyser.smoothingTimeConstant = 0.25;
-        analyser.minDecibels = -84;
-        analyser.maxDecibels = -10;
-        // Fan-out. Analyser is a tap for the bass pulse only. Routing speakers
-        // through the analyser left the foyer silent while the beats still moved.
-        gain.connect(ctx.destination);
-        gain.connect(analyser);
-        freqData = new Uint8Array(analyser.frequencyBinCount);
-        graphWired = true;
-        console.info('[cubicles] ambient gain → speakers and analyser (tap)');
-        return true;
-      } catch (err) {
-        console.warn('[cubicles] Web Audio wire failed — element.volume path', err);
-        graphFailed = true;
-        gain = null; analyser = null; freqData = null;
-        return false;
-      }
-    }
-
-    function stopBufferSource() {
-      if (!bufferSource) return;
-      try { bufferSource.onended = null; } catch {}
-      try { bufferSource.stop(0); } catch {}
-      try { bufferSource.disconnect(); } catch {}
-      bufferSource = null;
-    }
-
-    function startBufferSource() {
-      const ctx = audioCtx;
-      if (!ctx || !buffer || !gain) return false;
-      stopBufferSource();
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.loop = true;
-      src.playbackRate.value = 1; // hard lock — no tempo/pitch drift
-      const dur = Math.max(0.5, buffer.duration);
-      // Exactly four bars. Encoder pad past 10.000s is silence, not musical tail.
-      const end = dur + 1e-4 >= LOOP_LEN ? LOOP_LEN : dur;
-      src.loopStart = 0;
-      src.loopEnd = end;
-      src.connect(gain);
-      try { src.start(); }
-      catch (err) {
-        console.warn('[cubicles] ambient BufferSource start failed', err);
-        try { src.disconnect(); } catch {}
-        return false;
-      }
-      bufferSource = src;
-      mode = 'buffer';
-      lockRate();
-      return true;
-    }
-
-    function wireElementSource() {
-      if (elementSrcWired || graphFailed || !graphWired || !gain || !audioCtx) return false;
-      try {
-        const mes = audioCtx.createMediaElementSource(el);
+        if (!gain) {
+          gain = ctx.createGain();
+          gain.gain.value = 1;
+        }
+        if (!analyser) {
+          analyser = ctx.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.25;
+          analyser.minDecibels = -84;
+          analyser.maxDecibels = -10;
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+        }
+        if (!graphWired) {
+          gain.connect(ctx.destination);
+          gain.connect(analyser);
+          graphWired = true;
+        }
+        const mes = ctx.createMediaElementSource(el);
         mes.connect(gain);
         elementSrcWired = true;
-        el.volume = 1;
-        lockRate();
-        console.info('[cubicles] ambient MediaElementSource → Gain (element fallback)');
-        return true;
+        mode = 'element';
+        console.info('[cubicles] ambient element → destination + analyser tap');
       } catch (err) {
-        console.warn('[cubicles] MediaElementSource wire failed', err);
-        return false;
+        console.warn('[cubicles] MediaElementSource wire failed — element output only', err);
+        graphFailed = true;
       }
     }
 
@@ -464,9 +347,6 @@
       if (!analyser || !freqData) return 0;
       try { analyser.getByteFrequencyData(freqData); }
       catch { return 0; }
-      // Bins 1–6 @ fftSize 2048 ≈ 22–150 Hz (sub-bass hits).
-      // The old fftSize 256 path read bins 1–7 (~170–1400 Hz) and skipped
-      // bin 0, which held the entire kick, so the beat never moved the scale.
       let sum = 0;
       const last = Math.min(6, freqData.length - 1);
       for (let i = 1; i <= last; i++) sum += freqData[i];
@@ -477,153 +357,71 @@
       const raw = sampleBass();
       const k = raw > bassSmooth ? 0.62 : 0.16;
       bassSmooth += (raw - bassSmooth) * k;
-      // Slow floor: a held drone is not a hit. Punch is the rise above it.
       bassFloor += (bassSmooth - bassFloor) * 0.012;
       const punch = Math.max(0, bassSmooth - bassFloor);
       return Math.min(1, punch / 0.28);
     }
 
-    function attachElementToAnalyser() {
-      // The gesture path plays the HTMLAudioElement before AudioContext is
-      // running, then stays on that element. Gain+Analyser were wired with
-      // nothing feeding them, so getBass() stayed 0. Route the element in
-      // once the context is running. Do not touch rate, loop, or pitch.
-      if (mode !== 'element' || elementSrcWired || graphFailed) return;
-      if (!graphWired || !gain || !audioCtx) return;
-      try {
-        const t = audioCtx.currentTime;
-        gain.gain.cancelScheduledValues(t);
-        gain.gain.setValueAtTime(clampGain(VOL), t);
-      } catch {
-        try { gain.gain.value = clampGain(VOL); } catch {}
-      }
-      if (wireElementSource()) setGainSmooth(VOL, 0.02);
-    }
-
-    function tryWireWhenRunning() {
-      const ctx = audioCtx || ensureAudioCtx();
-      if (!ctx || ctx.state !== 'running') return;
-      if (!graphWired && !graphFailed) wireGainAnalyser();
-      if (mode === 'element') attachElementToAnalyser();
-    }
-
-    function markPlaying(which) {
+    function markPlaying() {
       if (started) return;
       started = true;
-      playInflight = false;
-      if (which) mode = which;
+      mode = 'element';
       lockRate();
-      setGainSmooth(VOL, 0.02);
-      console.info('[cubicles] wormhole ambient playing', '(' + mode + ', rate=1)',
-        buffer ? ('buf=' + buffer.duration.toFixed(3) + 's') : 'buf=pending');
+      console.info('[cubicles] wormhole ambient playing (element only, vol=' + VOL + ')');
       try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
     }
 
-    function startOnElement() {
-      mode = 'element';
+    function playElement() {
+      try { el.loop = true; el.volume = VOL; } catch {}
       lockRate();
-      tryWireWhenRunning();
-      if (graphWired) wireElementSource();
-      setGainSmooth(VOL, 0.02);
-      playInflight = true;
-      el.addEventListener('playing', () => markPlaying('element'), { once: true });
       let p;
       try { p = el.play(); }
       catch (err) {
-        playInflight = false;
+        playRequested = false;
         console.warn('[cubicles] ambient element play threw', err);
         return;
       }
       if (p && typeof p.then === 'function') {
-        p.then(() => markPlaying('element')).catch((err) => {
-          playInflight = false;
-          console.warn('[cubicles] ambient element play blocked/failed', err);
+        p.then(markPlaying).catch((err) => {
+          if (!started) playRequested = false;
+          console.warn('[cubicles] ambient element play blocked', err);
         });
       } else {
-        markPlaying('element');
+        markPlaying();
       }
     }
 
-    function startOnBuffer() {
-      tryWireWhenRunning();
-      if (!graphWired || !buffer) return false;
-      if (!startBufferSource()) return false;
-      lockRate();
-      setGainSmooth(VOL, 0.015);
-      markPlaying('buffer');
-      return true;
-    }
-
-    let playStarting = false;
-
-    // Gesture: element.play() in this turn (speakers) and the buffer source
-    // (analyser pulse + context.destination at VOL).
-    function startElementBed() {
-      try { el.volume = VOL; } catch {}
-      lockRate();
-      if (!el.paused && !el.ended) return;
-      let p;
-      try { p = el.play(); }
-      catch (err) {
-        console.warn('[cubicles] ambient element play threw', err);
+    // First foyer pointer or key starts the one element. Later events only
+    // resume that same element after a hide; they never build another player.
+    function tryPlay() {
+      if (playRequested) {
+        if (started && (el.paused || el.ended)) {
+          resumeCtx();
+          playElement();
+        }
         return;
       }
-      if (p && p.catch) p.catch((err) => console.warn('[cubicles] ambient element play blocked', err));
-    }
-
-    async function tryPlay() {
+      playRequested = true;
+      try { el.loop = true; el.volume = VOL; } catch {}
+      lockRate();
       const ctx = ensureAudioCtx();
-      if (!ctx) return;
-      startElementBed();
-      lockRate();
-      if (started && mode === 'buffer' && bufferSource && ctx.state === 'running') {
-        lockRate();
-        return;
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
       }
-      if (playStarting) return;
-      playStarting = true;
-      // Invoke resume() in this turn so the browser counts the foyer click or key.
-      // Do not await it with no timeout: a non-gesture call never settles and the
-      // lock would swallow every later pointer and key.
-      const resumePromise = ctx.state === 'suspended' ? ctx.resume() : Promise.resolve();
-      try {
-        await Promise.race([
-          resumePromise.then(() => 'ok', () => 'err'),
-          new Promise((resolve) => setTimeout(() => resolve('timeout'), 400)),
-        ]);
-        if (ctx.state !== 'running') return;
-        kickDecode();
-        const buf = buffer || (decodePromise ? await decodePromise : null);
-        if (!buf) {
-          console.warn('[cubicles] ambient decode not ready');
-          return;
-        }
-        if (mode === 'buffer' && bufferSource) {
-          lockRate();
-          setGainSmooth(VOL, 0.03);
-          return;
-        }
-        if (!startOnBuffer()) {
-          console.warn('[cubicles] ambient buffer start failed');
-        }
-      } finally {
-        playStarting = false;
-      }
+      wireOnce();
+      playElement();
     }
-
-    kickDecode();
 
     window.__wormholeAmbient = {
       audio: el, audioB: null, tryPlay, vol: VOL,
-      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0.04,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
       get started() { return started; },
-      get secondaryArmed() { return !!buffer; },
+      get secondaryArmed() { return false; },
       get mode() { return mode; },
       lockRate,
     };
-    // Capture the first gesture anywhere in this document, not just on the walk pad.
     document.addEventListener('pointerdown', tryPlay, { capture: true });
     document.addEventListener('touchstart', tryPlay, { capture: true, passive: true });
     document.addEventListener('click', tryPlay, { capture: true });
@@ -635,18 +433,16 @@
           try { audioCtx.suspend(); } catch {}
         }
       } else if (started) {
-        // Foyer is already entered, so this event is not a click. Do not start
-        // the bed here. The next pointer or key calls tryPlay.
         resumeCtx();
         lockRate();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, 4bar10)',
+    console.info('[cubicles] wormhole ambient ready (element only, vol=' + VOL + ', 4bar10)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
   }
-})();
+})();;
 </script>
 <script type="module">
 import * as THREE from 'three';
@@ -1951,26 +1747,13 @@ function findCellAt(x, z) {
   return null;
 }
 
-// —— Zone chip + lazy embeds ——
+// —— Active cell (overlay card removed) + lazy embeds ——
 let activeCell = null;
-const chip = document.getElementById('chip');
-const chipTag = document.getElementById('chip-tag');
-const chipTitle = document.getElementById('chip-title');
-const chipHint = document.getElementById('chip-hint');
-
-function showChip(h) {
-  chipTag.textContent = 'Cell ' + h.meta.num;
-  chipTitle.textContent = h.meta.name;
-  chipHint.textContent = h.meta.hint;
-  chip.classList.add('show');
-}
 
 function updateActiveCell() {
   const next = findCellAt(pos.x, pos.z);
   if (next === activeCell) return;
   activeCell = next;
-  if (activeCell) showChip(activeCell);
-  else chip.classList.remove('show');
 }
 
 function panelDist(h) {
@@ -2248,7 +2031,6 @@ function setOverview(on) {
         h.canInteract = false;
       }
     }
-    chip.classList.remove('show');
     activeCell = null;
     camera.fov = OVERVIEW_FOV;
     camera.updateProjectionMatrix();
@@ -2300,7 +2082,6 @@ document.addEventListener('keydown', (e) => {
     resetToFoyer();
     velocity.set(0, 0, 0);
     move.f = move.b = move.l = move.r = false;
-    chip.classList.remove('show');
     activeCell = null;
     updateActiveCell();
     updateLazyEmbeds();
