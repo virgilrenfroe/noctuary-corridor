@@ -82,7 +82,7 @@ const target = new THREE.Mesh(
 );
 scene.add(target);
 
-// Googly-eye decals — successive drawn eyes (click stamps & advances)
+// Decals — every two googly eyes, then one kissy lips (eye, eye, lips, …)
 const eyes = [
   { pair: false, gaze: [-0.55, 0.12], sclera: 0.74 },
   { pair: false, gaze: [0.62, -0.18], sclera: 0.8 },
@@ -94,7 +94,17 @@ const eyes = [
   { pair: true, gazeL: [-0.72, 0.08], gazeR: [0.66, -0.1], sclera: 0.6 },
   { pair: false, gaze: [0.38, 0.34], sclera: 0.92 }
 ];
+const lips = [
+  { scale: 0.78, color: '#e85a7a', tilt: -0.08, purse: 0.92 },
+  { scale: 0.86, color: '#d43d5c', tilt: 0.1, purse: 1.05 },
+  { scale: 0.72, color: '#f07890', tilt: 0.04, purse: 0.85 },
+  { scale: 0.9, color: '#c92b4a', tilt: -0.14, purse: 1.12 },
+  { scale: 0.8, color: '#eb6b88', tilt: 0.16, purse: 0.98 },
+  { scale: 0.84, color: '#de4a68', tilt: -0.02, purse: 1.0 }
+];
 let eyeIndex = 0;
+let lipsIndex = 0;
+let stampStep = 0; // 0,1 → eye; 2 → lips; repeat
 
 function setEyeIndex(i) {
   if (!eyes.length) return;
@@ -102,8 +112,13 @@ function setEyeIndex(i) {
 }
 function nextEye() { setEyeIndex(eyeIndex + 1); }
 function prevEye() { setEyeIndex(eyeIndex - 1); }
+function nextLips() {
+  if (!lips.length) return;
+  lipsIndex = (lipsIndex + 1) % lips.length;
+}
 
-const textureCache = new Map();
+const eyeTextureCache = new Map();
+const lipsTextureCache = new Map();
 
 function drawGooglyEye(ctx, cx, cy, r, gx, gy) {
   ctx.beginPath();
@@ -129,9 +144,52 @@ function drawGooglyEye(ctx, cx, cy, r, gx, gy) {
   ctx.fill();
 }
 
+function drawKissyLips(ctx, cx, cy, w, h, color, purse) {
+  const halfW = w * 0.5;
+  const halfH = h * 0.5;
+  const bow = halfW * 0.22 * purse;
+  const tipY = -halfH * 0.55 * purse;
+  const midY = -halfH * 0.08;
+  const cornerY = halfH * 0.12;
+  const lowerY = halfH * 0.72 * purse;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Full lip silhouette (upper cupid's bow + lower pout)
+  ctx.beginPath();
+  ctx.moveTo(-halfW, cornerY);
+  ctx.bezierCurveTo(-halfW * 0.72, midY - halfH * 0.15, -bow * 1.1, tipY, 0, tipY + halfH * 0.12);
+  ctx.bezierCurveTo(bow * 1.1, tipY, halfW * 0.72, midY - halfH * 0.15, halfW, cornerY);
+  ctx.bezierCurveTo(halfW * 0.55, lowerY * 0.35, halfW * 0.35, lowerY, 0, lowerY);
+  ctx.bezierCurveTo(-halfW * 0.35, lowerY, -halfW * 0.55, lowerY * 0.35, -halfW, cornerY);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = Math.max(3, w * 0.035);
+  ctx.strokeStyle = '#5a1524';
+  ctx.stroke();
+
+  // Mouth seam
+  ctx.beginPath();
+  ctx.moveTo(-halfW * 0.78, cornerY * 0.35);
+  ctx.quadraticCurveTo(0, midY + halfH * 0.18 * purse, halfW * 0.78, cornerY * 0.35);
+  ctx.lineWidth = Math.max(2, w * 0.028);
+  ctx.strokeStyle = 'rgba(90, 21, 36, 0.85)';
+  ctx.stroke();
+
+  // Soft highlight on lower lip
+  ctx.beginPath();
+  ctx.ellipse(0, halfH * 0.28, halfW * 0.28, halfH * 0.16, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 220, 230, 0.45)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function makeEyeTexture(index) {
   const eye = eyes[index];
-  if (textureCache.has(index)) return textureCache.get(index);
+  if (eyeTextureCache.has(index)) return eyeTextureCache.get(index);
   const size = 512;
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
@@ -151,7 +209,30 @@ function makeEyeTexture(index) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
-  textureCache.set(index, tex);
+  eyeTextureCache.set(index, tex);
+  return tex;
+}
+
+function makeLipsTexture(index) {
+  const lip = lips[index];
+  if (lipsTextureCache.has(index)) return lipsTextureCache.get(index);
+  const size = 512;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  const s = lip.scale || 0.8;
+  const w = size * 0.55 * s;
+  const h = size * 0.38 * s;
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.rotate(lip.tilt || 0);
+  drawKissyLips(ctx, 0, 0, w, h, lip.color || '#e85a7a', lip.purse || 1);
+  ctx.restore();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  lipsTextureCache.set(index, tex);
   return tex;
 }
 
@@ -174,13 +255,24 @@ const ptr = new THREE.Vector2();
 const mouseHelper = new THREE.Object3D();
 
 function stamp(intersect) {
-  const map = makeEyeTexture(eyeIndex);
+  const useLips = (stampStep % 3) === 2;
+  let map;
+  let size;
+  if (useLips) {
+    map = makeLipsTexture(lipsIndex);
+    size = 0.48 + (lips[lipsIndex].scale || 0.8) * 0.28 + Math.random() * 0.08;
+    nextLips();
+  } else {
+    map = makeEyeTexture(eyeIndex);
+    size = 0.48 + (eyes[eyeIndex].sclera || 0.7) * 0.28 + Math.random() * 0.08;
+    nextEye();
+  }
+  stampStep += 1;
   const n = intersect.face.normal.clone();
   n.transformDirection(target.matrixWorld);
   n.multiplyScalar(10); n.add(intersect.point);
   mouseHelper.position.copy(intersect.point);
   mouseHelper.lookAt(n);
-  const size = 0.48 + (eyes[eyeIndex].sclera || 0.7) * 0.28 + Math.random() * 0.08;
   const mat = new THREE.MeshStandardMaterial({
     ...decalMatBase,
     map
@@ -190,7 +282,6 @@ function stamp(intersect) {
     mat
   );
   scene.add(m); decals.push(m);
-  nextEye();
 }
 
 function clearDecals() {
