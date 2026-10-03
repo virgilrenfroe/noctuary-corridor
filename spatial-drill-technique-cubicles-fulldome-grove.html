@@ -6,14 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<!-- First-paint critical: ambient bed FIRST, then Three + cathedral bg + cypress bark. -->
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=ambstable1" fetchpriority="high" />
-<link rel="modulepreload" href="./vendor/three/build/three.module.js" />
-<link rel="preload" as="image" type="image/webp" href="./demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp" crossorigin="anonymous" />
-<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_normal.webp" crossorigin="anonymous" />
-<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/bark_roughness.webp" crossorigin="anonymous" />
-<link rel="preload" as="image" type="image/webp" href="./demo-assets/cypress/needle_spray.webp" crossorigin="anonymous" />
-<title>Technique cubicles · box grove capture</title>
+<title>Technique cubicles · corridor-share</title>
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -35,25 +28,100 @@
   #stage {
     position: fixed; inset: 0; z-index: 0;
     cursor: grab; touch-action: none;
-    background: #140818;
   }
   #stage.dragging { cursor: grabbing; }
-  #stage.look-locked { cursor: none; }
   #stage.panel-hover { cursor: pointer; }
   #stage > canvas, #stage > div {
     position: absolute; inset: 0;
     display: block; width: 100% !important; height: 100% !important;
   }
-  /* Opaque WebGL room is in front. Wall scenes are textures on the outer-wall meshes,
-     so trunks between the viewer and the wall hide them. CSS3D stays behind. */
-  #stage > canvas { z-index: 2; pointer-events: none; }
-  #stage > div { z-index: 1; }
   .veil {
     position: fixed; inset: 0; z-index: 1; pointer-events: none;
     background:
       radial-gradient(70% 55% at 50% 40%, transparent 0%, rgba(207,200,186,0.1) 72%, rgba(180,172,158,0.3) 100%);
   }
+  .layer { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  .topbar {
+    position: absolute; top: 18px; left: 18px; right: 18px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+  }
+  .brand {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.78); backdrop-filter: blur(12px);
+  }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
+  .pill {
+    appearance: none; border: 1px solid var(--line); background: rgba(235,228,214,0.82);
+    color: var(--ink); border-radius: 999px; padding: 10px 14px; font: inherit;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+    backdrop-filter: blur(12px); text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .pill:hover, .pill.on { border-color: rgba(26,29,38,0.35); background: rgba(255,252,246,0.92); }
+  .chip {
+    position: absolute; left: 18px; bottom: 18px;
+    max-width: min(42ch, calc(100vw - 36px));
+    padding: 12px 16px; border-radius: 14px;
+    border: 1px solid var(--line); background: rgba(235,228,214,0.88);
+    backdrop-filter: blur(14px);
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.28s ease, transform 0.28s ease;
+    pointer-events: none;
+  }
+  .chip.show { opacity: 1; transform: translateY(0); }
+  .chip .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #b8860b; margin: 0 0 4px;
+  }
+  .chip h2 {
+    margin: 0; font-family: var(--font-display); font-weight: 650;
+    font-size: 1.15rem; letter-spacing: -0.03em; line-height: 1.15;
+  }
+  .chip p { margin: 6px 0 0; font-size: 12px; color: var(--mute); line-height: 1.4; }
+  .keys {
+    position: absolute; right: 18px; bottom: 18px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--mute); text-align: right;
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: rgba(235,228,214,0.75); backdrop-filter: blur(10px);
+  }
+  .keys strong { color: var(--ink); font-weight: 400; }
+  .gate {
+    position: fixed; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(207,200,186,0.55); backdrop-filter: blur(18px);
+    pointer-events: auto; transition: opacity 0.35s ease, visibility 0.35s;
+  }
+  .gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .gate-card {
+    text-align: center; max-width: 40ch; padding: 28px 32px;
+    border-radius: 24px; border: 1px solid var(--line);
+    background: rgba(255,252,246,0.9);
+  }
+  .gate-card .k {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--mute); margin: 0 0 12px;
+  }
+  .gate-card h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 700;
+    font-stretch: condensed; font-size: clamp(2rem, 5vw, 3rem);
+    letter-spacing: -0.04em; line-height: 0.95;
+  }
+  .gate-card p { margin: 14px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
+  .gate-card .ctrl {
+    margin-top: 10px; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(26,29,38,0.7);
+  }
+  .gate-card button {
+    margin-top: 22px; appearance: none; border: 1px solid rgba(240,194,75,0.5);
+    background: rgba(240,194,75,0.18); color: var(--ink);
+    border-radius: 999px; padding: 14px 28px; font: inherit;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer;
+  }
+  .gate-card button:hover { background: rgba(240,194,75,0.3); }
+  body.reduce .gate { display: none; }
   body.overview #mobile-pad { display: none !important; }
+  body.overview .chip { display: none !important; }
   #gl-tip {
     display: none; position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom));
     transform: translateX(-50%); z-index: 6; max-width: min(92vw, 36ch);
@@ -62,108 +130,76 @@
     font-size: 13px; line-height: 1.4; text-align: center; pointer-events: auto; cursor: pointer;
   }
   #gl-tip.show { display: block; }
-
-  /* Crossbar walkpad — liquid mercury chrome (Sketch C / floating lab metal) */
-  /* Always on for capture (chrome mercury crossbar); hide only in overview */
   #mobile-pad {
-    display: block; position: fixed;
+    display: none; position: fixed;
     left: max(12px, env(safe-area-inset-left));
     bottom: max(12px, env(safe-area-inset-bottom));
     z-index: 4; width: 148px; height: 148px;
     pointer-events: auto; touch-action: none; user-select: none;
-    -webkit-user-select: none;
-    filter: drop-shadow(0 10px 22px rgba(8, 4, 18, 0.55));
   }
   #mobile-pad .pad-base {
     position: absolute; inset: 0; border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.42);
-    background:
-      radial-gradient(120% 90% at 28% 18%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.28) 18%, transparent 42%),
-      radial-gradient(80% 70% at 78% 72%, rgba(208, 96, 184, 0.42) 0%, transparent 55%),
-      radial-gradient(70% 55% at 55% 100%, rgba(240, 194, 75, 0.28) 0%, transparent 50%),
-      linear-gradient(152deg,
-        #e8eef6 0%,
-        #9aa4b4 16%,
-        #2e3540 34%,
-        #c8d0dc 48%,
-        #5a6474 58%,
-        #f4f7fb 72%,
-        #3a4250 88%,
-        #a8b4c4 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.72),
-      inset 0 -3px 10px rgba(20, 8, 28, 0.45),
-      inset 0 0 0 1px rgba(46, 53, 64, 0.35),
-      0 0 18px rgba(208, 96, 184, 0.12);
-  }
-  #mobile-pad .pad-base::after {
-    content: "";
-    position: absolute; inset: 10%;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background:
-      radial-gradient(circle at 50% 50%, transparent 58%, rgba(14, 10, 22, 0.22) 100%);
-    pointer-events: none;
-  }
-  #mobile-pad .pad-cross {
-    position: absolute; inset: 18%; pointer-events: none; opacity: 0.72;
-    background:
-      linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0.85) 0%,
-        rgba(176, 120, 24, 0.55) 35%,
-        rgba(208, 96, 184, 0.45) 65%,
-        rgba(255, 255, 255, 0.75) 100%
-      ) center / 2.5px 100% no-repeat,
-      linear-gradient(
-        to right,
-        rgba(255, 255, 255, 0.85) 0%,
-        rgba(176, 120, 24, 0.55) 35%,
-        rgba(208, 96, 184, 0.45) 65%,
-        rgba(255, 255, 255, 0.75) 100%
-      ) center / 100% 2.5px no-repeat;
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
+    border: 1px solid rgba(26,29,38,0.2);
+    background: rgba(235,228,214,0.55); backdrop-filter: blur(10px);
   }
   #mobile-pad .pad-knob {
     position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
     margin: -28px 0 0 -28px; border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.55);
-    background:
-      radial-gradient(120% 90% at 30% 22%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.2) 28%, transparent 52%),
-      radial-gradient(90% 80% at 70% 78%, rgba(240, 194, 75, 0.35) 0%, transparent 55%),
-      linear-gradient(145deg,
-        #f2f5f8 0%,
-        #8a94a4 22%,
-        #2e3540 45%,
-        #d8dee8 58%,
-        #4a5464 78%,
-        #c0c8d4 100%);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      inset 0 -2px 6px rgba(20, 10, 30, 0.4),
-      0 4px 14px rgba(8, 4, 18, 0.4);
+    border: 1px solid rgba(240,194,75,0.5); background: rgba(240,194,75,0.22);
     pointer-events: none;
-    transition: filter 0.12s ease, box-shadow 0.12s ease;
   }
-  #mobile-pad.active .pad-knob {
-    filter: brightness(1.12);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.9),
-      inset 0 -2px 6px rgba(20, 10, 30, 0.35),
-      0 0 16px rgba(240, 194, 75, 0.35),
-      0 0 22px rgba(208, 96, 184, 0.28),
-      0 4px 14px rgba(8, 4, 18, 0.4);
+  #mobile-pad.active .pad-knob { background: rgba(240,194,75,0.38); }
+  #mobile-pad .pad-cross {
+    position: absolute; inset: 18%; pointer-events: none; opacity: 0.3;
+    background:
+      linear-gradient(var(--mute), var(--mute)) center/2px 100% no-repeat,
+      linear-gradient(var(--mute), var(--mute)) center/100% 2px no-repeat;
   }
+  .keys .keys-mobile { display: none; }
+  .gate-card .ctrl .ctrl-mobile { display: none; }
   @media (pointer: coarse), (max-width: 900px) {
     #mobile-pad { display: block; }
+    .keys .keys-desktop { display: none; }
+    .keys .keys-mobile { display: inline; }
+    .gate-card .ctrl .ctrl-desktop { display: none; }
+    .gate-card .ctrl .ctrl-mobile { display: inline; }
+    .chip, .keys { bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
   }
 </style>
 </head>
 <body>
   <div id="stage" aria-label="Technique cubicles stage"></div>
   <div class="veil" aria-hidden="true"></div>
+  <div class="layer">
+    <div class="topbar">
+      <div class="brand">Technique cubicles · 5×4</div>
+      <div class="pills">
+        <a class="pill" href="./webgl-lab/INDEX.html">WebGL Lab</a>
+        <a class="pill" href="./webgpu-lab/INDEX.html">WebGPU Lab</a>
+        <a class="pill" href="./spatial-drill-physics-room.html">Physics room</a>
+        <a class="pill" href="./spatial-drill-samuclima-beyond.html">Hall</a>
+        <button class="pill" id="btn-debug" type="button" title="Toggle inner grid (B)">Debug grid</button>
+        <button class="pill" id="btn-overview" type="button" title="Toggle overview camera (O)">Overview</button>
+      </div>
+    </div>
+    <div class="chip" id="chip" aria-live="polite">
+      <p class="tag" id="chip-tag">Cell</p>
+      <h2 id="chip-title">—</h2>
+      <p id="chip-hint"></p>
+    </div>
+    <div class="keys"><span class="keys-desktop"><strong>WASD</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span><span class="keys-mobile"><strong>pad</strong> walk · drag look · <strong>O</strong> overview · <strong>B</strong> grid</span></div>
+  </div>
 
-  <!-- Visual-only: crossbar walkpad (chrome metal). Silent first tap unlocks audio. -->
+  <div class="gate" id="gate" role="dialog" aria-label="Enter technique cubicles">
+    <div class="gate-card">
+      <p class="k">Technique cubicles</p>
+      <h1>One box ·<br/>twenty cells</h1>
+      <p>Outer walls stay visible. You start in an empty foyer looking into the 5×4 field. Inner partitions are invisible — walk into a cell for the chip, step close to play.</p>
+      <p class="ctrl"><span class="ctrl-desktop">WASD walk · drag look · O overview · B grid</span><span class="ctrl-mobile">pad walk · drag look</span></p>
+      <button type="button" id="btn-enter">Enter</button>
+    </div>
+  </div>
+
   <div id="mobile-pad" aria-label="Virtual walk pad" role="group">
     <div class="pad-base"></div>
     <div class="pad-cross" aria-hidden="true"></div>
@@ -217,375 +253,6 @@
   }, 4000);
 })();
 </script>
-<script>
-/* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
-// —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// Stable SINGLE bed only — no dual-A/B crossfade (seams/crackle/pitch drift).
-// Prefer AudioBufferSource loop when decode is ready at gesture; else one HTMLAudioElement.
-// NEVER soft-handoff mid-play (that caused crackle + tempo/pitch artifacts).
-// playbackRate locked to 1. Gain clamped via setTargetAtTime. Analyser in series for water beat.
-(function installWormholeAmbient() {
-  try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=ambstable1';
-    const VOL = 0.46;
-    const VOL_MAX = 0.55;
-    const BPM = 96;
-    const BARS = 8;
-    const LOOP_LEN = (60 / BPM) * 4 * BARS; // 20.000s
-
-    let audioCtx = null;
-    let buffer = null;
-    let bufferSource = null;
-    let gain = null;
-    let analyser = null;
-    let freqData = null;
-    let graphWired = false;
-    let graphFailed = false;
-    let started = false;
-    let playInflight = false;
-    let mode = 'none'; // 'buffer' | 'element'
-    let bassSmooth = 0;
-    let decodePromise = null;
-    let elementSrcWired = false;
-
-    const el = new Audio();
-    el.preload = 'auto';
-    el.loop = true;
-    el.playbackRate = 1;
-    el.defaultPlaybackRate = 1;
-    el.preservesPitch = true;
-    el.volume = VOL;
-    el.setAttribute('playsinline', '');
-    try { el.setAttribute('fetchpriority', 'high'); } catch {}
-    el.src = SRC;
-    try { el.load(); } catch {}
-    try {
-      fetch(SRC, { priority: 'high', credentials: 'same-origin', cache: 'force-cache' }).catch(() => {});
-    } catch {}
-    el.addEventListener('error', () => console.warn('[cubicles] ambient media error', el.error), { once: true });
-    el.addEventListener('canplay', () => console.info('[cubicles] ambient canplay (element fallback)'), { once: true });
-    // Lock rate — some engines nudge playbackRate under pressure; snap back.
-    el.addEventListener('ratechange', () => {
-      if (el.playbackRate !== 1) {
-        try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
-      }
-    });
-
-    function clampGain(v) {
-      const n = Number(v);
-      if (!Number.isFinite(n)) return 0;
-      return Math.max(0, Math.min(VOL_MAX, n));
-    }
-
-    function lockRate() {
-      try { el.playbackRate = 1; el.defaultPlaybackRate = 1; } catch {}
-      if (bufferSource) {
-        try { bufferSource.playbackRate.cancelScheduledValues(audioCtx ? audioCtx.currentTime : 0); } catch {}
-        try { bufferSource.playbackRate.value = 1; } catch {}
-      }
-    }
-
-    function setGainSmooth(v, tauSec) {
-      const target = clampGain(v);
-      const tau = tauSec == null ? 0.03 : tauSec;
-      if (graphWired && gain && audioCtx) {
-        const t = audioCtx.currentTime;
-        try {
-          gain.gain.cancelScheduledValues(t);
-          const cur = gain.gain.value;
-          gain.gain.setValueAtTime(Number.isFinite(cur) ? cur : 0, t);
-          gain.gain.setTargetAtTime(target, t, Math.max(0.008, tau));
-        } catch {
-          try { gain.gain.value = target; } catch {}
-        }
-        try { el.volume = mode === 'element' && !elementSrcWired ? target : (elementSrcWired ? 1 : 0); } catch {}
-      } else {
-        try { el.volume = target; } catch {}
-      }
-    }
-
-    function ensureAudioCtx() {
-      if (audioCtx || graphFailed) return audioCtx;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { graphFailed = true; return null; }
-      try { audioCtx = new AC(); }
-      catch (err) {
-        console.warn('[cubicles] AudioContext create failed', err);
-        graphFailed = true;
-        return null;
-      }
-      return audioCtx;
-    }
-
-    function resumeCtx() {
-      const ctx = ensureAudioCtx();
-      if (ctx && ctx.state === 'suspended') {
-        ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
-      }
-      return ctx;
-    }
-
-    function kickDecode() {
-      if (buffer || decodePromise) return decodePromise;
-      const ctx = ensureAudioCtx();
-      if (!ctx) return null;
-      decodePromise = fetch(SRC, { credentials: 'same-origin', cache: 'force-cache', priority: 'high' })
-        .then((r) => {
-          if (!r.ok) throw new Error('ambient fetch ' + r.status);
-          return r.arrayBuffer();
-        })
-        .then((ab) => ctx.decodeAudioData(ab.slice(0)))
-        .then((buf) => {
-          buffer = buf;
-          console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
-          return buf;
-        })
-        .catch((err) => {
-          console.warn('[cubicles] ambient decode failed — element loop fallback', err);
-          decodePromise = null;
-          return null;
-        });
-      return decodePromise;
-    }
-
-    function wireGainAnalyser() {
-      if (graphWired || graphFailed) return false;
-      const ctx = ensureAudioCtx();
-      if (!ctx || ctx.state !== 'running') return false;
-      try {
-        gain = ctx.createGain();
-        gain.gain.value = 0;
-        analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.72;
-        analyser.minDecibels = -90;
-        analyser.maxDecibels = -28;
-        // Series: gain → analyser → destination (analyser cannot steal speakers)
-        gain.connect(analyser);
-        analyser.connect(ctx.destination);
-        freqData = new Uint8Array(analyser.frequencyBinCount);
-        graphWired = true;
-        console.info('[cubicles] ambient Gain+Analyser series wired (speakers)');
-        return true;
-      } catch (err) {
-        console.warn('[cubicles] Web Audio wire failed — element.volume path', err);
-        graphFailed = true;
-        gain = null; analyser = null; freqData = null;
-        return false;
-      }
-    }
-
-    function stopBufferSource() {
-      if (!bufferSource) return;
-      try { bufferSource.onended = null; } catch {}
-      try { bufferSource.stop(0); } catch {}
-      try { bufferSource.disconnect(); } catch {}
-      bufferSource = null;
-    }
-
-    function startBufferSource() {
-      const ctx = audioCtx;
-      if (!ctx || !buffer || !gain) return false;
-      stopBufferSource();
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.loop = true;
-      src.playbackRate.value = 1; // hard lock — no tempo/pitch drift
-      const end = Math.min(LOOP_LEN, Math.max(0.5, buffer.duration));
-      src.loopStart = 0;
-      src.loopEnd = end;
-      src.connect(gain);
-      try { src.start(0); }
-      catch (err) {
-        console.warn('[cubicles] ambient BufferSource start failed', err);
-        try { src.disconnect(); } catch {}
-        return false;
-      }
-      bufferSource = src;
-      mode = 'buffer';
-      lockRate();
-      return true;
-    }
-
-    function wireElementSource() {
-      if (elementSrcWired || graphFailed || !graphWired || !gain || !audioCtx) return false;
-      try {
-        const mes = audioCtx.createMediaElementSource(el);
-        mes.connect(gain);
-        elementSrcWired = true;
-        el.volume = 1;
-        lockRate();
-        console.info('[cubicles] ambient MediaElementSource → Gain (element fallback)');
-        return true;
-      } catch (err) {
-        console.warn('[cubicles] MediaElementSource wire failed', err);
-        return false;
-      }
-    }
-
-    function sampleBass() {
-      if (!analyser || !freqData) return 0;
-      try { analyser.getByteFrequencyData(freqData); }
-      catch { return 0; }
-      let sum = 0;
-      const n = Math.min(7, freqData.length - 1);
-      for (let i = 1; i <= n; i++) sum += freqData[i];
-      const avg = sum / n / 255;
-      return Math.min(1, Math.pow(avg, 0.85) * 1.15);
-    }
-
-    function getBass() {
-      const raw = sampleBass();
-      const k = raw > bassSmooth ? 0.38 : 0.09;
-      bassSmooth += (raw - bassSmooth) * k;
-      return bassSmooth;
-    }
-
-    function tryWireWhenRunning() {
-      const ctx = audioCtx || ensureAudioCtx();
-      if (!ctx || ctx.state !== 'running') return;
-      if (!graphWired && !graphFailed) wireGainAnalyser();
-    }
-
-    function markPlaying(which) {
-      if (started) return;
-      started = true;
-      playInflight = false;
-      if (which) mode = which;
-      lockRate();
-      setGainSmooth(VOL, 0.02);
-      console.info('[cubicles] wormhole ambient playing', '(' + mode + ', rate=1)',
-        buffer ? ('buf=' + buffer.duration.toFixed(3) + 's') : 'buf=pending');
-      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
-    }
-
-    function startOnElement() {
-      mode = 'element';
-      lockRate();
-      tryWireWhenRunning();
-      if (graphWired) wireElementSource();
-      setGainSmooth(VOL, 0.02);
-      playInflight = true;
-      el.addEventListener('playing', () => markPlaying('element'), { once: true });
-      let p;
-      try { p = el.play(); }
-      catch (err) {
-        playInflight = false;
-        console.warn('[cubicles] ambient element play threw', err);
-        return;
-      }
-      if (p && typeof p.then === 'function') {
-        p.then(() => markPlaying('element')).catch((err) => {
-          playInflight = false;
-          console.warn('[cubicles] ambient element play blocked/failed', err);
-        });
-      } else {
-        markPlaying('element');
-      }
-    }
-
-    function startOnBuffer() {
-      tryWireWhenRunning();
-      if (!graphWired || !buffer) return false;
-      if (!startBufferSource()) return false;
-      try { el.pause(); } catch {}
-      lockRate();
-      setGainSmooth(VOL, 0.015);
-      markPlaying('buffer');
-      return true;
-    }
-
-    const tryPlay = () => {
-      const ctx = resumeCtx();
-      kickDecode();
-      lockRate();
-      if (ctx && typeof ctx.addEventListener === 'function') {
-        const onState = () => {
-          if (ctx.state === 'running') {
-            tryWireWhenRunning();
-            try { ctx.removeEventListener('statechange', onState); } catch {}
-          }
-        };
-        try { ctx.addEventListener('statechange', onState); } catch {}
-      }
-      tryWireWhenRunning();
-
-      // Anti-thrash + no mid-play handoff (staying on the bed that started prevents pitch/crackle)
-      if (started) {
-        if (mode === 'buffer' && bufferSource && ctx && ctx.state === 'running') {
-          lockRate();
-          return;
-        }
-        if (mode === 'element' && !el.paused) {
-          lockRate();
-          return;
-        }
-        // Resume after visibility suspend — same bed, no recreate if possible
-        if (mode === 'buffer' && buffer && graphWired) {
-          if (!bufferSource) startBufferSource();
-          lockRate();
-          setGainSmooth(VOL, 0.03);
-          return;
-        }
-        if (mode === 'element') {
-          playInflight = true;
-          lockRate();
-          const p = el.play();
-          if (p && p.catch) p.catch(() => { playInflight = false; });
-          else playInflight = false;
-          setGainSmooth(VOL, 0.03);
-          return;
-        }
-      }
-
-      if (playInflight) return;
-
-      // Prefer buffer if already decoded + ctx running (stable single-bed, rate=1)
-      if (buffer && ctx && ctx.state === 'running') {
-        if (startOnBuffer()) return;
-      }
-
-      // Sync gesture path: element.play() immediately — stay on element for this session
-      // (no later buffer handoff → no dual-bed drift / pitch dip)
-      startOnElement();
-    };
-
-    kickDecode();
-
-    window.__wormholeAmbient = {
-      audio: el, audioB: null, tryPlay, vol: VOL,
-      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
-      getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
-      get graphWired() { return graphWired; },
-      get started() { return started; },
-      get secondaryArmed() { return !!buffer; },
-      get mode() { return mode; },
-      lockRate,
-    };
-    window.addEventListener('pointerdown', tryPlay, { once: false });
-    window.addEventListener('touchstart', tryPlay, { once: false, passive: true });
-    window.addEventListener('keydown', tryPlay, { once: false });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        try { el.pause(); } catch {}
-        if (audioCtx && audioCtx.state === 'running') {
-          try { audioCtx.suspend(); } catch {}
-        }
-      } else if (started || window.__cubiclesEntered) {
-        resumeCtx();
-        lockRate();
-        tryPlay();
-      }
-    });
-    console.info('[cubicles] wormhole ambient ready (single-bed, rate=1, ambstable1)',
-      BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
-  } catch (err) {
-    console.warn('[cubicles] wormhole ambient failed', err);
-  }
-})();
-
-
-</script>
 <script type="module">
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
@@ -612,19 +279,6 @@ const CHROME_LOOK = {
 }[chromeVariant];
 console.info('[cubicles] chrome variant', chromeVariant, CHROME_LOOK);
 
-/** Optional: skip ALL lab panels (side-wall LIVE iframes + hit planes).
- *  Triggers: ?panels=0 | ?labs=0 | ?SKIP_LABS=true | ?v=nolabs1
- *  Restore: omit those, or force on with ?panels=1 (even alongside ?v=nolabs1). */
-const _panelsParam = params.get('panels') ?? params.get('labs') ?? hashParams.get('panels') ?? hashParams.get('labs');
-const SKIP_LABS = (
-  _panelsParam === '0' ||
-  params.get('SKIP_LABS') === 'true' || hashParams.get('SKIP_LABS') === 'true' ||
-  (params.has('SKIP_LABS') && params.get('SKIP_LABS') !== 'false' && params.get('SKIP_LABS') !== '0') ||
-  (params.get('v') === 'nolabs1' && _panelsParam !== '1')
-);
-window.__SKIP_LABS = SKIP_LABS;
-if (SKIP_LABS) console.info('[cubicles] SKIP_LABS — no floating labs / wall posters / CSS3D lab iframes (trees·stargazer·ambient·walkpad·water kept). Restore: ?panels=1');
-
 /** Outer box interior (visible walls). 5×4×1 equal cells + entrance foyer. */
 const OUTER_W = 32;   // X — roomier cells for pointer
 const OUTER_D = 30;   // Z — deeper so foyer + grid both fit
@@ -639,14 +293,13 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 2; // wall LIVE×2: left hdr-ibl (chrome), right god-rays
+const MAX_ARMED = 8;
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
 const INTERACT_DIST = Math.max(20, CELL_D * 3.6);
 function interactDistFor(panel) {
   if (!panel) return INTERACT_DIST;
-  if (panel.wallMounted) return Math.max(INTERACT_DIST * 1.5, OUTER_W * 0.85);
   // Back half of the grid needs more slack — wallpaper + deeper standing line.
   return panel.row >= 2 ? INTERACT_DIST * 1.35 : INTERACT_DIST;
 }
@@ -683,82 +336,27 @@ if (wantAisle) {
 }
 
 const CELLS = [
-  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=nolabs1' },
-  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=nolabs1' },
-  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&wall=1&v=kneeface1' },
-  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=nolabs1' },
-  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=nolabs1' },
-  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=nolabs1' },
-  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=nolabs1' },
-  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=nolabs1' },
-  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=nolabs1' },
-  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&wall=1&v=kneeface1' },
-  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=nolabs1' },
-  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=nolabs1' },
-  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=nolabs1' },
-  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=nolabs1' },
-  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=nolabs1' },
-  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=nolabs1' },
-  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=nolabs1' },
-  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=nolabs1' },
-  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=nolabs1' },
-  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=nolabs1' },
+  { id: 'glass', num: '01', name: 'Transmission glass', hint: 'Drag to orbit · thick glass', src: './webgl-lab/01-transmission-glass.html?embed=1&v=float3' },
+  { id: 'caustics', num: '02', name: 'Caustics', hint: 'Projected caustic pattern', src: './webgl-lab/02-caustics.html?embed=1&v=float3' },
+  { id: 'god-rays', num: '03', name: 'God rays', hint: 'Volumetric window rays', src: './webgl-lab/03-god-rays.html?embed=1&v=float3' },
+  { id: 'ssr', num: '04', name: 'SSR', hint: 'Screen-space reflections', src: './webgl-lab/04-ssr.html?embed=1&v=float3' },
+  { id: 'ssao', num: '05', name: 'SSAO', hint: 'Contact occlusion', src: './webgl-lab/05-ssao.html?embed=1&v=float3' },
+  { id: 'pcss', num: '06', name: 'PCSS shadows', hint: 'Soft + contact shadows', src: './webgl-lab/06-pcss-contact-shadows.html?embed=1&v=float3' },
+  { id: 'outline', num: '07', name: 'Outline selection', hint: 'Click to select', src: './webgl-lab/07-outline-selection.html?embed=1&v=float3' },
+  { id: 'stencil', num: '08', name: 'Stencil portals', hint: 'Look through the frame', src: './webgl-lab/08-stencil-portals.html?embed=1&v=float3' },
+  { id: 'decals', num: '09', name: 'Decals', hint: 'Stamp Hobbit opening phrases', src: './webgl-lab/09-decals.html?embed=1&v=float3' },
+  { id: 'hdr-ibl', num: '10', name: 'HDR IBL / PMREM', hint: 'Chrome under HDR', src: './webgl-lab/10-hdr-ibl-pmrem.html?embed=1&v=float3' },
+  { id: 'matcap', num: '11', name: 'MatCap', hint: 'Porcelain lookup', src: './webgl-lab/11-matcap.html?embed=1&v=float3' },
+  { id: 'anisotropic', num: '12', name: 'Anisotropic PBR', hint: 'Brushed specular stretch', src: './webgl-lab/12-anisotropic-pbr.html?embed=1&v=float3' },
+  { id: 'ocean', num: '13', name: 'Ocean / water', hint: 'Water normals + sun', src: './webgl-lab/13-ocean-water.html?embed=1&v=float3' },
+  { id: 'instancing', num: '14', name: 'InstancedMesh', hint: 'GPU instances', src: './webgl-lab/14-instanced-mesh.html?embed=1&v=float3' },
+  { id: 'lut', num: '15', name: 'LUT color grade', hint: 'Keys 1–4 switch looks', src: './webgl-lab/15-lut-color-grade.html?embed=1&v=float3' },
+  { id: 'morph', num: '16', name: 'Morph targets', hint: 'Blend shapes', src: './webgl-lab/16-morph-targets.html?embed=1&v=float3' },
+  { id: 'ribbons', num: '17', name: 'Fat ribbons', hint: 'Screen-space trails', src: './webgl-lab/17-fat-ribbons.html?embed=1&v=float3' },
+  { id: 'dolly', num: '18', name: 'Camera dolly', hint: 'Scroll to dolly', src: './webgl-lab/18-scroll-camera-dolly.html?embed=1&v=float3' },
+  { id: 'cloth', num: '19', name: 'Cloth', hint: 'Verlet soft body · physics', src: './physics-panel.html?demo=cloth&embed=1&v=float3' },
+  { id: 'particles', num: '20', name: 'Flow particles', hint: 'Curl field · physics', src: './physics-panel.html?demo=particles&embed=1&v=float3' },
 ];
-
-/** Virgil LIVE×2 side-wall iframes: left HDR chrome (10), right god-rays (03).
- *  Full wall height · opaque lab backgrounds · no floating labs. −Z stargazer untouched. */
-const LIVE_IDS = new Set(['hdr-ibl', 'god-rays']);
-/** Unused for wall layout (kept so older debug refs do not throw). */
-const LIVE_SLOTS = [];
-/** Still snapshot paths (labeled gallery). */
-const STILL_BY_ID = {
-  glass: './demo-assets/lab-stills/01-transmission-glass.png',
-  caustics: './demo-assets/lab-stills/02-caustics.png',
-  'god-rays': './demo-assets/lab-stills/03-god-rays.png',
-  ssr: './demo-assets/lab-stills/04-ssr.png',
-  ssao: './demo-assets/lab-stills/05-ssao.png',
-  pcss: './demo-assets/lab-stills/06-pcss-contact-shadows.png',
-  outline: './demo-assets/lab-stills/07-outline-selection.png',
-  stencil: './demo-assets/lab-stills/08-stencil-portals.png',
-  decals: './demo-assets/lab-stills/09-decals.png',
-  'hdr-ibl': './demo-assets/lab-stills/10-hdr-ibl-pmrem.png',
-  matcap: './demo-assets/lab-stills/11-matcap.png',
-  anisotropic: './demo-assets/lab-stills/12-anisotropic-pbr.png',
-  ocean: './demo-assets/lab-stills/13-ocean-water.png',
-  instancing: './demo-assets/lab-stills/14-instanced-mesh.png',
-  lut: './demo-assets/lab-stills/15-lut-color-grade.png',
-  morph: './demo-assets/lab-stills/16-morph-targets.png',
-  ribbons: './demo-assets/lab-stills/17-fat-ribbons.png',
-  dolly: './demo-assets/lab-stills/18-scroll-camera-dolly.png',
-  cloth: './demo-assets/lab-stills/19-cloth.png',
-  particles: './demo-assets/lab-stills/20-particles.png',
-};
-
-
-/** Plain-English diagram blurbs + Unicode physics eq for wall plates (Three/CSS canvas). */
-const LAB_DIAGRAM = {
-  glass: { title: 'Transmission glass', eq: 'n₁ sin θ₁ = n₂ sin θ₂', blurb: 'Snell refraction bends rays through a thick dielectric (IOR ≈ 1.5). Orbit to feel optical path length — the room warps with view angle.' },
-  caustics: { title: 'Caustics', eq: 'I ∝ 1 / |∇⊥φ|  (flux focus)', blurb: 'Focused flux where refracted rays bunch on a surface. Bright spots are energy conservation: bend light, concentrate intensity on the floor.' },
-  'god-rays': { title: 'God rays', eq: 'C = blur_radial(occ, light)', blurb: 'Radial blur of an occlusion map from the window light — fake volumetric scattering. Bright window + dark blockers → shafts through “haze.”' },
-  ssr: { title: 'SSR', eq: 'xᵢ₊₁ = xᵢ + R̂·Δs  (SSR march)', blurb: 'Screen-space ray march along the reflection vector. Hits only what is already drawn — cheap local mirrors, fails off-screen.' },
-  ssao: { title: 'SSAO', eq: 'AO ≈ 1 − (1/N) Σ H(dᵢ − z)', blurb: 'Sample nearby depth around each pixel; occluded samples darken creases. Approximates ambient occlusion without full GI.' },
-  pcss: { title: 'PCSS shadows', eq: 'w_pen ≈ (z_r − z_b) / z_b', blurb: 'Percentage-closer soft shadows: blocker search sets penumbra width, then filter. Contact = sharp; far = soft — like a finite-area sun.' },
-  outline: { title: 'Outline selection', eq: 'edge = |∇ mask|  (post)', blurb: 'Draw selected meshes to a mask, then edge-detect / grow the silhouette. A post pick cue — no extra scene lights needed.' },
-  stencil: { title: 'Stencil portals', eq: 'if stencil==ref → draw portal', blurb: 'Stencil buffer marks the portal aperture; only then draw the other room. Classic portal: mask → clear depth → render through.' },
-  decals: { title: 'Decals', eq: 'P′ = project(P, n̂) → UV stamp', blurb: 'Project a quad onto mesh triangles (DecalGeometry) and stamp UVs. Paint without remeshing — clip against surface normals.' },
-  'hdr-ibl': { title: 'HDR IBL / PMREM', eq: 'L(ω,r) ≈ PMREM_mip(roughness)', blurb: 'Convolve an HDR environment into a PMREM cube. Specular lobe samples prefiltered mips by roughness — chrome lit by the world.' },
-  matcap: { title: 'MatCap', eq: 'c = MatCap(n_view.xy)', blurb: 'Map view-space normals to a sphere texture. Baked lighting in one lookup — sculpted look with zero scene lights.' },
-  anisotropic: { title: 'Anisotropic PBR', eq: 'α_t ≠ α_b  (stretched GGX)', blurb: 'Specular BRDF stretches along a tangent (brushed grain). Highlights elongate as you turn — direction from tangent/bitangent.' },
-  ocean: { title: 'Ocean / water', eq: 'h = Σ Aᵢ sin(kᵢ·x + ωᵢt)', blurb: 'Sum-of-sines / normal maps displace the surface; Fresnel + sun specular. Waves are analytic motion, not fluid pressure solve.' },
-  instancing: { title: 'InstancedMesh', eq: 'pᵢ = Mᵢ · p_local  (1 draw)', blurb: 'One draw call, many world matrices in a buffer. GPU transforms each instance — density without CPU mesh spam.' },
-  lut: { title: 'LUT color grade', eq: "c′ = LUT₃D(c)", blurb: '3D color lookup remaps RGB → graded RGB in one sample. Film looks = baking a tone curve into a lattice.' },
-  morph: { title: 'Morph targets', eq: 'p = Σ wₖ · targetₖ', blurb: 'Lerp vertex positions between sculpted targets (blend shapes). Same topology, weighted sum — facial / soft deformation.' },
-  ribbons: { title: 'Fat ribbons', eq: '± n̂_screen · halfWidth', blurb: 'Screen-space expansion of a centerline into a thick strip. Trails stay readable regardless of camera distance.' },
-  dolly: { title: 'Camera dolly', eq: 'cam(t) = sample(path, t)', blurb: 'Scroll maps to arc-length on a path; camera position = sample(curve, t). Parallax sells depth as props slide past.' },
-  cloth: { title: 'Cloth', eq: "x′ = 2x − x_prev + a Δt²", blurb: 'Verlet integration + distance (and shear) constraints. Gravity pulls; iterations project links — folds emerge, no FEM.' },
-  particles: { title: 'Flow particles', eq: 'v = ∇×ψ  (curl noise)', blurb: 'Advect points in a curl noise vector field (∇×ψ). Divergence-free-ish flow — fluid look without Navier–Stokes.' },
-};
-
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
@@ -868,6 +466,7 @@ if (chromeVariant === 2) {
 
 // —— Visible outer box ——
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1438, roughness: 0.72, metalness: 0.22 });
+const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1a0c28, roughness: 0.55, metalness: 0.35, envMapIntensity: 0.85 });
 
 // Swamp water floor — three.js Water addon, slowed + murkier olive/brown
 const WATER_TIME_SCALE = 0.28; // was ~1.0 realtime; slower swamp drift
@@ -883,14 +482,14 @@ const water = new Water(new THREE.PlaneGeometry(OUTER_W, OUTER_D), {
   sunDirection: waterSun.clone(),
   sunColor: 0xffd078,
   waterColor: 0x140c22, // cathedral aisle — dark mirror so mercury trees read
-  distortionScale: 3.6, // visible swamp ripple; bass boosts further (watbeat1)
+  distortionScale: 1.15,
   fog: true,
 });
 water.rotation.x = -Math.PI / 2;
 water.position.y = 0.02;
 water.raycast = () => {};
 // Larger, lazier ripples (size) + stretch baked wave time divisors in getNoise
-if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.58; // larger visible ripples (watbeat1)
+if (water.material?.uniforms?.size) water.material.uniforms.size.value = 0.42;
 if (water.material?.fragmentShader) {
   water.material.fragmentShader = water.material.fragmentShader
     .replace('time / 17.0', 'time / 52.0')
@@ -985,61 +584,44 @@ async function setupCathedralEnvAndBloom() {
   try { pmrem.compileEquirectangularShader(); } catch (_) {}
 
   let usedLocalHdrBg = false;
-  // Fast path: pre-baked soft cathedral equirect (WebP) — skips RGBE decode + PMREM of 1.6MB HDR on first paint.
-  // Visual match for backgroundBlurriness≈0.68; envMap still uses punchy synth below.
+  // Vendored Poly Haven HDR → soft blurred background (cathedral atmosphere)
   try {
-    const prebakedUrl = './demo-assets/hdr/small_cathedral_02_1k_pmrem_bg.webp';
-    const prebaked = await new THREE.TextureLoader().loadAsync(prebakedUrl);
-    prebaked.mapping = THREE.EquirectangularReflectionMapping;
-    prebaked.colorSpace = THREE.SRGBColorSpace;
-    scene.background = prebaked;
-    scene.backgroundBlurriness = 0.12; // already soft-baked
-    scene.backgroundIntensity = chromeVariant === 2 ? 0.42 : 0.36;
-    window.__sketchCHdrEnv = prebaked;
-    usedLocalHdrBg = true;
-    console.info('[cubicles] prebaked PMREM-style bg (skip HDR decode)', prebakedUrl, 'chrome=' + chromeVariant);
-  } catch (preErr) {
-    console.warn('[cubicles] prebaked bg missing — HDR fallback', preErr);
-  }
-  // Optional: full HDR upgrade only when ?hdr=1 (quality A/B), otherwise skip decode cost.
-  if (!usedLocalHdrBg || params.has('hdr')) {
-    try {
-      const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
-      const localCandidates = [
-        './demo-assets/hdr/small_cathedral_02_1k.hdr',
-        './demo-assets/hdr/neon_photostudio_1k.hdr',
-      ];
-      let hdr = null;
-      let hdrSrc = null;
-      for (const url of localCandidates) {
-        try {
-          hdr = await new RGBELoader().loadAsync(url);
-          hdrSrc = url;
-          break;
-        } catch (_) { /* try next */ }
-      }
-      if (!hdr) {
-        try {
-          hdr = await new RGBELoader().loadAsync(
-            'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
-          );
-          hdrSrc = 'cdn:venice_sunset';
-        } catch (_) {}
-      }
-      if (hdr) {
-        tintHdrTowardMagentaGold(hdr, chromeVariant);
-        const bgRT = pmrem.fromEquirectangular(hdr);
-        scene.background = bgRT.texture;
-        scene.backgroundBlurriness = 0.68;
-        scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
-        window.__sketchCHdrEnv = bgRT.texture;
-        hdr.dispose();
-        usedLocalHdrBg = true;
-        console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
-      }
-    } catch (loaderErr) {
-      console.warn('[cubicles] RGBELoader unavailable', loaderErr);
+    const { RGBELoader } = await import('three/addons/loaders/RGBELoader.js');
+    const localCandidates = [
+      './demo-assets/hdr/small_cathedral_02_1k.hdr',
+      './demo-assets/hdr/neon_photostudio_1k.hdr',
+    ];
+    let hdr = null;
+    let hdrSrc = null;
+    for (const url of localCandidates) {
+      try {
+        hdr = await new RGBELoader().loadAsync(url);
+        hdrSrc = url;
+        break;
+      } catch (_) { /* try next */ }
     }
+    if (!hdr) {
+      try {
+        hdr = await new RGBELoader().loadAsync(
+          'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr'
+        );
+        hdrSrc = 'cdn:venice_sunset';
+      } catch (_) {}
+    }
+    if (hdr) {
+      tintHdrTowardMagentaGold(hdr, chromeVariant);
+      const bgRT = pmrem.fromEquirectangular(hdr);
+      scene.background = bgRT.texture;
+      scene.backgroundBlurriness = 0.68;
+      scene.backgroundIntensity = chromeVariant === 2 ? 0.34 : 0.28;
+      // Keep a copy for optional env fallback if synth fails
+      window.__sketchCHdrEnv = bgRT.texture;
+      hdr.dispose();
+      usedLocalHdrBg = true;
+      console.info('[cubicles] Poly Haven HDR → PMREM background', hdrSrc, 'chrome=' + chromeVariant);
+    }
+  } catch (loaderErr) {
+    console.warn('[cubicles] RGBELoader unavailable', loaderErr);
   }
 
   // Sketch C chrome reflections: punchy magenta/gold synth with hot specular windows (mercury beads)
@@ -1140,7 +722,10 @@ function addOuterWall(w, h, x, y, z, rotY) {
   m.receiveShadow = true;
   scene.add(m);
 }
-// No exterior wall planes.
+addOuterWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
+addOuterWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
+addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -1235,150 +820,6 @@ function createWallpaper() {
 // Floating-labs sketch: skip far-wall InstancedMesh cube plate (read as hung black backing).
 window.__disposeWallpaper = disposeWallpaper;
 console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube plate)');
-
-// —— Far/back wall MOVING stargazer mural ——
-// Planar −Z portrait video (poster-first). Star sphere removed so portraits are not painted over.
-(function installStargazingWall() {
-  try {
-    const STARGAZER_MP4 = './demo-assets/backwall/stargazing.mp4?v=star2mb';
-    const vid = document.createElement('video');
-    vid.crossOrigin = 'anonymous';
-    vid.loop = true;
-    vid.muted = true;
-    vid.defaultMuted = true;
-    vid.autoplay = true;
-    vid.playsInline = true;
-    vid.setAttribute('playsinline', '');
-    vid.setAttribute('webkit-playsinline', '');
-    vid.setAttribute('muted', '');
-    vid.setAttribute('autoplay', '');
-    vid.preload = 'metadata';
-    vid.width = 720;
-    vid.height = 974;
-    vid.setAttribute('aria-hidden', 'true');
-    const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
-      ? renderer.capabilities.getMaxAnisotropy()
-      : 1;
-    const tex = new THREE.VideoTexture(vid);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.LinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
-    tex.anisotropy = maxAniso;
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    const muralW = 24.0;
-    const muralH = 18.0;
-    const bandAspect = muralW / muralH;
-    const videoAspect = 720 / 974;
-    let repX = 1.0, repY = 1.0, offX = 0.0, offY = 0.0;
-    if (videoAspect > bandAspect) {
-      repX = bandAspect / videoAspect;
-      repY = 1.0;
-      offX = (1.0 - repX) * 0.5;
-      offY = 0.0;
-    } else {
-      repX = 1.0;
-      repY = videoAspect / bandAspect;
-      offX = 0.0;
-      offY = 1.0 - repY;
-    }
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
-    poster.colorSpace = THREE.SRGBColorSpace;
-    poster.minFilter = THREE.LinearFilter;
-    poster.magFilter = THREE.LinearFilter;
-    poster.generateMipmaps = false;
-    poster.anisotropy = maxAniso;
-    poster.wrapS = THREE.ClampToEdgeWrapping;
-    poster.wrapT = THREE.ClampToEdgeWrapping;
-    poster.repeat.copy(tex.repeat);
-    poster.offset.copy(tex.offset);
-    // starband3: full upright portraits on planes around the grove, not a cylinder rim.
-    tex.repeat.set(1, 1);
-    tex.offset.set(0, 0);
-    poster.repeat.set(1, 1);
-    poster.offset.set(0, 0);
-    const mat = new THREE.MeshBasicMaterial({
-      map: poster,
-      toneMapped: false,
-      side: THREE.DoubleSide,
-      fog: false,
-      depthWrite: false,
-    });
-    const figH = 7.2;
-    const figW = figH * (720 / 974);
-    const figR = 11;
-    const copies = 6;
-    const ring = new THREE.Group();
-    for (let i = 0; i < copies; i++) {
-      const a = (i / copies) * Math.PI * 2;
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(figW, figH), mat);
-      plane.position.set(Math.sin(a) * figR, figH * 0.5 + 0.2, Math.cos(a) * figR);
-      plane.lookAt(0, plane.position.y, 0);
-      plane.raycast = () => {};
-      ring.add(plane);
-    }
-    scene.add(ring);
-    const promoteVideoMap = () => {
-      if (vid.readyState < 2) return;
-      mat.map = tex;
-      tex.needsUpdate = true;
-      mat.needsUpdate = true;
-    };
-    vid.addEventListener('loadeddata', promoteVideoMap);
-    vid.addEventListener('playing', promoteVideoMap);
-    const rim = new THREE.PointLight(0xa8c8ff, mobileLike ? 8 : 16, 28);
-    rim.position.set(0, OUTER_H * 0.55, WALL_Z + 2.4);
-    scene.add(rim);
-    const tryPlay = () => {
-      if (!vid.src) return;
-      try { vid.muted = true; vid.defaultMuted = true; } catch {}
-      const p = vid.play();
-      if (p && typeof p.then === 'function') {
-        p.then(() => {
-          promoteVideoMap();
-          console.info('[cubicles] stargazer play() ok', 'rs', vid.readyState, 'paused', vid.paused);
-        }).catch((err) => {
-          console.warn('[cubicles] stargazer play() blocked', err && err.name);
-        });
-      }
-    };
-    let videoStarted = false;
-    const startStargazerVideo = () => {
-      if (videoStarted) { tryPlay(); promoteVideoMap(); return; }
-      videoStarted = true;
-      vid.preload = 'auto';
-      if (!vid.src) vid.src = STARGAZER_MP4;
-      try { vid.load(); } catch {}
-      vid.addEventListener('canplay', tryPlay, { once: true });
-      vid.addEventListener('loadeddata', () => { promoteVideoMap(); tryPlay(); }, { once: true });
-      vid.addEventListener('playing', promoteVideoMap);
-      tryPlay();
-      console.info('[cubicles] stargazer mp4 start (unlock)');
-    };
-    window.__stargazingWall = {
-      mesh, vid, tex, muralW, muralH,
-      dome: false, equirect: false, highResBand: true, portraitBand: true, stillOnly: false,
-      cover: { repX, repY, offX, offY }, videoAspect,
-      anisotropy: maxAniso,
-      start: startStargazerVideo,
-      play: tryPlay,
-      posterFirst: true,
-    };
-    console.info(
-      '[cubicles] stargazing portraits (star sphere removed)',
-      muralW.toFixed(1) + '×' + muralH.toFixed(1),
-      'cover', repX.toFixed(3), repY.toFixed(3),
-      'offY', offY.toFixed(3),
-      'aniso', maxAniso
-    );
-  } catch (err) {
-    console.warn('[cubicles] stargazing wall failed', err);
-  }
-})();
-
 
 function updateWallpaper(t) {
   if (!wallpaperOk || !wallpaper || reduceMotion) return;
@@ -1592,595 +1033,164 @@ function updateSparklines(t) {
   }
 }
 
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), ceilMat);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.y = OUTER_H;
+scene.add(ceil);
+
+// Outer edge lines (readable “box” silhouette)
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.45 });
+const outerEdges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(OUTER_W, OUTER_H, OUTER_D)),
+  edgeMat
+);
+outerEdges.position.y = OUTER_H / 2;
+scene.add(outerEdges);
+
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
 // Iframe carries each lab's own opaque scene (readable WebGL sketch), not a hung plate mesh.
-const LAB_HIT_LAYER = 1; // raycast hits only — camera stays on layer 0
 const hung = [];
 const debugGroup = new THREE.Group();
 debugGroup.visible = false;
 scene.add(debugGroup);
 const wireMat = new THREE.LineBasicMaterial({ color: 0xf0c24b, transparent: true, opacity: 0.5 });
 
-
-// —— Side + foyer wall lab posters (NOT live WebGL; NOT on −Z stargazer wall) ——
-// Still/snapshot + diagram plate per non-live lab. Readable from foyer; chrome/grove plaque.
-const wallPosterGroup = new THREE.Group();
-wallPosterGroup.name = 'wallLabPosters';
-scene.add(wallPosterGroup);
-window.__wallLabPosters = wallPosterGroup;
-
-function loadStillImage(url) {
-  return new Promise((resolve) => {
-    if (!url) { resolve(null); return; }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-}
-
-/** Taxodium wall poster: glossy purple bark + orange/cream brush shards; tall full-wall aspect. */
-function paintTaxodiumPoster(meta, stillImg) {
-  const W = 720, H = 1680;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const g = c.getContext('2d');
-
-  const bark = g.createLinearGradient(0, 0, W * 0.35, H);
-  bark.addColorStop(0, '#5a2878');
-  bark.addColorStop(0.22, '#3a1458');
-  bark.addColorStop(0.55, '#2a0c40');
-  bark.addColorStop(0.82, '#1a0828');
-  bark.addColorStop(1, '#100418');
-  g.fillStyle = bark;
-  g.fillRect(0, 0, W, H);
-
-  const gloss = g.createLinearGradient(W * 0.05, 0, W * 0.55, H * 0.4);
-  gloss.addColorStop(0, 'rgba(220,180,255,0.28)');
-  gloss.addColorStop(0.35, 'rgba(180,120,255,0.08)');
-  gloss.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = gloss;
-  g.fillRect(0, 0, W, H * 0.55);
-
-  for (let i = 0; i < 70; i++) {
-    const x = Math.random() * W;
-    const y = Math.random() * H;
-    const len = 18 + Math.random() * 55;
-    const ang = -0.9 + Math.random() * 1.8;
-    const cream = Math.random() > 0.45;
-    g.strokeStyle = cream
-      ? `rgba(255,236,200,${0.18 + Math.random() * 0.35})`
-      : `rgba(255,140,40,${0.2 + Math.random() * 0.4})`;
-    g.lineWidth = 1.2 + Math.random() * 2.8;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
-    g.stroke();
-  }
-  for (let i = 0; i < 40; i++) {
-    const side = Math.random() < 0.5;
-    const x = side ? Math.random() * 70 : W - 70 + Math.random() * 70;
-    const y = Math.random() * H;
-    const len = 28 + Math.random() * 70;
-    g.strokeStyle = Math.random() > 0.5
-      ? 'rgba(255,176,64,0.45)' : 'rgba(255,244,220,0.32)';
-    g.lineWidth = 1.5 + Math.random() * 2.2;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + (side ? 1 : -1) * len * 0.35, y + len);
-    g.stroke();
-  }
-
-  g.strokeStyle = 'rgba(208,96,184,0.7)';
-  g.lineWidth = 8;
-  g.strokeRect(14, 14, W - 28, H - 28);
-  g.strokeStyle = 'rgba(255,176,64,0.45)';
-  g.lineWidth = 2;
-  g.strokeRect(28, 28, W - 56, H - 56);
-
-  const pad = 48;
-  const stillH = Math.floor(H * 0.58);
-  const stillW = W - pad * 2;
-  g.fillStyle = 'rgba(10,4,18,0.55)';
-  g.fillRect(pad, pad, stillW, stillH);
-  if (stillImg) {
-    const iw = stillImg.naturalWidth || stillImg.width;
-    const ih = stillImg.naturalHeight || stillImg.height;
-    const scale = Math.max(stillW / iw, stillH / ih);
-    const dw = iw * scale, dh = ih * scale;
-    const dx = pad + (stillW - dw) / 2;
-    const dy = pad + (stillH - dh) / 2;
-    g.save();
-    g.beginPath();
-    g.rect(pad, pad, stillW, stillH);
-    g.clip();
-    g.drawImage(stillImg, dx, dy, dw, dh);
-    g.restore();
-    const vig = g.createLinearGradient(0, pad + stillH * 0.55, 0, pad + stillH);
-    vig.addColorStop(0, 'rgba(26,8,40,0)');
-    vig.addColorStop(1, 'rgba(26,8,40,0.55)');
-    g.fillStyle = vig;
-    g.fillRect(pad, pad, stillW, stillH);
-  } else {
-    g.fillStyle = 'rgba(255,176,64,0.12)';
-    g.font = '700 140px "Space Mono", ui-monospace, monospace';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(meta.num, W / 2, pad + stillH / 2);
-  }
-
-  g.fillStyle = 'rgba(255,160,48,0.85)';
-  g.fillRect(pad, pad + stillH + 6, stillW, 4);
-
-  const diag = LAB_DIAGRAM[meta.id] || { title: meta.name, blurb: meta.hint || '' };
-  const dy0 = pad + stillH + 48;
-  g.fillStyle = 'rgba(255,176,64,0.95)';
-  g.font = '700 34px "Space Mono", ui-monospace, monospace';
-  g.textAlign = 'left';
-  g.textBaseline = 'alphabetic';
-  g.fillText(meta.num, pad, dy0);
-  g.fillStyle = '#ffe8c8';
-  g.font = '700 42px "Bricolage Grotesque", system-ui, sans-serif';
-  g.fillText(diag.title || meta.name, pad, dy0 + 56);
-  // Physics equation plate (Unicode / LaTeX-ish — readable on Three canvas texture)
-  const eq = (diag.eq || '').trim();
-  let ly = dy0 + 110;
-  if (eq) {
-    const eqPad = 10;
-    g.font = '700 28px "Space Mono", ui-monospace, monospace';
-    const eqW = Math.min(stillW, g.measureText(eq).width + eqPad * 2);
-    const eqH = 44;
-    g.fillStyle = 'rgba(8,2,16,0.72)';
-    g.fillRect(pad, ly - 30, eqW, eqH);
-    g.strokeStyle = 'rgba(255,176,64,0.75)';
-    g.lineWidth = 2;
-    g.strokeRect(pad, ly - 30, eqW, eqH);
-    g.fillStyle = 'rgba(255,220,120,0.98)';
-    g.textAlign = 'left';
-    g.fillText(eq, pad + eqPad, ly);
-    ly += 56;
-  }
-  g.fillStyle = 'rgba(255,220,180,0.88)';
-  g.font = '400 28px "Instrument Sans", system-ui, sans-serif';
-  const blurb = diag.blurb || meta.hint || '';
-  const maxW = stillW;
-  const words = blurb.split(/\s+/);
-  let line = '';
-  for (const w of words) {
-    const test = line ? line + ' ' + w : w;
-    if (g.measureText(test).width > maxW && line) {
-      g.fillText(line, pad, ly);
-      line = w;
-      ly += 36;
-      if (ly > H - 70) break;
-    } else line = test;
-  }
-  if (line && ly <= H - 70) g.fillText(line, pad, ly);
-
-  g.fillStyle = 'rgba(208,96,184,0.65)';
-  g.font = '400 22px "Space Mono", ui-monospace, monospace';
-  g.fillText('WALL · TAXODIUM', pad, H - 36);
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 4);
-  tex.needsUpdate = true;
-  return tex;
-}
-
-async function placeWallLabPosters(wallMetas, opts) {
-  const leftX = opts.leftX, rightX = opts.rightX, foyerZ = opts.foyerZ;
-  const plateW = opts.plateW, plateH = opts.plateH;
-  const y = opts.y;
-  const n = wallMetas.length;
-  const nLeft = Math.min(6, Math.ceil(n / 3));
-  const nRight = Math.min(6, Math.ceil((n - nLeft) / 2));
-  const left = wallMetas.slice(0, nLeft);
-  const right = wallMetas.slice(nLeft, nLeft + nRight);
-  const foyer = wallMetas.slice(nLeft + nRight);
-
-  const zSpan = GRID_Z_MAX - GRID_Z_MIN - 2.8;
-  const z0 = GRID_Z_MIN + 2.4; // clear of −Z stargazer band
-
-  const barkMatExtras = {
-    roughness: 0.22, metalness: 0.72,
-    emissive: new THREE.Color(0x3a1050), emissiveIntensity: 0.28,
-    side: THREE.FrontSide,
-  };
-
-  // Thick Taxodium slabs (not paper planes) — depth reads from foyer / aisles.
-  const plateDepth = opts.plateDepth != null ? opts.plateDepth : 0.58;
-  const edgeMat = new THREE.MeshPhysicalMaterial({
-    color: 0x2a0c40, roughness: 0.35, metalness: 0.55,
-    emissive: new THREE.Color(0x4a1868), emissiveIntensity: 0.22,
-    clearcoat: 0.35, clearcoatRoughness: 0.35,
-  });
-
-  function makeSlab(w, h, tex) {
-    const faceMat = new THREE.MeshPhysicalMaterial({
-      map: tex, ...barkMatExtras,
-      clearcoat: 0.55, clearcoatRoughness: 0.18,
-    });
-    // Box faces: 0+X 1-X 2+Y 3-Y 4+Z 5-Z — poster on +Z (matches prior Plane front after rotY).
-    const mats = [edgeMat, edgeMat.clone(), edgeMat.clone(), edgeMat.clone(), faceMat, edgeMat.clone()];
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, plateDepth), mats);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    return mesh;
-  }
-
-  async function alongZ(list, x, rotY) {
-    const count = list.length;
-    if (!count) return;
-    for (let i = 0; i < count; i++) {
-      const meta = list[i];
-      const t = count === 1 ? 0.5 : i / (count - 1);
-      const z = z0 + t * zSpan * 0.94;
-      const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
-      const tex = paintTaxodiumPoster(meta, stillImg);
-      const mesh = makeSlab(plateW, plateH, tex);
-      mesh.position.set(x, y, z);
-      mesh.rotation.y = rotY;
-      mesh.userData.wallLab = meta.id;
-      wallPosterGroup.add(mesh);
-    }
-  }
-  await alongZ(left, leftX, Math.PI / 2);
-  await alongZ(right, rightX, -Math.PI / 2);
-
-  const fx0 = -OUTER_W / 2 + 1.8;
-  const fxSpan = OUTER_W - 3.6;
-  for (let i = 0; i < foyer.length; i++) {
-    const meta = foyer[i];
-    const t = foyer.length === 1 ? 0.5 : i / (foyer.length - 1);
-    const x = fx0 + t * fxSpan;
-    const stillImg = await loadStillImage(STILL_BY_ID[meta.id]);
-    const tex = paintTaxodiumPoster(meta, stillImg);
-    const mesh = makeSlab(plateW * 0.95, plateH, tex);
-    mesh.position.set(x, y, foyerZ);
-    mesh.rotation.y = Math.PI;
-    mesh.userData.wallLab = meta.id;
-    wallPosterGroup.add(mesh);
-  }
-  console.info('[cubicles] taxodium wall posters', wallPosterGroup.children.length, 'slabD', plateDepth.toFixed(2), 'full-H · live', [...LIVE_IDS].join(','));
-}
-
-
-
-
 const PANEL_W = Math.min(3.35, CELL_W * 0.62);
-// LIVE×2 full-height side-wall iframes — no floating cell labs, no still posters.
-// Left −X: HDR chrome (10). Right +X: god-rays (03). Fit to wall size. Opaque lab bg.
-const PANEL_H = Math.min(3.05, CELL_D * 0.66); // kept for beat helpers / legacy refs
-const PANEL_Y = EYE + 0.15;
+// Human-scale floating scenes under cathedral vault — readable from foyer
+const PANEL_H = Math.min(3.05, CELL_D * 0.66);
+const PANEL_Y = EYE + 0.15; // float near eye height inside each cell
 
-// armLab / revealLabWhenReady must be module-scoped — updateLazyEmbeds + setInteractTarget
-// call them every frame. Declaring them inside `if (!SKIP_LABS)` made them TDZ/unresolved
-// in ES-module strict mode → ReferenceError → animate dies → beige #cfc8ba void.
-let revealLabWhenReady = function revealLabWhenReady(_panel) {};
-let armLab = function armLab(_panel) {};
-let armFoyerVisibleLabs = function armFoyerVisibleLabs() {};
-// Copy each wall iframe's canvas onto a mesh on the wall plane. CSS3D stays
-// behind the opaque canvas (hit target for dblclick only) so it cannot float
-// over the grove. Trunks, water, and the bark rails depth-test the mural.
-function updateWallLiveTextures() {
-  for (const h of hung) {
-    if (!h.wallMounted || !h.liveMat) continue;
-    let src = h._liveCanvas;
-    if (!src || src.width < 2) {
-      try {
-        const doc = h.iframe.contentDocument;
-        const list = doc ? doc.querySelectorAll('canvas') : [];
-        src = null;
-        for (const c of list) {
-          if (!src || c.width * c.height > src.width * src.height) src = c;
-        }
-      } catch (e) { src = null; }
-      if (!src || src.width < 2) continue;
-      h._liveCanvas = src;
-    }
-    // Copy into a 2D canvas. A 2×2 CanvasTexture resized onto the iframe's
-    // WebGL canvas uploads with texSubImage and stays blank (GL_INVALID_VALUE).
-    if (!h._liveCopy || h._liveCopy.width !== src.width || h._liveCopy.height !== src.height) {
-      const copy = document.createElement('canvas');
-      copy.width = src.width;
-      copy.height = src.height;
-      h._liveCopy = copy;
-      const tex = new THREE.CanvasTexture(copy);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      if (h.liveTex) h.liveTex.dispose();
-      h.liveTex = tex;
-      h.liveMat.map = tex;
-      h.liveMat.needsUpdate = true;
-    }
-    const ctx = h._liveCopy.getContext('2d', { alpha: false });
-    try { ctx.drawImage(src, 0, 0, h._liveCopy.width, h._liveCopy.height); }
-    catch (e) { continue; }
-    h.liveTex.needsUpdate = true;
-  }
-}
+for (let i = 0; i < CELLS.length; i++) {
+  const meta = CELLS[i];
+  const col = i % COLS;
+  const row = Math.floor(i / COLS); // 0 = near (foyer side), 3 = far (−Z)
+  const minX = -OUTER_W / 2 + col * CELL_W;
+  const maxX = minX + CELL_W;
+  // Near row sits just −Z of foyer; far row against far wall
+  const maxZ = GRID_Z_MAX - row * CELL_D;
+  const minZ = maxZ - CELL_D;
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
 
-if (!SKIP_LABS) {
-const liveById = Object.fromEntries(CELLS.filter((c) => LIVE_IDS.has(c.id)).map((c) => [c.id, c]));
-const wallLiveOrder = [
-  { id: 'hdr-ibl', side: 'left' },
-  { id: 'god-rays', side: 'right' },
-];
-const liveMetas = wallLiveOrder.map((s) => liveById[s.id]).filter(Boolean);
-if (liveMetas.length !== 2) {
-  console.warn('[cubicles] expected LIVE×2 wall labs, got', liveMetas.map((m) => m && m.id));
-}
-if (liveMetas.length > MAX_ARMED) {
-  console.warn('[cubicles] LIVE_IDS count', liveMetas.length, '> MAX_ARMED', MAX_ARMED);
-}
+  // Debug wireframe for this cell volume (full height)
+  const boxGeo = new THREE.BoxGeometry(CELL_W * 0.998, OUTER_H * 0.998, CELL_D * 0.998);
+  const wire = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), wireMat);
+  wire.position.set(cx, OUTER_H / 2, cz);
+  debugGroup.add(wire);
 
-// Flush-pin LIVE plates to ±X outer wall planes (not mid-aisle / mid-grove).
-// Mirror far-wall WALL_Z inset: sit just inside the wall so bark frame reads flush.
-const WALL_LAB_H = Math.min(OUTER_H * 0.96, OUTER_H - 0.35); // full-height
-const WALL_LAB_W = Math.min(GRID_D * 0.72, OUTER_D * 0.52, 14.5); // long run along wall
-const wallY = OUTER_H * 0.5;
-const wallZ = (GRID_Z_MIN + GRID_Z_MAX) * 0.5;
-const wallInset = 0.12; // same spirit as WALL_Z = -OUTER_D/2 + 0.12
-const leftX = -OUTER_W / 2 + wallInset;
-const rightX = OUTER_W / 2 - wallInset;
-
-const wallSpecs = [
-  { meta: liveById['hdr-ibl'], x: leftX, rotY: Math.PI / 2, side: 'left' },
-  { meta: liveById['god-rays'], x: rightX, rotY: -Math.PI / 2, side: 'right' },
-];
-
-for (let li = 0; li < wallSpecs.length; li++) {
-  const spec = wallSpecs[li];
-  const meta = spec.meta;
-  if (!meta) continue;
-  const cx = spec.x;
-  const cz = wallZ;
-  const panelZ = wallZ;
-  const rotY = spec.rotY;
+  // Free-float near cell center, slight +Z bias so foyer walk sees faces clearly
+  const panelZ = cz + CELL_D * 0.06;
 
   const group = new THREE.Group();
-  group.position.set(cx, wallY, panelZ);
-  group.rotation.y = rotY;
+  group.position.set(cx, PANEL_Y, panelZ);
+  group.rotation.y = 0; // face +Z / foyer
+
+  // No wooden frame, ghost plate, or floor contact disk — only the lab iframe floats.
+  // Invisible hit plane for raycasting / click (does not draw).
 
   const hit = new THREE.Mesh(
-    new THREE.PlaneGeometry(WALL_LAB_W * 1.02, WALL_LAB_H * 1.02),
-    new THREE.MeshBasicMaterial({
-      transparent: true, opacity: 0, depthWrite: false, colorWrite: false,
-      side: THREE.DoubleSide, fog: false, visible: false,
-    })
+    new THREE.PlaneGeometry(PANEL_W, PANEL_H),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })
   );
-  hit.layers.set(LAB_HIT_LAYER);
-  hit.position.z = 0.08; // same face inset as cssObj (pinned every frame)
-  hit.userData.cellIndex = li;
+  hit.position.z = 0.04;
+  hit.userData.cellIndex = i;
   hit.userData.clickable = true;
-  hit.userData.liveLab = meta.id;
-  hit.userData.wallSide = spec.side;
   group.add(hit);
   scene.add(group);
 
-  // CSS px size matches wall aspect (opaque plate — lab keeps its own dark/env bg).
-  const cssH = 1100;
-  const cssW = Math.max(480, Math.round(cssH * (WALL_LAB_W / WALL_LAB_H)));
-  const scale = WALL_LAB_W / cssW;
-  let embedUrl = meta.src;
-  if (!/[?&]wall=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'wall=1';
-  embedUrl = embedUrl.replace(/([?&])v=[^&]*/, '$1v=kneeface1');
-  if (!/[?&]v=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'v=kneeface1';
-  if (!/[?&]embed=/.test(embedUrl)) embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'embed=1';
-
-  // matrix3d on the <iframe> itself is flattened by the browser (exact ±90° wall
-  // yaw puts scale on the Z column, which iframes drop). The plate then paints at
-  // raw CSS px — a huge tilted rectangle floating in the grove. Transform a div;
-  // the live iframe is a flat child on that plane (three.js css3d_youtube).
-  const plate = document.createElement('div');
-  plate.style.width = cssW + 'px';
-  plate.style.height = cssH + 'px';
-  plate.style.overflow = 'hidden';
-  plate.style.background = '#140818';
-  plate.style.backgroundColor = '#140818';
-  plate.style.borderRadius = '0';
-  plate.style.boxShadow = 'none';
-
+  const cssW = Math.round(PANEL_W * 100);
+  const cssH = Math.round(PANEL_H * 100);
+  const scale = PANEL_W / cssW;
   const iframe = document.createElement('iframe');
-  // Arm immediately with correct opaque wall embed src (not about:blank / not lazy).
-  iframe.setAttribute('loading', 'eager');
-  iframe.src = embedUrl;
-  iframe.title = meta.name + ' · ' + spec.side + ' wall';
+  iframe.src = 'about:blank';
+  iframe.setAttribute('loading', 'lazy');
+  iframe.title = meta.name;
   iframe.setAttribute('referrerpolicy', 'no-referrer');
-  iframe.allow = 'autoplay; fullscreen';
-  iframe.style.display = 'block';
-  iframe.style.width = '100%';
-  iframe.style.height = '100%';
+  iframe.allow = 'autoplay';
+  iframe.style.width = cssW + 'px';
+  iframe.style.height = cssH + 'px';
   iframe.style.border = '0';
-  // Wall-mounted: opaque plate (HDR keeps env; god-rays keeps ink). Not transparent float.
-  iframe.style.background = '#140818';
-  iframe.style.backgroundColor = '#140818';
-  iframe.style.colorScheme = 'dark';
+  // Transparent host — lab's own scene.background is the sketch (no hung black plate mesh).
+  // Stay opacity 0 until embed canvas paints so empty iframes never read as black plates.
+  iframe.style.background = 'transparent';
   iframe.style.pointerEvents = 'none';
-  iframe.style.borderRadius = '0';
+  iframe.style.borderRadius = '0'; // no CSS bezel chrome
   iframe.style.boxShadow = 'none';
-  // Start slightly visible so plate bg paints even before WebGL canvas boots.
-  iframe.style.opacity = '0.92';
-  iframe.style.transition = 'opacity 0.35s ease';
-  plate.appendChild(iframe);
+  iframe.style.opacity = '0';
+  iframe.style.transition = 'opacity 0.45s ease';
 
-  const cssObj = new CSS3DObject(plate);
-  // Constructor sets pointer-events:auto on the element. The wrapper must stay
-  // none so look / walkpad pass through; the iframe turns on only for dblclick focus.
-  plate.style.pointerEvents = 'none';
+  const cssObj = new CSS3DObject(iframe);
   cssObj.scale.set(scale, scale, scale);
-  // Local +Z faces into the room after rotY (left:+X, right:−X). Keep flush to ±X —
-  // faceInset via inward normal so cssObj + hit share the wall plane (not mid-nave).
-  const faceInset = 0.08;
-  const inward0 = spec.side === 'left' ? 1 : -1;
-  cssObj.position.set(cx + inward0 * faceInset, wallY, panelZ);
-  cssObj.rotation.y = rotY;
-  cssObj.visible = false;
-  plate.style.opacity = '0';
+  cssObj.position.set(cx, PANEL_Y, panelZ + 0.02);
+  cssObj.rotation.y = 0;
   cssScene.add(cssObj);
 
-  // Taxodium bark frame slab around the LIVE plate (glossy purple + orange leaf rim)
-  const frameDepth = 0.42;
-  const frameLip = 0.28;
-  const barkFrameMat = new THREE.MeshPhysicalMaterial({
-    color: 0x2a0c40, roughness: 0.32, metalness: 0.62,
-    emissive: new THREE.Color(0x4a1868), emissiveIntensity: 0.2,
-    clearcoat: 0.55, clearcoatRoughness: 0.18,
-  });
-  const leafRimMat = new THREE.MeshStandardMaterial({
-    color: 0xffb020, roughness: 0.4, metalness: 0.55,
-    emissive: new THREE.Color(0xff8c30), emissiveIntensity: 0.18,
-  });
-  const frameGroup = new THREE.Group();
-  const outerW = WALL_LAB_W + frameLip * 2;
-  const outerH = WALL_LAB_H + frameLip * 2;
-  // Back plate (sits behind iframe) — purple bark, opaque
-  const back = new THREE.Mesh(
-    new THREE.BoxGeometry(outerW, outerH, frameDepth * 0.55),
-    barkFrameMat
-  );
-  back.position.z = -frameDepth * 0.35;
-  frameGroup.add(back);
-  // Rim rails (orange/cream leaf accents)
-  const railT = frameLip * 0.85;
-  const rails = [
-    [outerW, railT, frameDepth, 0, (WALL_LAB_H + frameLip) * 0.5, 0],
-    [outerW, railT, frameDepth, 0, -(WALL_LAB_H + frameLip) * 0.5, 0],
-    [railT, outerH, frameDepth, (WALL_LAB_W + frameLip) * 0.5, 0, 0],
-    [railT, outerH, frameDepth, -(WALL_LAB_W + frameLip) * 0.5, 0, 0],
-  ];
-  for (const [w, h, d, x, y, z] of rails) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), leafRimMat);
-    rail.position.set(x, y, z);
-    frameGroup.add(rail);
-  }
-  // Frame stripped — WebGL live plane only (openwall1).
-
-  // Visible mural: same wall plane as the bark frame. Map is attached once the
-  // iframe canvas has a real size (a 2×2 placeholder texture stays blank).
-  const liveMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, fog: false });
-  const livePlane = new THREE.Mesh(new THREE.PlaneGeometry(WALL_LAB_W, WALL_LAB_H), liveMat);
-  livePlane.position.z = faceInset;
-  livePlane.castShadow = false;
-  livePlane.receiveShadow = false;
-  livePlane.userData.cellIndex = li;
-  livePlane.userData.wallSide = spec.side;
-  livePlane.visible = false;
-  group.add(livePlane);
-
-  const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
-  // Pull light slightly into the room from the wall face
-  const inNx = spec.side === 'left' ? 1 : -1;
-  spot.position.set(cx + inNx * 1.1, wallY + WALL_LAB_H * 0.15, panelZ);
+  const spot = new THREE.PointLight(0xfff6e8, 4.0, CELL_W * 1.3);
+  spot.position.set(cx, PANEL_Y + PANEL_H * 0.55, panelZ + 0.9);
   scene.add(spot);
 
   hung.push({
-    meta, col: spec.side === 'left' ? 0 : COLS - 1, row: 1,
-    cx, cz, panelZ,
-    aabb: {
-      minX: Math.min(cx - 0.5, cx + 0.5),
-      maxX: Math.max(cx - 0.5, cx + 0.5),
-      minZ: panelZ - WALL_LAB_W * 0.5,
-      maxZ: panelZ + WALL_LAB_W * 0.5,
-    },
-    group, frame: frameGroup, ghost: null, hit, livePlane, cssObj, iframe, spot, liveMat,
-    embedArmed: true, // src set at create — opaque wall embed already loading
+    meta, col, row, cx, cz, panelZ,
+    aabb: { minX, maxX, minZ, maxZ },
+    group, frame: null, ghost: null, hit, cssObj, iframe, spot,
+    embedArmed: false,
     canInteract: false,
-    embedUrl,
-    cssBaseScale: scale,
-    baseY: wallY,
-    beatPhase: li * 1.618,
-    live: true,
-    wallMounted: true,
-    wallSide: spec.side,
-    wallLabW: WALL_LAB_W,
-    wallLabH: WALL_LAB_H,
-    wallZ0: panelZ,
-    wallFaceInset: faceInset,
-    rotY,
+    embedUrl: meta.src,
   });
 }
 window.__hungLabs = hung;
-window.__floatingLabsSketch = false;
-window.__wallLiveLabs = true;
+window.__floatingLabsSketch = true;
 /** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
-revealLabWhenReady = function revealLabWhenReady(panel) {
+function revealLabWhenReady(panel) {
   if (!panel || panel._revealWatch) return;
   panel._revealWatch = true;
   let tries = 0;
-  const paint = (why) => {
-    panel.iframe.style.opacity = '1';
-    panel._revealWatch = false;
-    if (why) console.info('[cubicles] wall iframe paint', panel.meta?.id, why);
-  };
   const tick = () => {
     tries++;
     try {
       const doc = panel.iframe.contentDocument;
       const canvas = doc && doc.querySelector('canvas');
-      // Wall embeds: any canvas OR opaque body.wall means the lab armed; don't wait forever.
-      if (canvas && (canvas.width > 0 || canvas.clientWidth > 0)) {
-        paint('canvas');
+      if (canvas && canvas.width > 0) {
+        panel.iframe.style.opacity = '1';
+        panel._revealWatch = false;
         return;
       }
-      if (doc && doc.body && doc.body.classList.contains('wall')) {
-        // Module may still be booting — keep polling briefly, but show plate bg.
-        if (tries > 12) { paint('wall-body'); return; }
-      }
     } catch {}
-    // Hard fallback: never leave empty side-wall frames (opacity 0 forever).
-    if (tries >= 90) { paint('timeout'); return; }
-    requestAnimationFrame(tick);
+    if (tries < 180) requestAnimationFrame(tick);
+    else { panel._revealWatch = false; } // stay hidden if canvas never arrives (no empty plate)
   };
   panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
-  // If src already set / cached load fired before listener, still poll.
   requestAnimationFrame(tick);
 }
 
-armLab = function armLab(panel) {
+function armLab(panel) {
   if (!panel) return;
-  const blank = !panel.iframe.src || panel.iframe.src === 'about:blank' || panel.iframe.getAttribute('src') === 'about:blank';
-  if (!panel.embedArmed || blank) {
-    // Eager correct src (opaque wall embed) — do not leave about:blank.
-    panel.iframe.loading = 'eager';
+  if (!panel.embedArmed) {
     panel.iframe.src = panel.embedUrl;
     panel.embedArmed = true;
+    revealLabWhenReady(panel);
+  } else if (panel.iframe.style.opacity !== '1') {
+    revealLabWhenReady(panel);
   }
-  // Always (re)watch paint — wall plates must not stay empty.
-  revealLabWhenReady(panel);
 }
 
-/** Pre-arm both side-wall labs (MAX_ARMED=2). */
-armFoyerVisibleLabs = function armFoyerVisibleLabs() {
+/** Pre-arm a few near-foyer labs (WebGL context budget) so walk shows floating sketches. */
+function armFoyerVisibleLabs() {
+  const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
+    .sort((a, b) => a.dist - b.dist);
+  const FOYER_ARM = Math.min(3, MAX_ARMED);
   let n = 0;
-  for (const h of hung) {
-    if (n >= MAX_ARMED) break;
+  for (const { h } of scored) {
+    if (n >= FOYER_ARM) break;
+    if (h.row > 1) continue;
     armLab(h);
     n++;
   }
-  console.info('[cubicles] wall-armed LIVE labs', n, 'maxArmed', MAX_ARMED, hung.map((h) => h.meta.id + ':' + h.wallSide).join(','));
+  console.info('[cubicles] foyer-armed floating labs', n);
 }
-requestAnimationFrame(() => {
-  requestAnimationFrame(() => {
-    armFoyerVisibleLabs();
-    console.info('[cubicles] side-wall LIVE×2 — full-H iframes, no floating labs / no still posters');
-  });
-});
-
-} else {
-  // Labs skipped — room + Taxodium + stargazer + ambient remain.
-  window.__hungLabs = hung;
-  window.__floatingLabsSketch = false;
-  window.__wallLiveLabs = false;
-  window.__wallLabPosters = wallPosterGroup;
-  console.info('[cubicles] panels skipped (SKIP_LABS) — hung=0 wallLive=0');
-}
-
+armFoyerVisibleLabs();
+console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
 
 // —— Sketch C: cathedral chrome bald cypress (Taxodium) — procedural silhouette primary ——
 // True bald-cypress read: flared buttress trunk, cypress knees, feathery needle canopy,
@@ -2236,7 +1246,7 @@ window.__sketchCChromeMats = cypressChromeMats;
 // Bark normals + canopy alpha cards — break mercury into specular beads (not plastic wash)
 (() => {
   const loader = new THREE.TextureLoader();
-  const barkN = loader.load('./demo-assets/cypress/bark_normal.webp', (t) => {
+  const barkN = loader.load('./demo-assets/cypress/bark_normal.png', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(2.2, 4.5);
     t.colorSpace = THREE.NoColorSpace;
@@ -2247,7 +1257,7 @@ window.__sketchCChromeMats = cypressChromeMats;
     cypressKneeMat.normalScale = new THREE.Vector2(1.25, 1.25);
     cypressKneeMat.needsUpdate = true;
   });
-  const barkR = loader.load('./demo-assets/cypress/bark_roughness.webp', (t) => {
+  const barkR = loader.load('./demo-assets/cypress/bark_roughness.png', (t) => {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(3.2, 6.5);
     t.colorSpace = THREE.NoColorSpace;
@@ -2257,7 +1267,7 @@ window.__sketchCChromeMats = cypressChromeMats;
     cypressKneeMat.needsUpdate = true;
   });
   window.__sketchCBark = { barkN, barkR };
-  const leaf = loader.load('./demo-assets/cypress/needle_spray.webp', (t) => {
+  const leaf = loader.load('./demo-assets/cypress/needle_spray.png', (t) => {
     // Alpha silhouette only — do NOT bind as color map (albedo is dark green, kills gold chrome)
     t.colorSpace = THREE.NoColorSpace;
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
@@ -2406,7 +1416,6 @@ function placeBaldCypresses() {
 
   const trunkInst = new THREE.InstancedMesh(taxTrunkGeo, cypressTrunkMat, n);
   const kneeInst = new THREE.InstancedMesh(taxKneeGeo, cypressKneeMat, n * kneesPer);
-  const kneeBases = []; // rest pose for bass-reactive knuckle pulse (watbeat1)
   const branchInst = new THREE.InstancedMesh(taxBranchGeo, cypressTrunkMat, n * (branchPer + flutePer));
   const needleInst = new THREE.InstancedMesh(taxNeedleGeo, cypressFoliageMat, n * needlePer);
   const tuftInst = new THREE.InstancedMesh(taxTuftGeo, cypressFoliageMat, n * tuftPer);
@@ -2469,12 +1478,6 @@ function placeBaldCypresses() {
       dummy.rotation.set((taxHash(base + 80 + k) - 0.5) * 0.18, ang, (taxHash(base + 90 + k) - 0.5) * 0.18);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
-      kneeBases.push({
-        px: dummy.position.x, py: dummy.position.y, pz: dummy.position.z,
-        rx: dummy.rotation.x, ry: dummy.rotation.y, rz: dummy.rotation.z,
-        sx, sy, sz,
-        phase: taxHash(base + 95 + k) * Math.PI * 2,
-      });
       kneeInst.setMatrixAt(ki++, dummy.matrix);
     }
 
@@ -2648,16 +1651,9 @@ function placeBaldCypresses() {
     instanced: true,
     source: 'procedural-bald-cypress-taxodium',
   };
-  // Cypress knees / protruding knuckles — bass-reactive via AnalyserNode (same bed as lab pulse)
-  window.__sketchCKnees = {
-    inst: kneeInst,
-    bases: kneeBases,
-    dummy: new THREE.Object3D(),
-  };
   try { placeSpanishMossFilaments(); } catch (mossErr) { console.warn('[cubicles] moss filaments skipped', mossErr); }
   return n;
 }
-
 
 function makeBaldCypress(height, seed = 1) {
   const g = new THREE.Group();
@@ -2698,7 +1694,7 @@ const cypressPositions = [];
     for (let b = 0; b < ROWS; b++) {
       const zBay = GRID_Z_MAX - b * CELL_D - CELL_D * (0.2 + (b % 3) * 0.08);
       seeds.push({
-        x: side * (OUTER_W / 2 - 5.2), // keep clear of ±X wall LIVE plates
+        x: side * (OUTER_W / 2 - 2.4),
         z: zBay,
         role: 'margin',
         hBias: 0.4,
@@ -2722,13 +1718,6 @@ const cypressPositions = [];
 
   function nearLabFace(x, z) {
     for (const h of hung) {
-      if (h.wallMounted) {
-        // Wall LIVE sits on ±X — clear a corridor so trunks do not sit mid-plate
-        // (CSS3D would otherwise paint the lab over grove trees → "floating mid-aisle").
-        const halfW = (h.wallLabW || 10) * 0.55;
-        if (Math.abs(x - h.cx) < 3.6 && Math.abs(z - h.panelZ) < halfW) return true;
-        continue;
-      }
       // Keep clear of floating lab face AABB (panel footprint + margin)
       const dx = Math.abs(x - h.cx);
       const dz = Math.abs(z - h.panelZ);
@@ -2754,14 +1743,11 @@ const cypressPositions = [];
       z += (h1 > 0.5 ? 1 : -1) * (0.7 + h2 * 0.5);
     }
     // Keep inside outer box with buttress clearance
-    const marginX = 4.2; // stay inward of flush ±X wall LIVE plates
+    const marginX = 1.9;
     const marginZ = 1.35;
     x = Math.max(-OUTER_W / 2 + marginX, Math.min(OUTER_W / 2 - marginX, x));
     z = Math.max(GRID_Z_MIN + marginZ, Math.min(OUTER_D / 2 - 1.2, z));
     if (nearLabFace(x, z)) continue; // drop rather than bury a lab
-    // One interior cell of clear floor against every exterior wall.
-    if (Math.abs(x) > OUTER_W / 2 - CELL_W) continue;
-    if (Math.abs(z) > OUTER_D / 2 - CELL_D) continue;
 
     // Density gaps — skip some seeds so grove reads clumpy, not regimented
     if (s.role === 'grove' && h4 < 0.22) continue;
@@ -2882,16 +1868,6 @@ function placeSpanishMossFilaments() {
 async function placeGltfCypresses() {
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const loader = new GLTFLoader();
-  try {
-    const { MeshoptDecoder } = await import('./vendor/meshopt/meshopt_decoder.mjs');
-    // meshopt package exports decoder ready for GLTFLoader
-    if (MeshoptDecoder) {
-      if (MeshoptDecoder.ready) await MeshoptDecoder.ready;
-      loader.setMeshoptDecoder(MeshoptDecoder);
-    }
-  } catch (meshOptErr) {
-    console.warn('[cubicles] MeshoptDecoder unavailable', meshOptErr);
-  }
   const gltf = await loader.loadAsync('./demo-assets/cypress/cypress.glb');
   const proto = gltf.scene;
   chromeifyCypressRoot(proto);
@@ -2963,206 +1939,6 @@ async function placeGltfCypresses() {
   }
 })();
 
-/** CSS3D iframes share no depth buffer with WebGL Taxodium meshes.
- *  Per-frame: hide a lab’s CSS3DObject when a trunk is closer along the view
- *  and screen AABBs overlap. Hit planes keep raycasting (arm facing lab);
- *  iframe pointer-events stay none while occluded so in-front labs remain tappable. */
-const TREE_OCCLUDERS = [];
-const _depthCorner = new THREE.Vector3();
-const _depthView = new THREE.Vector3();
-const _depthInvCam = new THREE.Matrix4();
-const _labNdc = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-const _treeNdc = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-
-function rebuildTreeOccluders() {
-  TREE_OCCLUDERS.length = 0;
-  for (const p of cypressPositions) {
-    // Match lathe profile: buttress flare 0.255*h → mid-stem ~0.05*h
-    TREE_OCCLUDERS.push({
-      x: p.x,
-      z: p.z,
-      y0: -0.25,
-      y1: p.h * 1.02,
-      h: p.h,
-      rButt: p.h * 0.255,
-      rStem: p.h * 0.055,
-    });
-  }
-  window.__treeOccluders = TREE_OCCLUDERS;
-  console.info('[cubicles] CSS3D depth occluders', TREE_OCCLUDERS.length, 'trunks');
-}
-
-function trunkRadiusAtY(tree, y) {
-  const t = THREE.MathUtils.clamp(y / Math.max(0.01, tree.h), 0, 1);
-  if (t < 0.14) {
-    const u = t / 0.14;
-    return tree.rButt * (1 - Math.pow(u, 0.34)) + tree.rStem * Math.pow(u, 0.34);
-  }
-  if (t < 0.52) {
-    const u = (t - 0.14) / 0.38;
-    return THREE.MathUtils.lerp(tree.rStem, tree.h * 0.038, u);
-  }
-  const u = (t - 0.52) / 0.48;
-  return tree.h * THREE.MathUtils.lerp(0.038, 0.024, Math.pow(u, 0.7));
-}
-
-function expandNdcRect(x, y, z, rect) {
-  _depthCorner.set(x, y, z).project(camera);
-  if (_depthCorner.z < -1.05 || _depthCorner.z > 1.05) return false;
-  rect.minX = Math.min(rect.minX, _depthCorner.x);
-  rect.maxX = Math.max(rect.maxX, _depthCorner.x);
-  rect.minY = Math.min(rect.minY, _depthCorner.y);
-  rect.maxY = Math.max(rect.maxY, _depthCorner.y);
-  return true;
-}
-
-function viewZOf(x, y, z) {
-  _depthView.set(x, y, z).applyMatrix4(_depthInvCam);
-  return _depthView.z; // Three view: closer to camera ⇒ larger (less negative) z
-}
-
-function resetNdcRect(rect) {
-  rect.minX = Infinity; rect.maxX = -Infinity;
-  rect.minY = Infinity; rect.maxY = -Infinity;
-}
-
-function labBehindTree(h, tree) {
-  const lx = h.cssObj.position.x;
-  const ly = h.cssObj.position.y;
-  const lz = h.cssObj.position.z;
-  const sx = h.group.scale.x || 1;
-  const sy = h.group.scale.y || 1;
-  const labW = h.wallMounted ? (h.wallLabW || PANEL_W) : PANEL_W;
-  const labH = h.wallMounted ? (h.wallLabH || PANEL_H) : PANEL_H;
-  const hw = labW * 0.5 * sx;
-  const hh = labH * 0.5 * sy;
-  const yaw = h.cssObj.rotation.y || 0;
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
-
-  const labVz = viewZOf(lx, ly, lz);
-  if (labVz >= -0.08) return false;
-
-  const ty = THREE.MathUtils.clamp(ly, tree.y0, tree.y1);
-  const treeVz = viewZOf(tree.x, ty, tree.z);
-  // Tree must sit closer to the camera than the lab
-  if (!(treeVz > labVz + 0.15)) return false;
-
-  if (ly + hh < tree.y0 || ly - hh > tree.y1) return false;
-
-  resetNdcRect(_labNdc);
-  let labOk = false;
-  for (const ox of [-hw, hw]) {
-    for (const oy of [-hh, hh]) {
-      const wx = lx + ox * cos;
-      const wz = lz - ox * sin;
-      if (expandNdcRect(wx, ly + oy, wz, _labNdc)) labOk = true;
-    }
-  }
-  if (!labOk) return false;
-
-  const rLo = trunkRadiusAtY(tree, Math.max(tree.y0, ly - hh));
-  const rHi = trunkRadiusAtY(tree, Math.min(tree.y1, ly + hh));
-  const rMid = trunkRadiusAtY(tree, ly);
-  const rp = Math.max(rLo, rHi, rMid) * 1.1;
-  const yLo = Math.max(tree.y0, ly - hh - 0.2);
-  const yHi = Math.min(tree.y1, ly + hh + 0.2);
-
-  resetNdcRect(_treeNdc);
-  let treeOk = false;
-  for (const dx of [-rp, rp]) {
-    for (const dz of [-rp, rp]) {
-      if (expandNdcRect(tree.x + dx, yLo, tree.z + dz, _treeNdc)) treeOk = true;
-      if (expandNdcRect(tree.x + dx, yHi, tree.z + dz, _treeNdc)) treeOk = true;
-    }
-  }
-  if (!treeOk) return false;
-
-  return _labNdc.minX < _treeNdc.maxX && _labNdc.maxX > _treeNdc.minX
-      && _labNdc.minY < _treeNdc.maxY && _labNdc.maxY > _treeNdc.minY;
-}
-
-
-/** Keep side-wall LIVE iframes flush-pinned to ±X wall planes every frame.
- *  cssObj + hit share the same wall face; local +Z faces inward (left→+X, right→−X). */
-function pinWallLabsFlush() {
-  for (const h of hung) {
-    if (!h.wallMounted || !h.cssObj) continue;
-    const inward = h.wallSide === 'left' ? 1 : -1; // world +X from left wall, −X from right
-    const wallX = inward > 0 ? (-OUTER_W / 2 + 0.12) : (OUTER_W / 2 - 0.12);
-    const z = (h.wallZ0 != null) ? h.wallZ0 : h.panelZ;
-    const y = h.baseY;
-    const face = (h.wallFaceInset != null) ? h.wallFaceInset : 0.08;
-    // Local +Z → inward: left rotY=+π/2 (+Z→+X), right rotY=−π/2 (+Z→−X)
-    const rotY = inward > 0 ? Math.PI / 2 : -Math.PI / 2;
-    h.rotY = rotY;
-    h.cx = wallX;
-    h.panelZ = z;
-    h.cz = z;
-    // Group (bark frame) sits ON the wall plane, facing inward
-    if (h.group) {
-      h.group.position.set(wallX, y, z);
-      h.group.rotation.set(0, rotY, 0);
-      h.group.scale.set(1, 1, 1);
-    }
-    // Hit plane: local +Z = inward; same face inset as cssObj (proud of wall)
-    if (h.hit) {
-      h.hit.position.set(0, 0, face);
-      h.hit.rotation.set(0, 0, 0);
-      h.hit.scale.set(1, 1, 1);
-    }
-    // CSS3D iframe: world pos on the same wall face, same inward rotation
-    h.cssObj.position.set(wallX + inward * face, y, z);
-    h.cssObj.rotation.set(0, rotY, 0);
-    const cs = h.cssBaseScale || 1;
-    h.cssObj.scale.set(cs, cs, cs);
-    if (h.spot) {
-      h.spot.position.set(wallX + inward * 1.1, y + (h.wallLabH || 1) * 0.15, z);
-    }
-  }
-}
-
-function updateCssDepthOcclusion() {
-  if (!TREE_OCCLUDERS.length) return;
-  camera.updateMatrixWorld(true);
-  _depthInvCam.copy(camera.matrixWorldInverse);
-
-  for (const h of hung) {
-    if (!h.cssObj || !h.iframe) continue;
-    // Side-wall LIVE plates span most of the wall AABB — tree NDC overlap falsely hid them (empty frames).
-    if (h.wallMounted) {
-      if (h._depthOccluded) {
-        h._depthOccluded = false;
-        h.cssObj.visible = true;
-      }
-      continue;
-    }
-    let occluded = false;
-    if (h.embedArmed) {
-      for (let i = 0; i < TREE_OCCLUDERS.length; i++) {
-        if (labBehindTree(h, TREE_OCCLUDERS[i])) { occluded = true; break; }
-      }
-    }
-    if (h._depthOccluded === occluded) {
-      // Even if flag unchanged, keep pointer-events honest after setInteractTarget
-      if (occluded && h.iframe.style.pointerEvents !== 'none') {
-        h.iframe.style.pointerEvents = 'none';
-        h.canInteract = false;
-      }
-      continue;
-    }
-    h._depthOccluded = occluded;
-    // visible=false → CSS3DRenderer display:none (visual only). Hit mesh stays raycastable.
-    h.cssObj.visible = !occluded;
-    if (occluded) {
-      h.iframe.style.pointerEvents = 'none';
-      h.canInteract = false;
-    }
-  }
-}
-
-rebuildTreeOccluders();
-
 function resetToFoyer() {
   pos.set(SPAWN.x, SPAWN.y, SPAWN.z);
   yaw.value = SPAWN.yaw;
@@ -3177,15 +1953,26 @@ function findCellAt(x, z) {
   return null;
 }
 
-// —— Zone chip + lazy embeds (chip UI stripped — silent cell tracking only) ——
+// —— Zone chip + lazy embeds ——
 let activeCell = null;
-const chip = document.getElementById('chip'); // may be null (language chrome removed)
-function showChip(_h) { /* visual chip removed */ }
+const chip = document.getElementById('chip');
+const chipTag = document.getElementById('chip-tag');
+const chipTitle = document.getElementById('chip-title');
+const chipHint = document.getElementById('chip-hint');
+
+function showChip(h) {
+  chipTag.textContent = 'Cell ' + h.meta.num;
+  chipTitle.textContent = h.meta.name;
+  chipHint.textContent = h.meta.hint;
+  chip.classList.add('show');
+}
+
 function updateActiveCell() {
   const next = findCellAt(pos.x, pos.z);
   if (next === activeCell) return;
   activeCell = next;
   if (activeCell) showChip(activeCell);
+  else chip.classList.remove('show');
 }
 
 function panelDist(h) {
@@ -3194,7 +1981,6 @@ function panelDist(h) {
 
 // Raycaster lives above updateLazyEmbeds so facing/interact can use center-screen casts.
 const raycaster = new THREE.Raycaster();
-raycaster.layers.enable(LAB_HIT_LAYER); // pick layer-1 hits the camera does not draw
 const pointerNDC = new THREE.Vector2();
 const centerNDC = new THREE.Vector2(0, 0);
 
@@ -3213,7 +1999,6 @@ function hungPickMeshes() {
   const meshes = [];
   for (const h of hung) {
     if (h.hit) meshes.push(h.hit);
-    if (h.livePlane) meshes.push(h.livePlane);
     if (h.frame) meshes.push(h.frame);
   }
   return meshes;
@@ -3241,52 +2026,16 @@ function raycastPanels(e) {
   return raycaster.intersectObjects(hungPickMeshes(), false);
 }
 
-/** CSS3D iframe screen AABB — matches painted lab (beat pulse / projection). */
-function panelFromDomPoint(clientX, clientY, maxDistScale) {
-  const scale = maxDistScale == null ? 1.35 : maxDistScale;
-  let best = null;
-  let bestArea = Infinity;
-  for (const h of hung) {
-    if (!h.iframe || !h.embedArmed) continue;
-    if (h._depthOccluded || h.cssObj?.visible === false) continue;
-    if (h.iframe.style.opacity === '0') continue;
-    const r = h.iframe.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4) continue;
-    if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) continue;
-    if (panelDist(h) > interactDistFor(h) * scale) continue;
-    const area = r.width * r.height;
-    if (area < bestArea) { best = h; bestArea = area; }
-  }
-  return best;
-}
-
 function panelUnderPointer(e) {
-  // DOM AABB first for in-front painted iframes; raycast hit planes always work (incl. occluded arm).
-  const fromDom = panelFromDomPoint(e.clientX, e.clientY, 1.35);
-  if (fromDom) return fromDom;
   eventToNDC(e);
   raycaster.setFromCamera(pointerNDC, camera);
   const hits = raycaster.intersectObjects(hungPickMeshes(), false);
   return panelFromHits(hits, 1.25);
 }
 
-/** Intentional wall-lab focus (dblclick). Null = look/yaw always on parent. */
-let wallLabFocus = null;
-
-function clearWallLabFocus() {
-  if (!wallLabFocus) return;
-  wallLabFocus = null;
-  panelPointerLock = false;
-}
-
 function setInteractTarget(panel) {
   for (const h of hung) {
     h.canInteract = false;
-    // Wall LIVE iframes default to none — facing/hover must NEVER steal look / walkpad.
-    // Wrapper (CSS3D element) stays none too; only the iframe turns on for dblclick focus.
-    if (h.cssObj && h.cssObj.element && h.cssObj.element !== h.iframe) {
-      h.cssObj.element.style.pointerEvents = 'none';
-    }
     h.iframe.style.pointerEvents = 'none';
     h.iframe.style.cursor = '';
   }
@@ -3294,20 +2043,7 @@ function setInteractTarget(panel) {
     stage.classList.remove('panel-hover');
     return;
   }
-  // Raycast / facing may still select a depth-occluded lab so it stays armed;
-  // never enable iframe pointer-events while visually suppressed (clicks fall to walk).
   armLab(panel);
-  if (panel._depthOccluded || panel.cssObj?.visible === false) {
-    stage.classList.remove('panel-hover');
-    return;
-  }
-  // Side-wall LIVE: pointer-events ONLY when intentionally focused (dblclick).
-  // Otherwise always route drag-look / walkpad yaw to the parent.
-  if (panel.wallMounted && wallLabFocus !== panel) {
-    // Pointer over the plate, grab hand everywhere else. Don't enable iframe hits.
-    stage.classList.add('panel-hover');
-    return;
-  }
   panel.canInteract = true;
   panel.iframe.style.pointerEvents = 'auto';
   panel.iframe.style.cursor = 'pointer';
@@ -3324,26 +2060,21 @@ function updateLazyEmbeds() {
     .sort((a, b) => a.dist - b.dist);
 
   // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
-  // Side-wall LIVE plates stay armed (foyer→wall span often exceeds ARM_DIST).
   const armSet = new Set();
-  for (const h of hung) {
-    if (h.wallMounted) armSet.add(h);
-  }
   if (hoverPanel) armSet.add(hoverPanel);
   const facing = facingPanelWithin(1);
   if (facing) armSet.add(facing);
   if (activeCell) armSet.add(activeCell);
   for (const { h, dist } of scored) {
     if (armSet.size >= MAX_ARMED) break;
-    if (h.wallMounted) continue;
     if (dist < ARM_DIST) armSet.add(h);
   }
 
   for (const h of hung) {
     const want = armSet.has(h);
     if (want && !h.embedArmed) {
-      try { armLab(h); } catch (e) { console.warn('[cubicles] armLab', e); }
-    } else if (!want && h.embedArmed && !h.wallMounted && !panelPointerLock && h !== hoverPanel) {
+      armLab(h);
+    } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
       h.iframe.src = 'about:blank';
       h.iframe.style.opacity = '0';
       h.embedArmed = false;
@@ -3355,133 +2086,18 @@ function updateLazyEmbeds() {
   // Cursor-over-frame wins → center facing → activeCell → nearest.
   // Arm hover immediately so pointer cursor is not lost on the far wall.
   let best = null;
-  const inFront = (p) => p && !p._depthOccluded && p.cssObj?.visible !== false;
-  // Cursor-over visible iframe wins; else prefer an in-front facing/near lab for taps.
-  // Occluded facing still arms via setInteractTarget (pointer-events stay none).
-  if (inFront(hoverPanel) && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
+  if (hoverPanel && panelDist(hoverPanel) <= interactDistFor(hoverPanel) * 1.25) {
     best = hoverPanel;
-  } else if (inFront(facing)) {
+  } else if (facing) {
     best = facing;
-  } else if (inFront(activeCell) && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
+  } else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) {
     best = activeCell;
   } else {
     for (const { h, dist } of scored) {
-      if (!inFront(h)) continue;
       if (dist <= interactDistFor(h)) { best = h; break; }
-    }
-    // Fallback: arm occluded facing/near so embed stays warm (no iframe clicks)
-    if (!best) {
-      if (facing) best = facing;
-      else if (activeCell && panelDist(activeCell) <= interactDistFor(activeCell) * 1.2) best = activeCell;
-      else {
-        for (const { h, dist } of scored) {
-          if (dist <= interactDistFor(h)) { best = h; break; }
-        }
-      }
     }
   }
   if (!panelPointerLock) setInteractTarget(best);
-}
-
-// —— Wormhole ambient bed: installed EARLY (classic script before this module) ——
-// MP3 fetch + Audio elements start in parallel with Three/scene setup; do NOT await
-// before trees/labs/mural. GainNode unlock / Analyser / tryPlay live on window.__wormholeAmbient.
-
-
-/** Subtle bass-reactive scale / bob / yaw on floating CSS3D labs — small amplitude. */
-function updateBeatLabs(t, bassOpt) {
-  if (reduceMotion) return;
-  const bed = window.__wormholeAmbient;
-  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
-  if (bass < 0.002 && !bed?.analyser) {
-    // Rest pose when no audio graph yet
-    for (const h of hung) {
-      if (h.wallMounted) continue;
-      if (h._beatApplied) {
-        h.group.position.set(h.cx, h.baseY, h.panelZ);
-        h.group.rotation.y = 0;
-        h.group.scale.set(1, 1, 1);
-        h.cssObj.position.set(h.cx, h.baseY, h.panelZ + 0.02);
-        h.cssObj.rotation.y = 0;
-        h.cssObj.scale.set(h.cssBaseScale, h.cssBaseScale, h.cssBaseScale);
-        if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55;
-        h._beatApplied = false;
-      }
-    }
-    return;
-  }
-  // Elegant caps — never fight walk/look; scale pulse nudged up from 0.050
-  const AMP_Y = 0.095;      // ~9.5 cm bob
-  const AMP_SCALE = 0.068;  // ±6.8% expand/contract (was 0.050)
-  const AMP_YAW = 0.030;    // ~1.7° yaw
-  for (const h of hung) {
-    if (h.wallMounted) continue; // side-wall plates stay fixed (water/knees keep the beat)
-    const ph = h.beatPhase || 0;
-    // Staggered micro-phase so the field breathes, not marches in lockstep
-    const local = bass * (0.72 + 0.28 * Math.sin(t * 1.7 + ph));
-    const bob = local * AMP_Y * (0.85 + 0.15 * Math.sin(t * 2.3 + ph * 1.3));
-    const yawOff = local * AMP_YAW * Math.sin(t * 1.1 + ph);
-    const s = 1 + local * AMP_SCALE;
-    // Keep hit-plane group and CSS3D iframe on the same center (panelZ+0.02)
-    // so raycast / DOM AABB stay under the painted lab during the pulse.
-    const y = h.baseY + bob;
-    const z = h.panelZ + 0.02;
-    h.group.position.set(h.cx, y, h.panelZ);
-    h.group.rotation.y = yawOff;
-    h.group.scale.set(s, s, s);
-    h.cssObj.position.set(h.cx, y, z);
-    h.cssObj.rotation.y = yawOff;
-    const cs = h.cssBaseScale * s;
-    h.cssObj.scale.set(cs, cs, cs);
-    if (h.spot) h.spot.position.y = h.baseY + PANEL_H * 0.55 + bob * 0.6;
-    h._beatApplied = true;
-  }
-}
-
-/** Cypress knuckle / knee pulse + visible water ripple from wormhole ambient AnalyserNode. */
-const WATER_DISTORTION_BASE = 3.6;
-const WATER_SIZE_BASE = 0.58;
-const WATER_TIME_BASE = WATER_TIME_SCALE;
-function updateBeatKneesWater(t, dt, bassOpt) {
-  const bed = window.__wormholeAmbient;
-  const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
-  // —— Water ripple (always animate; bass makes it visibly surge) ——
-  if (water?.material?.uniforms) {
-    const u = water.material.uniforms;
-    const surge = reduceMotion ? 0 : bass;
-    // Time races ahead on the kick so normals crawl into a readable ripple
-    const timeScale = WATER_TIME_BASE * (1 + surge * 2.8);
-    if (u.time) u.time.value += dt * timeScale;
-    if (u.distortionScale) u.distortionScale.value = WATER_DISTORTION_BASE + surge * 5.2;
-    if (u.size) u.size.value = WATER_SIZE_BASE + surge * 0.22;
-    if (u.sunDirection) u.sunDirection.value.copy(waterSun);
-  }
-  if (reduceMotion) return;
-  const pack = window.__sketchCKnees;
-  if (!pack?.inst || !pack.bases?.length) return;
-  const { inst, bases, dummy } = pack;
-  // Same AnalyserNode bass sample as water surge (passed via bassOpt / getBass).
-  // All knuckles lock to that kick — no time-sine desync. Intentional phase =
-  // fixed radial offset around each trunk (slight amp variation only).
-  const AMP_Y = 0.38;    // vertical protrusion (knuckle pops out of water)
-  const AMP_XZ = 0.14;   // slight swell
-  const AMP_LIFT = 0.26; // lift mound so emergence reads with water beat
-  const PHASE_GAIN = 0.10; // intentional ring offset; keep mostly in-phase
-  for (let i = 0; i < bases.length; i++) {
-    const b = bases[i];
-    const ring = 1 - PHASE_GAIN + PHASE_GAIN * Math.sin(b.phase || 0);
-    const local = bass * ring;
-    const sy = b.sy * (1 + local * AMP_Y);
-    const sx = b.sx * (1 + local * AMP_XZ);
-    const sz = b.sz * (1 + local * AMP_XZ);
-    // Keep sink ratio: base py = WATER_Y - sy0*0.55; lift with shared bass pulse
-    dummy.position.set(b.px, b.py + local * b.sy * AMP_LIFT, b.pz);
-    dummy.rotation.set(b.rx, b.ry, b.rz);
-    dummy.scale.set(sx, sy, sz);
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
-  }
-  inst.instanceMatrix.needsUpdate = true;
 }
 
 // —— Controls ——
@@ -3491,69 +2107,36 @@ let dragging = false;
 let panelPointerLock = false;
 let lastX = 0, lastY = 0, downX = 0, downY = 0;
 
-const gate = document.getElementById('gate'); // may be null (gate copy stripped)
-let entered = false;
-let stargazerKickScheduled = false;
-function unlockStargazerVideo(why) {
-  // On user unlock: start + play() immediately (muted loop). Do NOT gate on ambient.
-  try {
-    window.__stargazingWall?.start?.();
-    window.__stargazingWall?.play?.();
-  } catch (e) {
-    console.warn('[cubicles] stargazer unlock failed', e);
-  }
-  if (!stargazerKickScheduled) {
-    stargazerKickScheduled = true;
-    console.info('[cubicles] stargazer unlock', why || 'gesture');
-  }
-}
-function startStargazerWhenAmbientAllows() {
-  unlockStargazerVideo('ambient-or-enter');
-}
-function silentEnter({ reset = true } = {}) {
-  if (entered) return;
+const gate = document.getElementById('gate');
+const btnEnter = document.getElementById('btn-enter');
+let entered = reduceMotion || params.has('still');
+if (entered) gate.classList.add('hide');
+btnEnter.addEventListener('click', () => {
   entered = true;
-  window.__cubiclesEntered = true;
-  if (gate) gate.classList.add('hide');
-  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  unlockStargazerVideo('silentEnter');
-  if (reset) {
-    resetToFoyer();
-    velocity.set(0, 0, 0);
-    move.f = move.b = move.l = move.r = false;
-  }
+  gate.classList.add('hide');
+  resetToFoyer();
+  velocity.set(0, 0, 0);
+  move.f = move.b = move.l = move.r = false;
+  // Always enter foyer walk (Sketch C). Overview stays opt-in via O / Overview pill / ?overview=1.
+  if (overview.on) setOverview(false);
+  chip.classList.remove('show');
   activeCell = null;
   updateActiveCell();
   updateLazyEmbeds();
-}
-window.addEventListener('pointerdown', () => {
-  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  unlockStargazerVideo('pointerdown');
-}, { passive: true });
-window.addEventListener('touchstart', () => {
-  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  unlockStargazerVideo('touchstart');
-}, { passive: true });
-window.addEventListener('keydown', () => {
-  try { window.__wormholeAmbient?.tryPlay?.(); } catch {}
-  unlockStargazerVideo('keydown');
-}, { passive: true });
+});
 
 let debugOn = params.has('debug');
 function setDebug(on) {
   debugOn = on;
   debugGroup.visible = debugOn;
-  document.getElementById('btn-debug')?.classList.toggle('on', debugOn);
+  document.getElementById('btn-debug').classList.toggle('on', debugOn);
 }
 setDebug(debugOn);
-document.getElementById('btn-debug')?.addEventListener('click', () => setDebug(!debugOn));
+document.getElementById('btn-debug').addEventListener('click', () => setDebug(!debugOn));
 
 // —— Overview / walk camera ——
 let overviewOn = false;
 const WALK_FOV = 48;
-const WALK_FOV_MIN = 28;
-const WALK_FOV_MAX = 70;
-let walkFov = WALK_FOV;
 const OVERVIEW_FOV = 58;
 const overviewTarget = new THREE.Vector3(0, OUTER_H * 0.22, (GRID_Z_MIN + GRID_Z_MAX) * 0.35);
 const overview = {
@@ -3597,7 +2180,7 @@ function applyCamera() {
 
 function setOverview(on) {
   if (on === overview.on) {
-    document.getElementById('btn-overview')?.classList.toggle('on', overview.on);
+    document.getElementById('btn-overview').classList.toggle('on', overview.on);
     return;
   }
   if (on) {
@@ -3609,11 +2192,8 @@ function setOverview(on) {
     velocity.set(0, 0, 0);
     clearPadMove();
     panelPointerLock = false;
-    clearWallLabFocus();
     for (const h of hung) {
       h.iframe.style.pointerEvents = 'none';
-      // Keep side-wall LIVE embeds warm in overview (blanking caused empty frames on return).
-      if (h.wallMounted) { h.canInteract = false; h.iframe.style.pointerEvents = 'none'; continue; }
       if (h.embedArmed) {
         h.iframe.src = 'about:blank';
         h.iframe.style.opacity = '0';
@@ -3621,6 +2201,7 @@ function setOverview(on) {
         h.canInteract = false;
       }
     }
+    chip.classList.remove('show');
     activeCell = null;
     camera.fov = OVERVIEW_FOV;
     camera.updateProjectionMatrix();
@@ -3632,29 +2213,27 @@ function setOverview(on) {
     pos.copy(walkSnapshot.pos);
     yaw.value = walkSnapshot.yaw;
     pitch.value = walkSnapshot.pitch;
-    camera.fov = walkFov;
+    camera.fov = WALK_FOV;
     camera.updateProjectionMatrix();
     updateActiveCell();
     updateLazyEmbeds();
   }
-  document.getElementById('btn-overview')?.classList.toggle('on', overview.on);
+  document.getElementById('btn-overview').classList.toggle('on', overview.on);
   document.body.classList.toggle('overview', overview.on);
 }
-document.getElementById('btn-overview')?.addEventListener('click', () => setOverview(!overview.on));
+document.getElementById('btn-overview').addEventListener('click', () => setOverview(!overview.on));
 // Default: full-screen foyer walk (Sketch C) on mobile + desktop.
 // ?overview=1 forces dollhouse overview; Overview pill / O still toggles. ?walk=1 kept as no-op alias.
 if (params.has('overview') && !params.has('still') && !params.has('walk')) {
   entered = true;
-  window.__cubiclesEntered = true;
-  if (gate) gate.classList.add('hide');
+  gate.classList.add('hide');
   resetToFoyer();
   setOverview(true);
-} else if (reduceMotion || params.has('still')) {
+} else if (mobileLike && !params.has('still')) {
+  // Skip gate on mobile — land in walkable foyer immediately (pad + drag look).
   entered = true;
-  window.__cubiclesEntered = true;
-} else {
-  // Silent enter — no gate language; audio unlocks on first pointer.
-  silentEnter({ reset: true });
+  gate.classList.add('hide');
+  resetToFoyer();
 }
 
 // Dev assert: foyer spawn must not sit in any cell
@@ -3665,11 +2244,6 @@ if (params.has('overview') && !params.has('still') && !params.has('walk')) {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.code === 'Escape' && wallLabFocus) {
-    clearWallLabFocus();
-    setInteractTarget(hoverPanel && !hoverPanel.wallMounted ? hoverPanel : null);
-    return;
-  }
   if (!entered && !reduceMotion) return;
   if (e.code === 'KeyO') { setOverview(!overview.on); return; }
   if (e.code === 'KeyB') setDebug(!debugOn);
@@ -3683,6 +2257,7 @@ document.addEventListener('keydown', (e) => {
     resetToFoyer();
     velocity.set(0, 0, 0);
     move.f = move.b = move.l = move.r = false;
+    chip.classList.remove('show');
     activeCell = null;
     updateActiveCell();
     updateLazyEmbeds();
@@ -3734,12 +2309,7 @@ mobilePad.addEventListener('pointerup', (e) => {
 mobilePad.addEventListener('pointercancel', clearPadMove);
 
 stage.addEventListener('pointermove', (e) => {
-  lastClientX = e.clientX;
-  lastClientY = e.clientY;
-  if (overview.on || !entered || panelPointerLock || dragging) {
-    syncPanelCursor();
-    return;
-  }
+  if (overview.on || !entered || panelPointerLock || dragging) return;
   // Don't fight look-drag; only refresh hover when idle
   const next = panelUnderPointer(e);
   if (next !== hoverPanel) {
@@ -3777,153 +2347,40 @@ document.addEventListener('pointermove', (e) => {
   }
 }, { passive: true, capture: true });
 
-// —— Walk look: full 360° ——
-// CSS3D iframes sit above #stage; stage-only pointermove stops when the drag
-// crosses a lab iframe. Use document-level move/up + pointer capture so look
-// continues across embeds. Optional Pointer Lock (desktop) for continuous look.
-let lookPointerId = null;
-// Pinch state (handlers installed after look-drag; decls here so guards can see them)
-const pinchPointers = new Map(); // pointerId -> {x,y}
-let pinching = false;
-let pinchStartDist = 0;
-let pinchStartFov = WALK_FOV;
-let pinchStartRadius = 56;
-const PITCH_MIN = -1.25;
-const PITCH_MAX = 1.15; // slightly wider than prior −1.0…0.8
-
-function wrapYaw(v) {
-  const twopi = Math.PI * 2;
-  v = v % twopi;
-  if (v < 0) v += twopi;
-  return v;
-}
-function applyLookDelta(dx, dy) {
-  if (overview.on) {
-    overview.theta -= dx * 0.005;
-    overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
-    return;
-  }
-  // Never clamp yaw — full 360° orbit; wrap keeps value bounded for logs.
-  yaw.value = wrapYaw(yaw.value - dx * 0.0025);
-  pitch.value = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitch.value - dy * 0.002));
-}
-function endLookDrag(e) {
-  if (lookPointerId != null && e && e.pointerId !== lookPointerId) return;
-  if (dragging) {
-    dragging = false;
-    stage.classList.remove('dragging');
-    if (lookPointerId != null) {
-      try { stage.releasePointerCapture(lookPointerId); } catch {}
-    }
-    lookPointerId = null;
-  }
-  // Don't steal panel interact: only clear panel lock if release is outside an armed iframe
-  const t = e && e.target;
-  const inPanel = t && hung.some((h) => h.canInteract && (t === h.iframe || (h.iframe && h.iframe.contains && h.iframe.contains(t))));
-  if (!inPanel) panelPointerLock = false;
-}
-function syncLookLockPill() {
-  const btn = document.getElementById('btn-look-lock');
-  if (!btn) return;
-  const on = !!(document.pointerLockElement && (document.pointerLockElement === stage || stage.contains(document.pointerLockElement)));
-  btn.classList.toggle('on', on);
-  stage.classList.toggle('look-locked', on);
-}
-function requestWalkPointerLock() {
-  if (mobileLike || reduceMotion || !entered || overview.on) return;
-  const el = stage;
-  if (document.pointerLockElement) {
-    document.exitPointerLock();
-    return;
-  }
-  try { el.requestPointerLock(); } catch {}
-}
-
 stage.addEventListener('pointerdown', (e) => {
   if (!entered) return;
-  // Two-finger pinch owns the gesture — don't start / continue look-drag
-  if (pinching || (e.pointerType !== 'mouse' && pinchPointers.size >= 2)) return;
   if (!overview.on) {
     const panel = panelUnderPointer(e);
-    // Floating labs (if any): click arms iframe interact.
-    // Wall LIVE: never steal look — PE stay none unless wallLabFocus (dblclick).
-    if (panel && !panel.wallMounted) {
+    if (panel) {
       hoverPanel = panel;
       setInteractTarget(panel);
       panelPointerLock = true;
       return;
     }
-    if (panel && panel.wallMounted) {
-      hoverPanel = panel;
-      // Clicking a non-focused wall plate clears focus and starts look-drag.
-      if (wallLabFocus && wallLabFocus !== panel) clearWallLabFocus();
-      if (wallLabFocus === panel) {
-        setInteractTarget(panel);
-        panelPointerLock = true;
-        return;
-      }
-      // fall through → look-drag (yaw stays on parent)
-    } else if (wallLabFocus) {
-      clearWallLabFocus();
-      setInteractTarget(null);
-    }
   }
-  // Don't start look-drag while Pointer Lock owns the mouse (mousemove handles it)
-  if (document.pointerLockElement) return;
   panelPointerLock = false;
   dragging = true;
-  lookPointerId = e.pointerId;
   stage.classList.add('dragging');
   lastX = downX = e.clientX; lastY = downY = e.clientY;
   try { stage.setPointerCapture(e.pointerId); } catch {}
 });
-// Document-level look while dragging — survives CSS3D iframe crossings
-document.addEventListener('pointermove', (e) => {
-  if (!dragging || reduceMotion || panelPointerLock || pinching) return;
-  if (lookPointerId != null && e.pointerId !== lookPointerId) return;
-  if (document.pointerLockElement) return; // mousemove + movementX path
+stage.addEventListener('pointermove', (e) => {
+  if (panelPointerLock) return;
+  if (!dragging || reduceMotion) return;
   const dx = e.clientX - lastX; const dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
-  applyLookDelta(dx, dy);
-}, { capture: true, passive: true });
-document.addEventListener('pointerup', endLookDrag, { capture: true });
-document.addEventListener('pointercancel', endLookDrag, { capture: true });
-
-// Desktop Pointer Lock — continuous mouse-look; Esc exits (browser). Double-click stage or pill.
-stage.addEventListener('dblclick', (e) => {
-  if (!entered || overview.on || reduceMotion) return;
-  const panel = panelUnderPointer(e);
-  // Double-click wall LIVE → intentional iframe interact (pointer-events on).
-  // Second dblclick on same / Esc / click elsewhere clears and restores look routing.
-  if (panel && panel.wallMounted) {
-    e.preventDefault();
-    if (wallLabFocus === panel) {
-      clearWallLabFocus();
-      setInteractTarget(null);
-    } else {
-      wallLabFocus = panel;
-      hoverPanel = panel;
-      setInteractTarget(panel);
-      panelPointerLock = true;
-    }
+  if (overview.on) {
+    overview.theta -= dx * 0.005;
+    overview.phi = THREE.MathUtils.clamp(overview.phi + dy * 0.004, 0.25, 1.35);
     return;
   }
-  if (mobileLike) return;
-  if (panel) return; // don't break floating-lab interact
-  e.preventDefault();
-  requestWalkPointerLock();
+  yaw.value -= dx * 0.0025;
+  pitch.value = Math.max(-1.0, Math.min(0.8, pitch.value - dy * 0.002));
 });
-document.getElementById('btn-look-lock')?.addEventListener('click', () => {
-  if (!entered) silentEnter({ reset: false });
-  if (overview.on) setOverview(false);
-  requestWalkPointerLock();
-});
-document.addEventListener('pointerlockchange', syncLookLockPill);
-document.addEventListener('pointerlockerror', () => { console.warn('[cubicles] pointer lock failed'); syncLookLockPill(); });
-document.addEventListener('mousemove', (e) => {
-  if (!document.pointerLockElement || !entered || reduceMotion || panelPointerLock) return;
-  // movementX/Y work under lock even when cursor would cross iframes
-  applyLookDelta(e.movementX || 0, e.movementY || 0);
+stage.addEventListener('pointerup', () => {
+  panelPointerLock = false;
+  dragging = false;
+  stage.classList.remove('dragging');
 });
 
 function resize() {
@@ -3938,92 +2395,14 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
-// —— Pinch zoom: walk FOV / overview radius (ignores walk-pad fingers) ——
-pinchStartRadius = overview.radius;
-
-function pinchDist() {
-  const pts = [...pinchPointers.values()];
-  if (pts.length < 2) return 0;
-  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-}
-function endLookForPinch() {
-  if (!dragging) return;
-  dragging = false;
-  stage.classList.remove('dragging');
-  if (lookPointerId != null) {
-    try { stage.releasePointerCapture(lookPointerId); } catch {}
-  }
-  lookPointerId = null;
-}
-function applyPinchZoom() {
-  if (!pinching || pinchPointers.size < 2 || !entered || reduceMotion) return;
-  const d = pinchDist();
-  if (d < 1) return;
-  const scale = d / pinchStartDist;
-  if (overview.on) {
-    overview.radius = THREE.MathUtils.clamp(
-      pinchStartRadius / scale,
-      overview.minRadius,
-      overview.maxRadius
-    );
-  } else {
-    walkFov = THREE.MathUtils.clamp(pinchStartFov / scale, WALK_FOV_MIN, WALK_FOV_MAX);
-    camera.fov = walkFov;
-    camera.updateProjectionMatrix();
-  }
-}
-function pinchIgnoreTarget(t) {
-  if (!t || !t.closest) return false;
-  return !!(t.closest('#mobile-pad') || t.closest('.pills') || t.closest('.gate') || t.closest('.chip') || t.closest('button') || t.closest('a'));
-}
-document.addEventListener('pointerdown', (e) => {
-  if (!entered || reduceMotion) return;
-  if (e.pointerType === 'mouse') return;
-  if (pinchIgnoreTarget(e.target)) return;
-  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinchPointers.size >= 2) {
-    endLookForPinch();
-    panelPointerLock = false;
-    if (!pinching) {
-      pinching = true;
-      pinchStartDist = Math.max(1, pinchDist());
-      pinchStartFov = walkFov;
-      pinchStartRadius = overview.radius;
-    }
-  }
-}, { capture: true });
-document.addEventListener('pointermove', (e) => {
-  if (!pinchPointers.has(e.pointerId)) return;
-  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinching) applyPinchZoom();
-}, { capture: true, passive: true });
-function endPinchPointer(e) {
-  if (!pinchPointers.has(e.pointerId)) return;
-  pinchPointers.delete(e.pointerId);
-  if (pinchPointers.size < 2) pinching = false;
-}
-document.addEventListener('pointerup', endPinchPointer, { capture: true });
-document.addEventListener('pointercancel', endPinchPointer, { capture: true });
-
 stage.addEventListener('wheel', (e) => {
-  if (!entered || reduceMotion) return;
-  // Overview orbit zoom (legacy) OR ctrl/trackpad pinch → walk FOV
-  if (overview.on) {
-    e.preventDefault();
-    overview.radius = THREE.MathUtils.clamp(
-      overview.radius + e.deltaY * 0.02,
-      overview.minRadius,
-      overview.maxRadius
-    );
-    return;
-  }
-  if (e.ctrlKey) {
-    e.preventDefault();
-    const factor = Math.exp(e.deltaY * 0.01);
-    walkFov = THREE.MathUtils.clamp(walkFov * factor, WALK_FOV_MIN, WALK_FOV_MAX);
-    camera.fov = walkFov;
-    camera.updateProjectionMatrix();
-  }
+  if (!overview.on || !entered) return;
+  e.preventDefault();
+  overview.radius = THREE.MathUtils.clamp(
+    overview.radius + e.deltaY * 0.02,
+    overview.minRadius,
+    overview.maxRadius
+  );
 }, { passive: false });
 
 
@@ -4031,18 +2410,6 @@ const clock = new THREE.Clock();
 const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 const margin = 0.95;
-
-let lastClientX = -1, lastClientY = -1;
-function syncPanelCursor() {
-  if (overview.on || dragging || lastClientX < 0) {
-    if (!dragging) stage.style.cursor = '';
-    return;
-  }
-  const over = panelUnderPointer({ clientX: lastClientX, clientY: lastClientY });
-  const onWall = !!(over && over.wallMounted);
-  stage.style.cursor = onWall ? 'pointer' : '';
-  stage.classList.toggle('panel-hover', onWall);
-}
 
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
@@ -4083,20 +2450,17 @@ function frame() {
   } else {
     applyCamera();
   }
-  syncPanelCursor();
   if (!glContextLost) {
     const _tSpark = performance.now() * 0.001;
-    // One AnalyserNode sample / frame — shared by labs + knuckles + water ripple (wallpaint1)
-    const _bed = window.__wormholeAmbient;
-    const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
-    updateBeatKneesWater(_tSpark, dt, _bass);
+    if (water?.material?.uniforms?.time) {
+      water.material.uniforms.time.value += dt * WATER_TIME_SCALE;
+      if (water.material.uniforms.sunDirection) {
+        water.material.uniforms.sunDirection.value.copy(waterSun);
+      }
+    }
     updateWallpaper(_tSpark);
     updateSparklines(_tSpark);
-    updateBeatLabs(_tSpark, _bass);
-    updateCssDepthOcclusion();
     try {
-      pinWallLabsFlush();
-      updateWallLiveTextures();
       if (composer) composer.render();
       else renderer.render(scene, camera);
       cssRenderer.render(cssScene, camera);
@@ -4112,8 +2476,7 @@ requestAnimationFrame(frame);
 
 if (params.has('still')) {
   entered = true;
-  window.__cubiclesEntered = true;
-  if (gate) gate.classList.add('hide');
+  gate.classList.add('hide');
 }
 </script>
 </body>
