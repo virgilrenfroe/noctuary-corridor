@@ -2877,7 +2877,7 @@ function updateBeatLabs(_t, bassOpt) {
   const bed = window.__wormholeAmbient;
   // One getBass() sample per frame (it smooths in place). Knees share this value.
   const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
-  const AMP_SCALE = 0.13;
+  const AMP_SCALE = 0.0325;
   if (bass < 0.002 && !bed?.analyser) {
     for (const h of hung) {
       if (h._beatApplied) {
@@ -2908,7 +2908,7 @@ function updateBeatKnees(bassOpt) {
   const bed = window.__wormholeAmbient;
   const bass = bassOpt != null ? bassOpt : (bed && typeof bed.getBass === 'function' ? bed.getBass() : 0);
   if (bass < 0.002 && !bed?.analyser) return;
-  const AMP_SCALE = 0.13;
+  const AMP_SCALE = 0.0325;
   const { inst, bases, dummy } = pack;
   const s = 1 + bass * AMP_SCALE;
   for (let i = 0; i < bases.length; i++) {
