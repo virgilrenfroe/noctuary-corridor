@@ -1158,8 +1158,7 @@ function addOuterWall(w, h, x, y, z, rotY) {
   m.receiveShadow = true;
   scene.add(m);
 }
-// Stargazer wall only (−Z). Sky is one sphere so the star scene has no corners.
-addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
+// No exterior wall planes. Stargazer video sits in the star sphere (staropen1).
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -2084,6 +2083,7 @@ for (let li = 0; li < wallSpecs.length; li++) {
   livePlane.receiveShadow = false;
   livePlane.userData.cellIndex = li;
   livePlane.userData.wallSide = spec.side;
+  livePlane.visible = false;
   group.add(livePlane);
 
   const spot = new THREE.PointLight(0xc060ff, 4.2, Math.max(WALL_LAB_W, WALL_LAB_H) * 1.15); // Taxodium purple, not beige
