@@ -878,7 +878,7 @@ const _starCeilTex = new THREE.TextureLoader().load(STAR_EQ_URL, (tex) => {
 _starCeilTex.colorSpace = THREE.SRGBColorSpace;
 _starCeilTex.wrapS = THREE.RepeatWrapping;
 _starCeilTex.wrapT = THREE.RepeatWrapping;
-_starCeilTex.repeat.set(1.35, 0.85); // tiled across vault, not one stretched stamp
+_starCeilTex.repeat.set(1, 1);
 _starCeilTex.anisotropy = (renderer.capabilities?.getMaxAnisotropy?.() || 1);
 const ceilMat = new THREE.MeshBasicMaterial({
   map: _starCeilTex,
@@ -1158,17 +1158,8 @@ function addOuterWall(w, h, x, y, z, rotY) {
   m.receiveShadow = true;
   scene.add(m);
 }
-// Stargazer wall only (−Z). The other three sides are the ceiling star scene.
+// Stargazer wall only (−Z). Sky is one sphere so the star scene has no corners.
 addOuterWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, -OUTER_D / 2, 0);
-function addStarWall(w, h, x, y, z, rotY) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), ceilMat);
-  m.position.set(x, y, z);
-  m.rotation.y = rotY;
-  scene.add(m);
-}
-addStarWall(OUTER_D, OUTER_H, -OUTER_W / 2, OUTER_H / 2, 0, Math.PI / 2);
-addStarWall(OUTER_D, OUTER_H, OUTER_W / 2, OUTER_H / 2, 0, -Math.PI / 2);
-addStarWall(OUTER_W, OUTER_H, 0, OUTER_H / 2, OUTER_D / 2, Math.PI);
 
 // —— Far-wall InstancedMesh wallpaper (ambient, non-interactive; not an iframe) ——
 // Living GPU instances covering the −Z outer wall; separate from cell 14's panel.
@@ -1607,19 +1598,13 @@ function updateSparklines(t) {
   }
 }
 
-const ceil = new THREE.Mesh(new THREE.PlaneGeometry(OUTER_W, OUTER_D), ceilMat);
-ceil.rotation.x = Math.PI / 2;
-ceil.position.y = OUTER_H;
-scene.add(ceil);
-
-// Outer edge lines (readable “box” silhouette)
-const edgeMat = new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.45 });
-const outerEdges = new THREE.LineSegments(
-  new THREE.EdgesGeometry(new THREE.BoxGeometry(OUTER_W, OUTER_H, OUTER_D)),
-  edgeMat
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(Math.max(OUTER_W, OUTER_D, OUTER_H) * 1.6, 48, 32),
+  new THREE.MeshBasicMaterial({ map: _starCeilTex, side: THREE.BackSide, toneMapped: false, fog: false, depthWrite: false })
 );
-outerEdges.position.y = OUTER_H / 2;
-scene.add(outerEdges);
+sky.position.y = OUTER_H * 0.35;
+sky.frustumCulled = false;
+scene.add(sky);
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
