@@ -1023,15 +1023,17 @@ function buildParticles() {
   let crispDot = null;
   let helixBeads = null;
   let beadMat = null;
-  const metalName = (params.get('metal') || '').trim().toLowerCase();
+  const metalParam = (params.get('metal') || '').trim().toLowerCase();
+  // Cubicle funnel has no metal= query. Oil is that helix until copper, brass, or violet is named.
+  const metalName = metalParam || (params.has('funnel') ? 'oil' : '');
   const _bead = new THREE.Object3D();
   if (helix) {
-    // Polished steel beads. Env map is on the material only so floor and other demos stay put.
-    // metal= swaps the bead finish only. Missing or unknown values stay this silver.
+    // Polished steel is the non-funnel helix. Funnel defaults to oil; metal= still selects a sketch.
+    // Env map is on the material only so floor and other demos stay put.
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
-    // Sketches, not the default. Each stays metalness 1 so the helix reads as beads, not tinted dots.
+    // Each finish stays metalness 1 so the helix reads as beads, not tinted dots.
     const helixMetals = {
       copper: {
         // Warm polished copper. Clearcoat is the white glint; the body stays copper.
