@@ -1283,7 +1283,7 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     tex.anisotropy = maxAniso;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     const muralW = 24.0;
     const muralH = 18.0;
@@ -1301,8 +1301,11 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       offX = 0.0;
       offY = 1.0 - repY;
     }
-    tex.repeat.set(repX, repY);
-    tex.offset.set(offX, offY);
+    // starwrap1: full-frame equirect on the grove sphere. u=0.75 of the
+    // sphere faces −Z (the view from the foyer), so shift the portrait center there.
+    tex.repeat.set(1, 1);
+    tex.offset.set(-0.25, 0);
+    tex.wrapS = THREE.RepeatWrapping;
     const poster = new THREE.TextureLoader().load('./demo-assets/backwall/stargazing-poster.jpg');
     poster.colorSpace = THREE.SRGBColorSpace;
     poster.minFilter = THREE.LinearFilter;
@@ -1325,12 +1328,14 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     mesh.receiveShadow = false;
     mesh.castShadow = false;
     mesh.raycast = () => {};
-    scene.add(mesh);
+    // starwrap1: no flat poster plane. The video is the surrounding sphere.
     const promoteVideoMap = () => {
       if (vid.readyState < 2) return;
-      mat.map = tex;
+      const skyMat = window.__groveSkyMat;
+      if (!skyMat) return;
+      skyMat.map = tex;
       tex.needsUpdate = true;
-      mat.needsUpdate = true;
+      skyMat.needsUpdate = true;
     };
     vid.addEventListener('loadeddata', promoteVideoMap);
     vid.addEventListener('playing', promoteVideoMap);
@@ -1604,6 +1609,11 @@ const sky = new THREE.Mesh(
 sky.position.y = OUTER_H * 0.35;
 sky.frustumCulled = false;
 scene.add(sky);
+window.__groveSkyMat = sky.material;
+if (window.__stargazingWall && window.__stargazingWall.vid && window.__stargazingWall.vid.readyState >= 2) {
+  window.__stargazingWall.tex.needsUpdate = true;
+  sky.material.map = window.__stargazingWall.tex;
+}
 
 // —— 5×4×1 equal cells (invisible partitions + free-floating lab scenes) ——
 // Sketch: labs float at cell centers — no wooden frames, no Three.js ghost/black plates.
