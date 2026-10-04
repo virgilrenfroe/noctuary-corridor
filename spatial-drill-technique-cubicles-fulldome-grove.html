@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/axis-loop.wav?v=axis2" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/axis-loop.wav?v=axis3" fetchpriority="high" />
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -251,9 +251,10 @@
 <script>
 /* Axis bed fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// One AudioBufferSourceNode, looped, playbackRate 1. The pad's 40 ms
-// equal-power crossfade is already in the WAV, and the bass is written
-// into that same buffer, so the join is a normal sample step.
+// One AudioBufferSourceNode, looped, playbackRate 1. The 40 ms equal-power
+// crossfade is already in the WAV, so the join is a normal sample step.
+// This is the loop the phone already played (9834c3c). The URL is axis3
+// so a cached bass file at axis2 is not reused.
 // The foyer tap calls resume() and source.start() in that same turn.
 // The WAV is parsed while the page loads. The tap does not wait on a decoder,
 // and start() is never deferred to a promise (iOS would drop that gesture).
@@ -261,7 +262,7 @@
 // not a second timer.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/axis-loop.wav?v=axis2';
+    const SRC = './demo-assets/audio/axis-loop.wav?v=axis3';
     const VOL = 0.46;
     const BPM = 96;
     const BARS = 4;
@@ -398,8 +399,9 @@
       return elapsed % dur;
     }
 
-    // Same pluck as the bass notes in the file: 10 ms cosine attack,
+    // Beat envelope for the lab and knuckle pulse: 10 ms cosine attack,
     // 150 ms decay, a little stronger on each bar's downbeat.
+    // Clock only. It does not start, stop, or decode the buffer.
     function clockRaw() {
       if (!started) return 0;
       const beat = 60 / BPM;
