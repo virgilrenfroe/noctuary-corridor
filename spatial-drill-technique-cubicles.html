@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/wormhole-ambient.mp3?v=fresh1" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/axis-loop.wav?v=axis1" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -237,171 +237,80 @@
 })();
 </script>
 <script>
-/* Ambient MP3 fetch first — parallel with Three boot; does not block first paint. */
+/* Axis bed fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// Desktop: one AudioBufferSourceNode at gain 0.46. The foyer pointer or key
-// calls resume() and source.start() in that turn. The element is not played.
-// iPhone/iPad: one HTMLAudioElement at volume 0.46. Its src is a WAV of the
-// same decoded samples so the loop is exactly four bars, not the mp3 pad.
-// playbackRate stays 1. The buffer source is not started on that path.
+// One AudioBufferSourceNode, looped, playbackRate 1. The 40 ms equal-power
+// crossfade is already in the WAV, so the join is a normal sample step.
+// The foyer tap calls resume() and source.start() in that same turn.
+// The WAV is parsed while the page loads. The tap does not wait on a decoder,
+// and start() is never deferred to a promise (iOS would drop that gesture).
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/wormhole-ambient.mp3?v=fresh1';
+    const SRC = './demo-assets/audio/axis-loop.wav?v=axis1';
     const VOL = 0.46;
     const BPM = 96;
     const BARS = 4;
     const LOOP_LEN = (60 / BPM) * 4 * BARS; // 10.000s
 
     let audioCtx = null;
-    let buffer = null;
+    let pcm = null;
+    let sampleRate = 44100;
     let bufferSource = null;
     let gain = null;
     let analyser = null;
     let freqData = null;
     let graphWired = false;
-    let graphFailed = false;
     let started = false;
-    let startArmed = false;
+    let starting = false;
     let mode = 'buffer';
     let bassSmooth = 0;
     let bassFloor = 0;
-    let decodePromise = null;
-    let elementLatched = false;
-    let elementSrcWired = false;
 
-    function isIOS() {
-      const ua = navigator.userAgent || '';
-      return /iPad|iPhone|iPod/.test(ua) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
-
-    // iOS element loop. decodeAudioData trims the mp3 to 441000 samples, but
-    // the element duration is the padded container. A WAV of those samples
-    // loops exactly 16 beats. Still one element, and the buffer is not started.
-    function pcmToWavUrl(audioBuffer) {
-      const ch = audioBuffer.getChannelData(0);
-      const n = ch.length;
-      const ab = new ArrayBuffer(44 + n * 2);
-      const v = new DataView(ab);
-      const write = (off, str) => {
-        for (let i = 0; i < str.length; i++) v.setUint8(off + i, str.charCodeAt(i));
-      };
-      write(0, 'RIFF');
-      v.setUint32(4, 36 + n * 2, true);
-      write(8, 'WAVE');
-      write(12, 'fmt ');
-      v.setUint32(16, 16, true);
-      v.setUint16(20, 1, true);
-      v.setUint16(22, 1, true);
-      v.setUint32(24, audioBuffer.sampleRate, true);
-      v.setUint32(28, audioBuffer.sampleRate * 2, true);
-      v.setUint16(32, 2, true);
-      v.setUint16(34, 16, true);
-      write(36, 'data');
-      v.setUint32(40, n * 2, true);
-      let p = 44;
-      for (let i = 0; i < n; i++) {
-        const x = Math.max(-1, Math.min(1, ch[i]));
-        v.setInt16(p, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
-        p += 2;
+    function parseWav(buf) {
+      const v = new DataView(buf);
+      if (v.byteLength < 44 || v.getUint32(0, false) !== 0x52494646) throw new Error('not a wav');
+      let off = 12;
+      let rate = 44100, channels = 1, bits = 16, dataOff = 0, dataLen = 0;
+      while (off + 8 <= v.byteLength) {
+        const id = String.fromCharCode(
+          v.getUint8(off), v.getUint8(off + 1), v.getUint8(off + 2), v.getUint8(off + 3));
+        const size = v.getUint32(off + 4, true);
+        if (id === 'fmt ') {
+          channels = v.getUint16(off + 8, true);
+          rate = v.getUint32(off + 12, true);
+          bits = v.getUint16(off + 22, true);
+        } else if (id === 'data') {
+          dataOff = off + 8;
+          dataLen = size;
+          break;
+        }
+        off += 8 + size + (size & 1);
       }
-      return URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }));
+      if (!dataLen || bits !== 16 || channels !== 1) throw new Error('need 16-bit mono wav');
+      const n = (dataLen / 2) | 0;
+      const out = new Float32Array(n);
+      for (let i = 0; i < n; i++) out[i] = v.getInt16(dataOff + i * 2, true) / 32768;
+      return { samples: out, rate: rate };
     }
 
-    function prepareElementLoop() {
-      const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      if (!OC) return;
-      fetch(SRC, { credentials: 'same-origin', cache: 'force-cache' })
-        .then((r) => {
-          if (!r.ok) throw new Error('ambient fetch ' + r.status);
-          return r.arrayBuffer();
-        })
-        .then((ab) => new OC(1, 44100, 44100).decodeAudioData(ab.slice(0)))
-        .then((buf) => {
-          if (!buf || elementSrcWired) return;
-          el.src = pcmToWavUrl(buf);
-          el.loop = true;
-          el.playbackRate = 1;
-          el.defaultPlaybackRate = 1;
-          try { el.load(); } catch {}
-          console.info('[cubicles] element loop is the decoded bed',
-            buf.length + ' samples', buf.duration.toFixed(3) + 's');
-        })
-        .catch((err) => console.warn('[cubicles] element wav loop failed', err));
-    }
+    // Parse during load, before any tap. The gesture handler never awaits this.
+    fetch(SRC, { credentials: 'same-origin', cache: 'force-cache' })
+      .then((r) => {
+        if (!r.ok) throw new Error('ambient fetch ' + r.status);
+        return r.arrayBuffer();
+      })
+      .then((ab) => {
+        const parsed = parseWav(ab);
+        pcm = parsed.samples;
+        sampleRate = parsed.rate;
+        console.info('[cubicles] axis bed parsed',
+          pcm.length + ' samples', (pcm.length / sampleRate).toFixed(3) + 's', sampleRate + 'Hz');
+      })
+      .catch((err) => console.warn('[cubicles] axis bed load failed', err));
 
-    // Present on every browser. play() is only called on iOS.
-    const el = new Audio();
-    el.preload = 'auto';
-    el.loop = true;
-    el.playbackRate = 1;
-    el.defaultPlaybackRate = 1;
-    // A pitch-preserving stretcher sags this loop. Rate stays 1.
-    try { el.preservesPitch = false; } catch {}
-    el.addEventListener('ratechange', () => {
-      if (el.playbackRate === 1 && el.defaultPlaybackRate === 1) return;
-      el.playbackRate = 1;
-      el.defaultPlaybackRate = 1;
-    });
-    el.volume = VOL;
-    el.setAttribute('playsinline', '');
-    el.crossOrigin = 'anonymous';
-    el.src = SRC;
-    try { el.load(); } catch {}
-
-    function ensureAudioCtx() {
-      if (audioCtx || graphFailed) return audioCtx;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { graphFailed = true; return null; }
-      try { audioCtx = new AC(); }
-      catch (err) {
-        console.warn('[cubicles] AudioContext create failed', err);
-        graphFailed = true;
-        return null;
-      }
-      return audioCtx;
-    }
-
-    function resumeCtx() {
-      const ctx = audioCtx || ensureAudioCtx();
-      if (ctx && ctx.state === 'suspended') {
-        // Fire inside the gesture. Do not await: a non-gesture resume never settles.
-        ctx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
-      }
-      return ctx;
-    }
-
-    function kickDecode() {
-      // Do not construct the live context at load on iOS. The gesture creates it.
-      if (isIOS()) return null;
-      if (buffer || decodePromise) return decodePromise;
-      const ctx = ensureAudioCtx();
-      if (!ctx) return null;
-      decodePromise = fetch(SRC, { credentials: 'same-origin', cache: 'force-cache' })
-        .then((r) => {
-          if (!r.ok) throw new Error('ambient fetch ' + r.status);
-          return r.arrayBuffer();
-        })
-        .then((ab) => ctx.decodeAudioData(ab.slice(0)))
-        .then((buf) => {
-          buffer = buf;
-          console.info('[cubicles] ambient AudioBuffer ready', buf.duration.toFixed(3) + 's', buf.sampleRate + 'Hz');
-          if (startArmed && !isIOS()) startOnce();
-          return buf;
-        })
-        .catch((err) => {
-          console.warn('[cubicles] ambient decode failed', err);
-          decodePromise = null;
-          return null;
-        });
-      return decodePromise;
-    }
-
-    // One gain, two outputs: speakers and the analyser tap. The analyser is
-    // not in series, so it cannot mute the foyer.
     function wireOnce() {
-      if (graphWired || graphFailed) return false;
-      const ctx = ensureAudioCtx();
+      if (graphWired) return true;
+      const ctx = audioCtx;
       if (!ctx) return false;
       try {
         gain = ctx.createGain();
@@ -419,7 +328,6 @@
         return true;
       } catch (err) {
         console.warn('[cubicles] Web Audio wire failed', err);
-        graphFailed = true;
         gain = null;
         analyser = null;
         freqData = null;
@@ -427,85 +335,37 @@
       }
     }
 
-    // One looping source. A second call is a no-op.
-    function startOnce() {
-      if (isIOS() || bufferSource || started || elementSrcWired) return false;
-      const ctx = audioCtx;
-      if (!ctx || !buffer) return false;
-      if (!wireOnce() || !gain) return false;
-      try { gain.gain.value = VOL; } catch {}
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.loop = true;
-      src.playbackRate.value = 1;
-      // Whole buffer only. A custom end point is a second length and drifts.
-      src.connect(gain);
-      try { src.start(); }
-      catch (err) {
-        console.warn('[cubicles] ambient BufferSource start failed', err);
-        try { src.disconnect(); } catch {}
+    // Synchronous. The caller is the tap, the key, or the pad — not a promise.
+    function startNow() {
+      if (started || starting || !pcm) return false;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      starting = true;
+      try {
+        if (!audioCtx) audioCtx = new AC();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch((err) => console.warn('[cubicles] AudioContext resume failed', err));
+        }
+        if (!wireOnce() || !gain) throw new Error('graph not wired');
+        const loop = audioCtx.createBuffer(1, pcm.length, sampleRate);
+        loop.getChannelData(0).set(pcm);
+        const src = audioCtx.createBufferSource();
+        src.buffer = loop;
+        src.loop = true;
+        src.playbackRate.value = 1;
+        src.connect(gain);
+        src.start();
+        bufferSource = src;
+        started = true;
+        mode = 'buffer';
+        console.info('[cubicles] wormhole ambient playing (one buffer, gain=' + VOL + ')');
+        try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
+        return true;
+      } catch (err) {
+        starting = false;
+        console.warn('[cubicles] ambient start failed', err);
         return false;
       }
-      bufferSource = src;
-      started = true;
-      mode = 'buffer';
-      console.info('[cubicles] wormhole ambient playing (one buffer, gain=' + VOL + ')');
-      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
-      return true;
-    }
-
-    // iOS only. play() is synchronous in the gesture, before any await.
-    // MediaElementSource is the only graph output. No buffer source.
-    function startElementSpeaker() {
-      if (elementLatched) {
-        if (audioCtx && audioCtx.state === 'suspended') {
-          audioCtx.resume().catch(() => {});
-        }
-        if (el.paused || el.ended) {
-          try { el.play(); } catch {}
-        }
-        return;
-      }
-      elementLatched = true;
-      try { el.loop = true; el.volume = VOL; } catch {}
-      let p;
-      try { p = el.play(); }
-      catch (err) {
-        elementLatched = false;
-        console.warn('[cubicles] ambient element play threw', err);
-        return;
-      }
-      if (p && p.catch) p.catch((err) => console.warn('[cubicles] ambient element play blocked', err));
-      const ctx = ensureAudioCtx();
-      if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      try {
-        if (!graphWired) {
-          gain = ctx.createGain();
-          // Element volume is already VOL. Do not attenuate a second time.
-          gain.gain.value = 1;
-          analyser = ctx.createAnalyser();
-          analyser.fftSize = 2048;
-          analyser.smoothingTimeConstant = 0.25;
-          analyser.minDecibels = -84;
-          analyser.maxDecibels = -10;
-          freqData = new Uint8Array(analyser.frequencyBinCount);
-          gain.connect(ctx.destination);
-          gain.connect(analyser);
-          graphWired = true;
-        }
-        if (!elementSrcWired) {
-          const mes = ctx.createMediaElementSource(el);
-          mes.connect(gain);
-          elementSrcWired = true;
-        }
-      } catch (err) {
-        console.warn('[cubicles] element graph failed — direct element output', err);
-      }
-      started = true;
-      mode = 'element';
-      console.info('[cubicles] wormhole ambient playing (one element, vol=' + VOL + ')');
-      try { window.dispatchEvent(new CustomEvent('cubicles-ambient-playing')); } catch {}
     }
 
     function sampleBass() {
@@ -532,34 +392,24 @@
       try { bufferSource.playbackRate.value = 1; } catch {}
     }
 
-    // First foyer pointer or key: resume and start in this turn when the
-    // buffer is already decoded. Later clicks only resume the same context.
     function tryPlay() {
-      if (isIOS()) {
-        startElementSpeaker();
-        return;
-      }
-      const ctx = ensureAudioCtx();
-      if (!ctx) return;
-      resumeCtx();
-      if (bufferSource || started) {
+      if (started) {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
         lockRate();
         return;
       }
-      startArmed = true;
-      if (buffer) startOnce();
-      else kickDecode();
+      startNow();
     }
 
-    if (isIOS()) prepareElementLoop();
-    else kickDecode();
-
     window.__wormholeAmbient = {
-      audio: el, audioB: null, tryPlay, vol: VOL,
-      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0,
+      audio: null, audioB: null, tryPlay, vol: VOL,
+      bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0.04,
       getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
       get started() { return started; },
+      get ready() { return !!pcm; },
       get secondaryArmed() { return false; },
       get mode() { return mode; },
       lockRate,
@@ -567,19 +417,18 @@
     document.addEventListener('pointerdown', tryPlay, { capture: true });
     document.addEventListener('touchstart', tryPlay, { capture: true, passive: true });
     document.addEventListener('click', tryPlay, { capture: true });
-    document.addEventListener('keydown', tryPlay, { once: false });
+    document.addEventListener('keydown', tryPlay);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        if (mode === 'element') { try { el.pause(); } catch {} }
         if (audioCtx && audioCtx.state === 'running') {
           try { audioCtx.suspend(); } catch {}
         }
       } else if (started) {
-        // Not a click. The next pointer or key resumes the same source.
+        // Not a tap. The next pointer or key resumes the same source.
         lockRate();
       }
     });
-    console.info('[cubicles] wormhole ambient ready (one buffer, gain=' + VOL + ', 4bar10)',
+    console.info('[cubicles] wormhole ambient ready (one buffer, gain=' + VOL + ', axis)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
   } catch (err) {
     console.warn('[cubicles] wormhole ambient failed', err);
