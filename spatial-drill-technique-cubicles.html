@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<link rel="preload" as="audio" href="./demo-assets/audio/axis-loop.wav?v=axis1" fetchpriority="high" />
+<link rel="preload" as="audio" href="./demo-assets/audio/axis-loop.wav?v=axis2" fetchpriority="high" />
 <title>Technique cubicles · corridor-share</title>
 <style>
   :root {
@@ -239,14 +239,17 @@
 <script>
 /* Axis bed fetch first — parallel with Three boot; does not block first paint. */
 // —— Wormhole ambient bed (EARLY: classic script, before Three module / first paint) ——
-// One AudioBufferSourceNode, looped, playbackRate 1. The 40 ms equal-power
-// crossfade is already in the WAV, so the join is a normal sample step.
+// One AudioBufferSourceNode, looped, playbackRate 1. The pad's 40 ms
+// equal-power crossfade is already in the WAV, and the bass is written
+// into that same buffer, so the join is a normal sample step.
 // The foyer tap calls resume() and source.start() in that same turn.
 // The WAV is parsed while the page loads. The tap does not wait on a decoder,
 // and start() is never deferred to a promise (iOS would drop that gesture).
+// Labs and knuckles read this source's clock (context currentTime at start),
+// not a second timer.
 (function installWormholeAmbient() {
   try {
-    const SRC = './demo-assets/audio/axis-loop.wav?v=axis1';
+    const SRC = './demo-assets/audio/axis-loop.wav?v=axis2';
     const VOL = 0.46;
     const BPM = 96;
     const BARS = 4;
@@ -265,6 +268,9 @@
     let mode = 'buffer';
     let bassSmooth = 0;
     let bassFloor = 0;
+    // audioCtx.currentTime when the one buffer source started. Playback rate
+    // stays 1, so loop position is (currentTime - origin) mod the buffer.
+    let originTime = 0;
 
     function parseWav(buf) {
       const v = new DataView(buf);
@@ -355,6 +361,7 @@
         src.playbackRate.value = 1;
         src.connect(gain);
         src.start();
+        originTime = audioCtx.currentTime;
         bufferSource = src;
         started = true;
         mode = 'buffer';
@@ -368,18 +375,34 @@
       }
     }
 
-    function sampleBass() {
-      if (!analyser || !freqData) return 0;
-      try { analyser.getByteFrequencyData(freqData); }
-      catch { return 0; }
-      let sum = 0;
-      const last = Math.min(6, freqData.length - 1);
-      for (let i = 1; i <= last; i++) sum += freqData[i];
-      return sum / last / 255;
+    // Position inside the looping buffer, in seconds. Uses the source clock
+    // only: context time freezes while the context is suspended, so this
+    // stays locked to the samples. Not performance.now() and not a timer.
+    function loopTime() {
+      if (!started || !audioCtx || !pcm) return 0;
+      const dur = pcm.length / sampleRate;
+      let elapsed = audioCtx.currentTime - originTime;
+      if (!(elapsed >= 0) || !dur) return 0;
+      return elapsed % dur;
+    }
+
+    // Same pluck as the bass notes in the file: 10 ms cosine attack,
+    // 150 ms decay, a little stronger on each bar's downbeat.
+    function clockRaw() {
+      if (!started) return 0;
+      const beat = 60 / BPM;
+      const loopT = loopTime();
+      const into = loopT % beat;
+      const attack = 0.010;
+      let env = into < attack ? (0.5 - 0.5 * Math.cos(Math.PI * into / attack)) : 1;
+      env *= Math.exp(-into / 0.15);
+      const beatIndex = Math.min(15, Math.floor(loopT / beat));
+      if (beatIndex % 4 === 0) env *= 1.12;
+      return Math.min(1, env / 1.12);
     }
 
     function getBass() {
-      const raw = sampleBass();
+      const raw = clockRaw();
       const k = raw > bassSmooth ? 0.62 : 0.16;
       bassSmooth += (raw - bassSmooth) * k;
       bassFloor += (bassSmooth - bassFloor) * 0.012;
@@ -406,7 +429,8 @@
     window.__wormholeAmbient = {
       audio: null, audioB: null, tryPlay, vol: VOL,
       bpm: BPM, bars: BARS, loopLen: LOOP_LEN, xfade: 0.04,
-      getBass, get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
+      getBass, getLoopTime: loopTime,
+      get audioCtx() { return audioCtx; }, get analyser() { return analyser; },
       get graphWired() { return graphWired; },
       get started() { return started; },
       get ready() { return !!pcm; },
@@ -2338,7 +2362,8 @@ stage.addEventListener('wheel', (e) => {
 
 
 /** Bass punch on the visible floating labs (CSS3D iframes, not the empty hit group).
- *  ~52% larger on a real sub-bass hit, back to rest between hits.
+ *  getBass() is this loop's clock (the one buffer source's currentTime),
+ *  shared with the knuckles. Back to rest between beats.
  *  Tempo, pitch, and the ambient loop are untouched. */
 function updateBeatLabs(_t, bassOpt) {
   if (reduceMotion) return;
@@ -2367,8 +2392,8 @@ function updateBeatLabs(_t, bassOpt) {
 }
 
 /** Metallic cypress knees (dome knuckles sitting in the water).
- *  Same AnalyserNode bass as the floating labs, same AMP_SCALE 0.13
- *  (~13% larger on a full hit). No faces or hands. */
+ *  Same loop-clock punch as the floating labs, same AMP_SCALE 0.0325.
+ *  No faces or hands. */
 function updateBeatKnees(bassOpt) {
   if (reduceMotion) return;
   const pack = window.__sketchCKnees;
