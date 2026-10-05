@@ -254,27 +254,9 @@
     font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.16em;
     text-transform: uppercase; color: var(--door); pointer-events: none;
   }
-  /* Particle symbols must NOT inherit text-transform:uppercase (γ→Γ, uud→UUD). */
-  .pchip, .ochip, .readout, .detail, .detail .big, .flowmini, .card, .card *, .badge, .badge b, #nucleonPick, #nucleonPick *, #orbFocus, #orbFocus * {
+  /* Particle symbols must NOT inherit text-transform:uppercase (γ→Γ, uud→UUD, 2p→2P). */
+  .pchip, .readout, .detail, .detail .big, .flowmini, .card, .card *, .badge, .badge b, #nucleonPick, #nucleonPick * {
     text-transform: none !important;
-  }
-  .ochip {
-    pointer-events: auto;
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em;
-    color: var(--pearl); background: rgba(20, 8, 24, 0.72);
-    border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; cursor: pointer;
-    -webkit-tap-highlight-color: transparent; flex: 0 0 auto;
-  }
-  .ochip.on, .ochip:hover {
-    border-color: rgba(255, 179, 107, 0.65);
-    background: rgba(255, 179, 107, 0.14);
-  }
-  #orbFocus {
-    max-width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
   }
   .pchip {
     pointer-events: auto;
@@ -517,10 +499,8 @@
           </div>
           <div class="atom-bottom">
             <div class="ladder-ui" id="ladderUi" hidden>
-              <div class="row" id="ladderChips" role="group" aria-label="Zoom stage">
+              <div class="row" id="ladderChips" role="group" aria-label="Stage">
                 <button type="button" class="chip on" data-stage="atom">Atom</button>
-                <button type="button" class="chip" data-stage="shells">Shells</button>
-                <button type="button" class="chip" data-stage="orbitals">Orbitals</button>
                 <button type="button" class="chip" data-stage="nucleus">Nucleus</button>
                 <button type="button" class="chip locked" data-stage="quark" disabled>Quark</button>
                 <span class="doorsep" aria-hidden="true">door</span>
@@ -528,8 +508,6 @@
                 <button type="button" class="chip" id="btnBack">← Back</button>
                 <button type="button" class="chip" id="btnNext">Next →</button>
               </div>
-              <div class="row" id="shellFocus" hidden role="group" aria-label="Shell focus"></div>
-              <div class="row" id="orbFocus" hidden role="group" aria-label="Orbital focus"></div>
               <div class="row" id="nucleonPick" hidden role="group" aria-label="Nucleon"></div>
             </div>
             <div class="hint-atom" id="atomHint">drag to orbit · p / n / e</div>
@@ -577,7 +555,6 @@ const PROTON_COLOR = 0xff6b3d;
 const NEUTRON_COLOR = 0x6c84a8;
 const ELECTRON_COLOR = 0x5fd6c6;
 const RING_COLOR = 0x5d4a6c;
-const RING_HI = 0xffb36b;
 const UP_COLOR = 0xffd166;
 const DOWN_COLOR = 0xa78bfa;
 const BOSON_COLOR = 0x7ec8ff;
@@ -614,7 +591,7 @@ const ATLAS = [
   { id: 's', grp: 'quark', sym: 's', name: 'strange quark', q3: -1, spin: '½', mass: '≈ 93 MeV', kind: 'quark', hue: 'down', note: 'Gen 2 down-type.' },
   { id: 't', grp: 'quark', sym: 't', name: 'top quark', q3: 2, spin: '½', mass: '≈ 173 GeV', kind: 'quark', hue: 'up', note: 'Gen 3 up-type · heaviest known elementary particle.' },
   { id: 'b', grp: 'quark', sym: 'b', name: 'bottom quark', q3: -1, spin: '½', mass: '≈ 4.18 GeV', kind: 'quark', hue: 'down', note: 'Gen 3 down-type.' },
-  { id: 'e', grp: 'lepton', sym: 'e⁻', name: 'electron', q3: -3, spin: '½', mass: '0.511 MeV', kind: 'lepton', note: 'The discrete electron heads on the Atom and Shells Bohr orbits. Elementary.' },
+  { id: 'e', grp: 'lepton', sym: 'e⁻', name: 'electron', q3: -3, spin: '½', mass: '0.511 MeV', kind: 'lepton', note: 'The discrete electron heads on the Atom Bohr orbits. Elementary.' },
   { id: 've', grp: 'lepton', sym: 'νₑ', name: 'electron neutrino', q3: 0, spin: '½', mass: '< 1 eV (non-zero)', kind: 'nu', note: 'Neutral lepton. Its antiparticle shows up in β⁻ decay.' },
   { id: 'mu', grp: 'lepton', sym: 'μ⁻', name: 'muon', q3: -3, spin: '½', mass: '105.7 MeV', kind: 'lepton', note: 'Gen 2 charged lepton.' },
   { id: 'vmu', grp: 'lepton', sym: 'ν_μ', name: 'muon neutrino', q3: 0, spin: '½', mass: '< 1 eV (non-zero)', kind: 'nu', note: 'Made with the antimuon when π⁺ decays.' },
@@ -667,8 +644,6 @@ const errEl = document.getElementById('err');
 const atomHint = document.getElementById('atomHint');
 const ladderUi = document.getElementById('ladderUi');
 const ladderChips = document.getElementById('ladderChips');
-const shellFocusEl = document.getElementById('shellFocus');
-const orbFocusEl = document.getElementById('orbFocus');
 const nucleonPickEl = document.getElementById('nucleonPick');
 const stageWrap = document.getElementById('stageWrap');
 const stageBadge = document.getElementById('stageBadge');
@@ -720,6 +695,21 @@ function shellPopulations(Z) {
   return [...byN.entries()].sort((a, b) => a[0] - b[0]);
 }
 
+function supCount(n) {
+  return String(n).replace(/[0-9]/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]);
+}
+
+/** HUD only — not a zoom stage. Aufbau uses superscripts; shells are K/L/… counts. */
+function chemistryLabel(Z) {
+  const fills = subshellFill(Z);
+  const sum = fills.reduce((s, x) => s + x.e, 0);
+  const aufbau = fills.map((s) => s.label + supCount(s.e)).join(' ');
+  const shells = shellPopulations(Z)
+    .map(([n, count]) => `${SHELL_LETTERS[n - 1] || ('n' + n)}${count}`)
+    .join(' · ');
+  return { aufbau, shells, sum };
+}
+
 (function assertAufbau() {
   const fmt = (Z) => subshellFill(Z).map((s) => s.label + s.e).join(' ');
   console.assert(fmt(1) === '1s1', fmt(1));
@@ -728,6 +718,10 @@ function shellPopulations(Z) {
   console.assert(fmt(10) === '1s2 2s2 2p6', fmt(10));
   console.assert(fmt(26) === '1s2 2s2 2p6 3s2 3p6 4s2 3d6', fmt(26));
   console.assert(fmt(118) === '1s2 2s2 2p6 3s2 3p6 4s2 3d10 4p6 5s2 4d10 5p6 6s2 4f14 5d10 6p6 7s2 5f14 6d10 7p6', fmt(118));
+  const cHud = chemistryLabel(6);
+  console.assert(cHud.aufbau === '1s² 2s² 2p²' && cHud.shells === 'K2 · L4' && cHud.sum === 6, cHud);
+  const hHud = chemistryLabel(1);
+  console.assert(hHud.aufbau === '1s¹' && hHud.shells === 'K1' && hHud.sum === 1, hHud);
   for (let z = 1; z <= 118; z++) {
     const fill = subshellFill(z);
     const sum = fill.reduce((s, x) => s + x.e, 0);
@@ -788,18 +782,17 @@ const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
 
 /* Chemistry first, then one nucleon, then the atlas door */
-const stageState = { stage: 'atom', shellFocus: 'both', focusShell: -1, orbFocus: 'all' };
+const stageState = { stage: 'atom' };
 const pickState = { kind: 'p', slot: 0 };
 let atlasSel = 'pip';
 let atlasRoot = null;
 let makeSatin = null;
-const LADDER = ['atom', 'shells', 'orbitals', 'nucleus', 'quark', 'atlas'];
+const LADDER = ['atom', 'nucleus', 'quark', 'atlas'];
 let eOpacity = 1;
 let nOpacity = 1;
 let camKey = 'atom';
 const CAM = {
   atom: { dist: 5.4, elev: 1.1, min: 2.8, max: 14 },
-  shells: { dist: 3.55, elev: 0.75, min: 2.0, max: 10 },
   nucleus: { dist: 1.45, elev: 0.35, min: 0.85, max: 4.0 },
 };
 const camAnim = {
@@ -848,7 +841,7 @@ function buildAtom(el) {
   const particleR = Math.min(0.085, Math.max(0.04, nucleusR * (nucleonCount < 8 ? 0.5 : 0.36)));
   const packR = Math.max(0.02, nucleusR - particleR);
 
-  // Satin nucleons stay locked. Atom/Shells electrons are B2: bright heads only.
+  // Satin nucleons stay locked. Atom electrons are B2: bright heads on faint rings.
   const protonMat = makeSatin(PROTON_COLOR, 0.12);
   const neutronMat = makeSatin(NEUTRON_COLOR, 0.06);
   const electronMat = new THREE.MeshStandardMaterial({
@@ -1004,231 +997,18 @@ function buildAtom(el) {
   console.assert(nucleonRecs.filter((r) => r.kind === 'p').length === Z, `${el.symbol} p recs`);
   console.assert(nucleonRecs.filter((r) => r.kind === 'n').length === N, `${el.symbol} n recs`);
 
-  buildOrbitals(root, nucleusR, Z);
+  console.assert(!root.getObjectByName('orbitals'), `${el.symbol}: no orbital volume meshes`);
+  const hud = chemistryLabel(Z);
+  console.assert(hud.sum === Z, `${el.symbol} HUD Σ e⁻ = Z`);
+  if (stage) {
+    stage.dataset.aufbau = subshellFill(Z).map((s) => `${s.label}${s.e}`).join(' ');
+    stage.dataset.shells = hud.shells;
+  }
 
   atomRoot = root;
   scene.add(root);
-  rebuildShellFocusChips();
-  rebuildOrbFocus();
   applyVisibility();
 }
-
-function ghostMat(color, opacity) {
-  return new THREE.MeshBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-}
-
-function orbitalReach(n, l, nucleusR, Z) {
-  const merge = Z > 36;
-  const base = nucleusR + 0.46;
-  let r = base + (n - 1) * (merge ? 0.38 : 0.5);
-  if (merge && n >= 5) r = base + 3 * 0.38 + (n - 4) * 0.24;
-  return r * (1 + l * 0.05);
-}
-
-function addLobe(parent, mat, dir, reach, fatK, lenK, centerK) {
-  const d = dir.clone().normalize();
-  const lobe = new THREE.Mesh(sphereGeo, mat);
-  const len = reach * lenK;
-  const fat = reach * fatK;
-  lobe.scale.set(fat, fat, len);
-  lobe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d);
-  lobe.position.copy(d).multiplyScalar(reach * centerK);
-  lobe.renderOrder = 1;
-  parent.add(lobe);
-  return d.clone().multiplyScalar(reach * centerK + len * 0.78);
-}
-
-function hundOcc(e, slots) {
-  const occ = new Array(slots).fill(0);
-  let left = e;
-  for (let i = 0; i < slots && left > 0; i++) { occ[i] = 1; left--; }
-  for (let i = 0; i < slots && left > 0; i++) { occ[i] = 2; left--; }
-  return occ;
-}
-
-function orbMatch(sh) {
-  const f = stageState.orbFocus;
-  if (!f || f === 'all') return true;
-  if (f.startsWith('l:')) return LCHAR[sh.l] === f.slice(2);
-  return sh.id === f;
-}
-
-function buildOrbitals(root, nucleusR, Z) {
-  const fills = subshellFill(Z);
-  const orbRoot = new THREE.Group();
-  orbRoot.name = 'orbitals';
-  const eTotal = fills.reduce((s, sh) => s + sh.e, 0);
-  console.assert(eTotal === Z, `orbital electrons ${eTotal} ≠ Z ${Z}`);
-  const eMesh = eTotal > 0
-    ? new THREE.InstancedMesh(sphereGeo, makeSatin(ELECTRON_COLOR, 0.2), eTotal)
-    : null;
-  const eRecs = [];
-  let eIndex = 0;
-
-  const takeElectrons = (sh, seats) => {
-    const occ = hundOcc(sh.e, seats.length);
-    console.assert(occ.reduce((s, n) => s + n, 0) === sh.e, `${sh.id} electron seats`);
-    occ.forEach((n, i) => {
-      for (let k = 0; k < n; k++) {
-        const pos = seats[i][k];
-        const size = Math.max(0.04, Math.min(0.068, sh.reach * 0.05));
-        dummy.position.copy(pos);
-        dummy.scale.setScalar(size);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        eMesh.setMatrixAt(eIndex, dummy.matrix);
-        eRecs.push({ id: sh.id, index: eIndex, pos: pos.clone(), size });
-        eIndex++;
-      }
-    });
-  };
-
-  for (const sh of fills) {
-    const g = new THREE.Group();
-    g.name = sh.id;
-    const reach = orbitalReach(sh.n, sh.l, nucleusR, Z);
-    sh.reach = reach;
-    sh.shape = ['sphere', 'dumbbell', 'clover-torus', 'complex'][sh.l];
-    let mat;
-    if (sh.l === 0) {
-      mat = ghostMat(0xffb36b, 0.16);
-      const sph = new THREE.Mesh(sphereGeo, mat);
-      sph.scale.setScalar(reach * 0.62);
-      sph.renderOrder = 1;
-      g.add(sph);
-      const R = reach * 0.62 * 0.98;
-      const seats = [[
-        new THREE.Vector3(0.2, 0.55, 0.8).normalize().multiplyScalar(R),
-        new THREE.Vector3(-0.55, -0.25, -0.8).normalize().multiplyScalar(R),
-      ]];
-      takeElectrons(sh, seats);
-    } else if (sh.l === 1) {
-      mat = ghostMat(0x7ec8ff, 0.32);
-      const axes = [
-        new THREE.Vector3(1, 0, 0),
-        new THREE.Vector3(0, 1, 0),
-        new THREE.Vector3(0, 0, 1),
-      ];
-      const seats = axes.map((ax) => [
-        addLobe(g, mat, ax, reach, 0.15, 0.34, 0.4),
-        addLobe(g, mat, ax.clone().negate(), reach, 0.15, 0.34, 0.4),
-      ]);
-      takeElectrons(sh, seats);
-    } else if (sh.l === 2) {
-      mat = ghostMat(0xa78bfa, 0.3);
-      const torus = new THREE.Mesh(
-        new THREE.TorusGeometry(reach * 0.3, Math.max(0.012, reach * 0.04), 6, isMobile ? 18 : 32),
-        mat
-      );
-      torus.rotation.x = Math.PI / 2;
-      torus.renderOrder = 1;
-      g.add(torus);
-      const dz = [
-        addLobe(g, mat, new THREE.Vector3(0, 0, 1), reach, 0.11, 0.24, 0.5),
-        addLobe(g, mat, new THREE.Vector3(0, 0, -1), reach, 0.11, 0.24, 0.5),
-      ];
-      const clover = (u, v) => {
-        const dirs = [
-          u.clone().add(v), u.clone().add(v).negate(),
-          u.clone().sub(v), v.clone().sub(u),
-        ];
-        return [
-          addLobe(g, mat, dirs[0], reach, 0.1, 0.2, 0.48),
-          addLobe(g, mat, dirs[1], reach, 0.1, 0.2, 0.48),
-          addLobe(g, mat, dirs[2], reach, 0.1, 0.2, 0.48),
-          addLobe(g, mat, dirs[3], reach, 0.1, 0.2, 0.48),
-        ];
-      };
-      const X = new THREE.Vector3(1, 0, 0);
-      const Y = new THREE.Vector3(0, 1, 0);
-      const Zax = new THREE.Vector3(0, 0, 1);
-      const alongAxes = [
-        addLobe(g, mat, X, reach, 0.1, 0.2, 0.48),
-        addLobe(g, mat, X.clone().negate(), reach, 0.1, 0.2, 0.48),
-        addLobe(g, mat, Y, reach, 0.1, 0.2, 0.48),
-        addLobe(g, mat, Y.clone().negate(), reach, 0.1, 0.2, 0.48),
-      ];
-      const clovers = [alongAxes, clover(X, Y), clover(X, Zax), clover(Y, Zax)];
-      const seats = [dz, ...clovers.map((tips) => [tips[0], tips[1]])];
-      console.assert(seats.length === 5, 'five d orbitals');
-      takeElectrons(sh, seats);
-    } else {
-      mat = ghostMat(0xff8fab, 0.26);
-      const dirs = [];
-      for (const x of [-1, 1]) {
-        for (const y of [-1, 1]) {
-          for (const z of [-1, 1]) dirs.push(new THREE.Vector3(x, y, z));
-        }
-      }
-      dirs.push(
-        new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
-        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
-      );
-      const tips = dirs.map((d) => addLobe(g, mat, d, reach * 0.94, 0.08, 0.22, 0.46));
-      console.assert(tips.length === 14, 'f lobe count');
-      const seats = tips.map((tip) => [tip, tip]);
-      takeElectrons(sh, seats);
-    }
-    g.userData.mat = mat;
-    g.userData.baseOp = mat.opacity;
-    sh.group = g;
-    orbRoot.add(g);
-  }
-
-  if (eMesh) {
-    console.assert(eIndex === Z, `placed orbital dots ${eIndex} ≠ Z ${Z}`);
-    eMesh.instanceMatrix.needsUpdate = true;
-    eMesh.renderOrder = 5;
-    orbRoot.add(eMesh);
-  }
-  orbRoot.visible = false;
-  root.add(orbRoot);
-  root.userData.orbitalRoot = orbRoot;
-  root.userData.orbitalFill = fills;
-  root.userData.orbElectrons = eMesh;
-  root.userData.orbERecs = eRecs;
-  if (stage) stage.dataset.aufbau = fills.map((s) => `${s.label}${s.e}`).join(' ');
-}
-
-function applyOrbitalFocus() {
-  if (!atomRoot) return;
-  const ud = atomRoot.userData;
-  if (!ud.orbitalRoot) return;
-  const on = stageState.stage === 'orbitals';
-  ud.orbitalRoot.visible = on;
-  if (!on) return;
-  const fills = ud.orbitalFill || [];
-  for (const sh of fills) {
-    const vis = orbMatch(sh);
-    sh.group.visible = vis;
-    if (sh.group.userData.mat) {
-      const solo = stageState.orbFocus === sh.id;
-      sh.group.userData.mat.opacity = solo
-        ? Math.min(0.62, sh.group.userData.baseOp + 0.28)
-        : sh.group.userData.baseOp;
-    }
-  }
-  const mesh = ud.orbElectrons;
-  if (!mesh) return;
-  for (const rec of ud.orbERecs || []) {
-    const sh = fills.find((s) => s.id === rec.id);
-    const vis = sh && orbMatch(sh);
-    dummy.position.copy(rec.pos);
-    dummy.scale.setScalar(vis ? rec.size : 1e-5);
-    dummy.rotation.set(0, 0, 0);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(rec.index, dummy.matrix);
-  }
-  mesh.instanceMatrix.needsUpdate = true;
-}
-
 
 function setControlsFor(key) {
   const c = CAM[key] || CAM.atom;
@@ -1245,27 +1025,13 @@ function currentNucleonRec() {
     || null;
 }
 
-function camPreset(key, shellIndex) {
+function camPreset(key) {
   if (key === 'atlas') {
     return { dist: 2.7, elev: 0.18, min: 1.35, max: 8, target: new THREE.Vector3(0, 0.42, 0) };
   }
   if (!atomRoot) return CAM[key] || CAM.atom;
   const sc = atomRoot.scale.x;
   const nr = (atomRoot.userData.nucleusR || 0.25) * sc;
-  if (key === 'orbitals' && atomRoot) {
-    const sc = atomRoot.scale.x;
-    const fills = (atomRoot.userData.orbitalFill || []).filter(orbMatch);
-    const reach = fills.length ? Math.max(...fills.map((s) => s.reach)) : 1.6;
-    const world = reach * sc;
-    const dist = Math.max(2.15, Math.min(7.5, world * 2.45 + 0.85));
-    return {
-      dist,
-      elev: Math.max(0.35, dist * 0.2),
-      min: Math.max(1.15, world * 0.7),
-      max: Math.max(8, dist * 2.5),
-      target: new THREE.Vector3(),
-    };
-  }
   if (key === 'quark') {
     atomRoot.updateMatrixWorld(true);
     const rec = currentNucleonRec();
@@ -1289,21 +1055,6 @@ function camPreset(key, shellIndex) {
       max: Math.max(3.2, dist * 2.8),
     };
   }
-  if (key === 'shells' || (typeof shellIndex === 'number' && shellIndex >= 0)) {
-    const ring = electronRings[
-      typeof shellIndex === 'number' && shellIndex >= 0 ? shellIndex : electronRings.length - 1
-    ];
-    if (ring) {
-      const r = ring.radius * sc;
-      const dist = Math.max(2.2, Math.min(6.5, r * 2.55 + 1.05));
-      return {
-        dist,
-        elev: Math.max(0.35, dist * 0.2),
-        min: Math.max(1.4, r * 1.15),
-        max: Math.max(8, dist * 2.6),
-      };
-    }
-  }
   const mobileBump = isMobile ? 0.8 : 0;
   return {
     dist: CAM.atom.dist + mobileBump,
@@ -1316,7 +1067,7 @@ function camPreset(key, shellIndex) {
 
 function startCamAnim(key, nextE, nextN, onDone) {
   if (!camera) return;
-  const c = camPreset(key, stageState.focusShell);
+  const c = camPreset(key);
   const target = c.target ? c.target.clone() : new THREE.Vector3(0, 0, 0);
   camKey = key;
   camAnim.active = true;
@@ -1404,39 +1155,22 @@ function applyVisibility() {
   if (ud.protons) ud.protons.visible = nOpacity > 0.04;
   if (ud.neutrons) ud.neutrons.visible = nOpacity > 0.04;
 
-  const focus = stageState.focusShell;
   const showElectrons = eOpacity > 0.05;
-  electronRings.forEach((ring, si) => {
-    const focused = focus < 0 || focus === si;
-    const shellVisible = showElectrons && focused;
-    if (ring.ring) {
-      ring.ring.visible = shellVisible;
-      if (focus >= 0) {
-        ring.ringMat.opacity = focused ? 0.42 : 0;
-        ring.ringMat.color.setHex(focused ? RING_HI : RING_COLOR);
-      } else {
-        // B2: faint rings only. Shells a touch clearer than Atom; never a filled band.
-        const boost = stageState.stage === 'shells' ? 0.28 : 0.16;
-        ring.ringMat.opacity = boost * Math.min(1, eOpacity + 0.15);
-        ring.ringMat.color.setHex(RING_COLOR);
-      }
-    }
+  electronRings.forEach((ring) => {
+    if (!ring.ring) return;
+    ring.ring.visible = showElectrons;
+    // B2: faint orbit rings only. Never a filled band.
+    ring.ringMat.opacity = 0.16 * Math.min(1, eOpacity + 0.15);
+    ring.ringMat.color.setHex(RING_COLOR);
   });
 
-  // Per-shell electron instance visibility via scale
-  if (ud.electrons && !still) {
-    /* poseElectrons will apply focus scale each frame */
-  } else if (ud.electrons) {
-    poseElectrons(t);
-  }
+  if (ud.electrons && still) poseElectrons(t);
   if (ud.electrons) {
     ud.electrons.visible = showElectrons
       && stageState.stage !== 'quark'
-      && stageState.stage !== 'atlas'
-      && stageState.stage !== 'orbitals';
+      && stageState.stage !== 'atlas';
   }
   applyNucleonPose();
-  applyOrbitalFocus();
 }
 
 function applyNucleonPose() {
@@ -1475,59 +1209,6 @@ function applyNucleonPose() {
     }
     if (ud.glowMat) ud.glowMat.opacity = 0.015;
   }
-}
-
-function rebuildShellFocusChips() {
-  shellFocusEl.innerHTML = '';
-  const both = document.createElement('button');
-  both.type = 'button';
-  both.className = 'chip' + (stageState.shellFocus === 'both' ? ' on' : '');
-  both.dataset.shell = 'both';
-  both.textContent = electronRings.length <= 2 ? 'Both' : 'All';
-  shellFocusEl.appendChild(both);
-  electronRings.forEach((ring, si) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'chip' + (stageState.shellFocus === String(si) ? ' on' : '');
-    btn.dataset.shell = String(si);
-    btn.textContent = `${ring.letter} · ${ring.count}`;
-    shellFocusEl.appendChild(btn);
-  });
-}
-
-function rebuildOrbFocus() {
-  if (!orbFocusEl) return;
-  const fills = atomRoot?.userData.orbitalFill || [];
-  orbFocusEl.innerHTML = '';
-  orbFocusEl.dataset.config = fills.map((s) => `${s.label}${s.e}`).join(' ');
-  const add = (id, label) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'ochip' + (stageState.orbFocus === id ? ' on' : '');
-    b.dataset.orb = id;
-    b.textContent = label;
-    orbFocusEl.appendChild(b);
-  };
-  add('all', 'All');
-  for (const letter of LCHAR) {
-    const part = fills.filter((s) => LCHAR[s.l] === letter);
-    const n = part.reduce((s, x) => s + x.e, 0);
-    if (n > 0) add(`l:${letter}`, `${letter} · ${n}`);
-  }
-  for (const sh of fills) add(sh.id, `${sh.label} · ${sh.e}`);
-}
-
-function goOrbFocus(id) {
-  stageState.orbFocus = id;
-  if (stageState.stage !== 'orbitals') {
-    goStage('orbitals');
-    return;
-  }
-  applyOrbitalFocus();
-  startCamAnim('orbitals', 0, 0.3, () => syncLadderUi());
-  syncLadderUi();
-  if (!raf && !still) start();
-  else if (still) renderFrame();
 }
 
 function handoffOpen() {
@@ -1690,7 +1371,7 @@ function syncNucleonPick() {
 
 function syncLadderUi() {
   const st = stageState.stage;
-  const quarkLocked = st === 'atom' || st === 'shells' || st === 'orbitals';
+  const quarkLocked = st === 'atom';
   const atlasLocked = st !== 'quark' && st !== 'atlas';
   ladderChips.querySelectorAll('.chip[data-stage]').forEach((c) => {
     const on = c.dataset.stage === st;
@@ -1704,51 +1385,28 @@ function syncLadderUi() {
       c.classList.toggle('locked', atlasLocked);
     }
   });
-  shellFocusEl.hidden = st !== 'shells';
-  shellFocusEl.querySelectorAll('.chip').forEach((c) => {
-    c.classList.toggle('on', c.dataset.shell === stageState.shellFocus);
-  });
-  if (orbFocusEl) {
-    orbFocusEl.hidden = st !== 'orbitals';
-    orbFocusEl.querySelectorAll('.ochip').forEach((c) => {
-      c.classList.toggle('on', c.dataset.orb === stageState.orbFocus);
-    });
-  }
   syncNucleonPick();
   const el = currentZ != null ? byZ.get(currentZ) : null;
-  stageReadout.hidden = !el || st === 'atom';
-  if (el && st === 'shells') {
-    stageReadout.innerHTML = '<span class="dim">Aufbau shells · electrons = Z · nucleons dimmed</span>';
-  } else if (el && st === 'orbitals') {
-    const fills = atomRoot?.userData.orbitalFill || [];
-    const sum = fills.reduce((s, x) => s + x.e, 0);
-    const cfg = fills.map((s) => `${s.label}·${s.e}`).join('  ');
-    const one = fills.find((s) => s.id === stageState.orbFocus);
-    if (one) {
-      const shape = ['sphere', 'dumbbell lobes', 'clover + torus', 'many lobes'][one.l];
-      stageReadout.textContent = `${one.label} · ${one.e} e⁻ · schematic ${shape} · not ψ² · dots = electrons · Σ ${sum} = Z`;
-    } else if (String(stageState.orbFocus).startsWith('l:')) {
-      const letter = stageState.orbFocus.slice(2);
-      const part = fills.filter((s) => LCHAR[s.l] === letter);
-      const n = part.reduce((s, x) => s + x.e, 0);
-      stageReadout.textContent = `${letter} · ${part.map((s) => `${s.label}·${s.e}`).join('  ')} · ${n} e⁻ · schematic · not ψ² · Σ ${sum} = Z`;
-    } else {
-      stageReadout.textContent = `Aufbau · ${cfg} · Σ e⁻ ${sum} = Z · schematic shapes · not ψ²`;
-    }
+  stageReadout.hidden = !el;
+  if (el && st === 'atom') {
+    const hud = chemistryLabel(el.z);
+    stageReadout.textContent = `${hud.aufbau} · ${hud.shells} · Σ e⁻ ${hud.sum} = Z`;
   } else if (el && st === 'nucleus') {
     const N = neutronsOf(el);
-    stageReadout.innerHTML = `nucleus · <b>${el.z} p</b> + <b>${N} n</b> · no bosons in the pack · tap a nucleon or Next`;
+    stageReadout.textContent = `nucleus · ${el.z} p + ${N} n · no bosons in the pack · tap a nucleon or Next`;
   } else if (el && st === 'quark') {
     stageReadout.textContent = quarkBlurb(pickState.kind);
   } else if (el && st === 'atlas') {
     stageReadout.textContent = 'Standard Model atlas · separate room · not a deeper nucleus';
+  }
+  if (stageReadout && !stageReadout.hidden) {
+    console.assert(getComputedStyle(stageReadout).textTransform === 'none', 'readout must not uppercase symbols');
   }
   if (stageBadge) {
     stageBadge.hidden = !el;
     stageBadge.classList.toggle('atlas', st === 'atlas');
     if (st === 'atlas') stageBadge.textContent = 'Standard Model atlas · separate room';
     else if (st === 'quark') stageBadge.textContent = 'schematic quarks · gluon links · not to scale';
-    else if (st === 'orbitals') stageBadge.textContent = 'schematic orbitals · not ψ²';
     else if (st === 'nucleus') stageBadge.textContent = 'protons + neutrons · Bohr-ish · not to scale';
     else stageBadge.textContent = 'Bohr-ish · not to scale';
   }
@@ -1761,9 +1419,7 @@ function syncLadderUi() {
   }
   if (!atomHint) return;
   if (still && st === 'atom') atomHint.textContent = 'still pose · drag to orbit';
-  else if (st === 'atom') atomHint.textContent = 'Atom · Shells → Orbitals → Nucleus · tap nucleus';
-  else if (st === 'shells') atomHint.textContent = 'Shells · pick K/L/… · Next continues to Orbitals';
-  else if (st === 'orbitals') atomHint.textContent = 'Orbitals · pick s/p/d/f or a subshell · dots = electrons';
+  else if (st === 'atom') atomHint.textContent = 'Atom · heads on faint rings · Next opens the nucleus';
   else if (st === 'nucleus') atomHint.textContent = 'Nucleus · tap a proton or neutron · or Next';
   else if (st === 'quark') atomHint.textContent = 'Bottom of the ladder · next is a door, not a deeper nucleus';
   else atomHint.textContent = 'Esc / Back returns to the quark · Atlas is a separate room';
@@ -1780,34 +1436,15 @@ function goStage(stageName) {
   if (stageName !== 'atlas') leaveAtlasVisual();
   stageState.stage = stageName;
   if (stageName === 'atom') {
-    stageState.shellFocus = 'both';
-    stageState.focusShell = -1;
     hideQuark();
     startCamAnim('atom', 1, 1, () => syncLadderUi());
-  } else if (stageName === 'shells') {
-    hideQuark();
-    const sf = stageState.shellFocus;
-    if (sf !== 'both' && sf !== '' && !Number.isNaN(+sf)) {
-      stageState.focusShell = +sf;
-      startCamAnim('shells', 1, 0.38, () => syncLadderUi());
-    } else {
-      stageState.focusShell = -1;
-      stageState.shellFocus = 'both';
-      startCamAnim('shells', 1, 0.38, () => syncLadderUi());
-    }
-  } else if (stageName === 'orbitals') {
-    hideQuark();
-    stageState.focusShell = -1;
-    startCamAnim('orbitals', 0, 0.3, () => syncLadderUi());
   } else if (stageName === 'nucleus') {
     hideQuark();
-    stageState.focusShell = -1;
     startCamAnim('nucleus', 0, 1, () => {
       hideElectronsNow();
       syncLadderUi();
     });
   } else if (stageName === 'quark') {
-    stageState.focusShell = -1;
     showQuark();
     startCamAnim('quark', 0, 1, () => {
       hideElectronsNow();
@@ -1831,7 +1468,7 @@ function openHandoff() {
   const name = kind === 'n' ? 'neutron' : 'proton';
   const sum = kind === 'n' ? '+2/3 −1/3 −1/3 = 0' : '+2/3 +2/3 −1/3 = +1';
   handoffFlow.innerHTML =
-    '<span>Atom</span><i>→</i><span>Shells</span><i>→</i><span>Orbitals</span><i>→</i><span>Nucleus</span><i>→</i>' +
+    '<span>Atom</span><i>→</i><span>Nucleus</span><i>→</i>' +
     `<span class="here">Quark · ${kind === 'n' ? 'udd' : 'uud'}</span><i>┆</i><span class="door">Atlas room</span>`;
   handoffBody.innerHTML =
     `<p>You’ve reached the three quarks inside <strong>one ${name} (${flav})</strong> of ` +
@@ -2014,20 +1651,11 @@ function renderAtlasDock() {
   }
 }
 
-function goShellFocus(sf) {
-  stageState.shellFocus = sf;
-  if (stageState.stage !== 'shells') stageState.stage = 'shells';
-  goStage('shells');
-}
-
 function resetStageToAtom(instant) {
   closeHandoff(false);
   leaveAtlasVisual();
   hideQuark();
   stageState.stage = 'atom';
-  stageState.shellFocus = 'both';
-  stageState.focusShell = -1;
-  stageState.orbFocus = 'all';
   eOpacity = 1;
   nOpacity = 1;
   camKey = 'atom';
@@ -2086,9 +1714,6 @@ function selectElement(z) {
     closeHandoff(false);
     leaveAtlasVisual();
     stageState.stage = 'atom';
-    stageState.shellFocus = 'both';
-    stageState.focusShell = -1;
-    stageState.orbFocus = 'all';
     eOpacity = 1;
     nOpacity = 1;
     camAnim.active = false;
@@ -2108,7 +1733,7 @@ function closeAtomPanel() {
   document.body.classList.remove('atom-open');
 }
 backBtn.addEventListener('click', () => {
-  /* Step back atlas → quark → nucleus → orbitals → shells → atom, then the table */
+  /* Step back atlas → quark → nucleus → atom, then the table */
   if (handoffOpen() || stageState.stage !== 'atom') {
     stepBack();
     return;
@@ -2224,12 +1849,10 @@ function poseElectrons(time) {
   if (!atomRoot || !atomRoot.userData.electrons) return;
   const mesh = atomRoot.userData.electrons;
   const eSize = atomRoot.userData.eSize;
-  const focus = stageState.focusShell;
   const eGone = eOpacity <= 0.05;
   for (let si = 0; si < electronRings.length; si++) {
     const ring = electronRings[si];
-    const show = !eGone && (focus < 0 || focus === si);
-    const scale = show ? eSize : 0;
+    const scale = eGone ? 0 : eSize;
     for (let k = 0; k < ring.count; k++) {
       const angle = (k / ring.count) * Math.PI * 2 + ring.phase + time * ring.speed;
       const x = Math.cos(angle) * ring.radius;
@@ -2311,7 +1934,7 @@ ladderChips.addEventListener('click', (e) => {
     if (stageState.stage === 'quark') openHandoff();
     return;
   }
-  if (name === 'quark' && (stageState.stage === 'atom' || stageState.stage === 'shells' || stageState.stage === 'orbitals')) return;
+  if (name === 'quark' && stageState.stage === 'atom') return;
   goStage(name);
 });
 btnBack.addEventListener('click', (e) => { e.stopPropagation(); stepBack(); });
@@ -2324,18 +1947,6 @@ nucleonPickEl.addEventListener('click', (e) => {
   if (!b || !b.dataset.kind) return;
   e.stopPropagation();
   selectNucleon(b.dataset.kind);
-});
-shellFocusEl.addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (!chip || chip.dataset.shell == null) return;
-  e.stopPropagation();
-  goShellFocus(chip.dataset.shell);
-});
-orbFocusEl.addEventListener('click', (e) => {
-  const chip = e.target.closest('.ochip');
-  if (!chip || !chip.dataset.orb) return;
-  e.stopPropagation();
-  goOrbFocus(chip.dataset.orb);
 });
 
 /* Tap nucleus → jump to Nucleus step (chip-driven ladder otherwise) */
@@ -2443,7 +2054,7 @@ if (embed && !startZ) startZ = 6;
 if (startZ) selectElement(startZ);
 else if (renderer) renderFrame();
 
-console.info('[periodic-table-atoms] mass source:', MASS_SOURCE, '· ladder: Atom → Shells → Nucleus → Quark → Atlas door');
+console.info('[periodic-table-atoms] mass source:', MASS_SOURCE, '· ladder: Atom → Nucleus → Quark → Atlas door');
 </script>
 </body>
 </html>

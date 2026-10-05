@@ -1,6 +1,6 @@
 # Periodic table · atoms
 
-Interactive H–Og table. The chemistry ladder is unchanged and always comes first. After the nucleus, any element can open one nucleon’s quarks, then a separate Standard Model atlas room.
+Interactive H–Og table. Chemistry is on the Atom readout. After the nucleus, any element can open one nucleon’s quarks, then a separate Standard Model atlas room.
 
 ## Open
 
@@ -36,31 +36,27 @@ Masses: IUPAC CIAAW conventional atomic weights where available; radioactive/syn
 
 Spot checks: H 1/0/1 · He 2/2/2 · C 6/6/6 · O 8/8/8 · Ne 10/10/10 · Ar 18/22/18 · Fe 26/30/26 · Au 79/118/79 · U 92/146/92.
 
-Electron rings: Aufbau subshell fill, grouped by principal **n**. Totals always equal Z. Outer shells compress visually for Z > 36. Carbon is K 2 + L 4. Hydrogen is one electron on K.
+Electron heads sit on faint Bohr rings, one head per electron, grouped by principal **n**. Totals always equal Z. Outer shells compress visually for Z > 36. Carbon is K 2 + L 4. Hydrogen is one electron on K.
 
-**Electron finish B2 (Atom and Shells):** bright discrete heads on faint Bohr rings. One head per electron, count = Z. No comet dust, trails, or decorative points in the empty space between the heads and the nucleus. Nucleons stay satin. The Orbitals stage is unchanged (schematic shapes, satin dots).
+**Electron finish B2 (Atom):** bright discrete heads on faint Bohr rings. Count = Z. No comet dust, trails, or decorative points in the empty space between the heads and the nucleus. Nucleons stay satin.
 
-Orbital stage uses that same order, ungrouped: H `1s1` · C `1s2 2s2 2p2` · Fe `1s2 2s2 2p6 3s2 3p6 4s2 3d6` · Og through `7p6`. A few real atoms (Cr, Cu, and some heavier cases) differ from this Madelung order; the page keeps one fill so shell totals and orbital totals match.
+Shells and orbitals are HUD labels, not stages. The Atom readout shows the Madelung string and the shell summary, for example Carbon `1s² 2s² 2p²` and `K2 · L4`, with `Σ e⁻ = Z`. Hydrogen is `1s¹` · `K1`. Iron’s string includes `4s² 3d⁶`. Oganesson runs through `7p⁶`. A few real atoms (Cr, Cu, and some heavier cases) differ from this Madelung order; the page keeps one fill so the Aufbau string and the shell summary match. There are no plastic s/p/d/f volumes.
 
 ## Ladder
 
 ```
-Atom → Shells → Orbitals → Nucleus → Quark ┆ door ┆ Atlas room
+Atom → Nucleus → Quark ┆ door ┆ Atlas room
 ```
 
-1. Tap an element. The panel opens on **Atom** (p / n / e in the HUD).
-2. **Shells** — Aufbau rings grouped by principal n; optional focus chips All/Both · K/L/M…. Nucleons dim. Tap the nucleus jumps to Nucleus.
-3. **Orbitals** — the same Madelung fill, split into subshells (1s, 2s, 2p, 3s, 3p, 4s, 3d, …). Electron counts sum to Z. Shapes are schematic, not hydrogenic ψ²: a sphere for s, three dumbbells (px, py, pz) for p, clover lobes plus a torus for d, and a many-lobe cluster for f when that subshell is occupied. Satin dots are the electrons (Hund seating inside each subshell). Focus chips: All, occupied ℓ families, and each occupied subshell (`2p · 2`). Dots are never invented.
-4. **Nucleus** — proton and neutron spheres only. No quarks, gluons, bosons, or mesons in the pack.
-5. **Quark** — from Nucleus, tap a nucleon or press Next. A proton shows **uud** (+2/3, +2/3, −1/3 = +1). A neutron shows **udd** (+2/3, −1/3, −1/3 = 0). Both are labeled baryons. Hydrogen has no neutron, so the only nucleon is the proton.
-6. **Atlas door** — Next on Quark is “Open door”. The handoff card reads “Leaving the atom · Standard Model atlas”. Enter atlas, or Esc to stay on the quark. This is a separate room, not a deeper nucleus.
-7. **Atlas room** — hard cut (atom hidden, blue dashed frame). Browse fermions (6 quarks, 6 leptons), gauge bosons (γ, g, W±, Z⁰), Higgs (H⁰), and mesons (π⁺ = u d̄, π⁻ = d ū, π⁰ = (uū − dd̄)/√2, K⁺ = u s̄). A dashed contrast group shows p = uud and n = udd as baryons, not mesons and not elementary.
+1. Tap an element. The panel opens on **Atom** (p / n / e, plus the Aufbau string, shell summary, and Σ e⁻ = Z). Electrons are B2 heads on faint rings. Tap the nucleus or Next to open Nucleus.
+2. **Nucleus** — proton and neutron spheres only. No quarks, gluons, bosons, or mesons in the pack.
+3. **Quark** — from Nucleus, tap a nucleon or press Next. A proton shows **uud** (+2/3, +2/3, −1/3 = +1). A neutron shows **udd** (+2/3, −1/3, −1/3 = 0). Both are labeled baryons. Hydrogen has no neutron, so the only nucleon is the proton.
+4. **Atlas door** — Next on Quark is “Open door”. The handoff card reads “Leaving the atom · Standard Model atlas”. Enter atlas, or Esc to stay on the quark. This is a separate room, not a deeper nucleus.
+5. **Atlas room** — hard cut (atom hidden, blue dashed frame). Browse fermions (6 quarks, 6 leptons), gauge bosons (γ, g, W±, Z⁰), Higgs (H⁰), and mesons (π⁺ = u d̄, π⁻ = d ū, π⁰ = (uū − dd̄)/√2, K⁺ = u s̄). A dashed contrast group shows p = uud and n = udd as baryons, not mesons and not elementary.
 
-Quark and Atlas chips stay locked until Nucleus and Quark respectively, so the chemistry steps are not skipped. The Atlas chip and Next on Quark always open the handoff card first.
+Quark stays locked on Atom. The Atlas chip opens only from Quark, and only through the handoff card.
 
-Esc or Back steps **atlas → quark → nucleus → orbitals → shells → atom** (Esc closes the handoff card first). The Atom chip returns straight to the Atom stage. On a phone, ← back uses the same steps, then ← table closes the panel.
-
-Quark stays locked on Atom, Shells, and Orbitals. The Atlas chip opens only from Quark, and only through the handoff card.
+Esc or Back steps **atlas → quark → nucleus → atom** (Esc closes the handoff card first). The Atom chip returns straight to the Atom stage. On a phone, ← back uses the same steps, then ← table closes the panel.
 
 Keys: ← → step, Enter confirms the door, 0 jumps to Atom.
 
@@ -78,7 +74,7 @@ Particle-symbol chips (γ, μ, ν, π, uud, …) do **not** use CSS `text-transf
 
 ## Craft
 
-Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin nucleons (and orbital dots): metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Atom/Shells electrons are B2 heads (no clearcoat): bright teal beads, ring opacity about 0.16 on Atom and 0.28 on Shells. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
+Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin nucleons: metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Atom electrons are B2 heads (no clearcoat): bright teal beads, ring opacity about 0.16. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
 
 DPR ≤ 1.5. `setSize(w, h, true)` on mobile. The atom panel and stage use `minmax(0, 1fr)` so the canvas cannot collapse to 0×0. Touch-friendly cells. Mobile atom panel is full screen.
 
