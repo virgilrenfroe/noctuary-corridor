@@ -772,6 +772,7 @@ let renderer, scene, camera, controls, composer;
 let atomRoot = null;
 let electronRings = [];
 let sphereGeo = null;
+let electronGeo = null;
 let hitNucleus = null;
 let raf = 0;
 let t = 0;
@@ -805,7 +806,7 @@ const camAnim = {
 
 function disposeAtomMaterials(obj) {
   obj.traverse((o) => {
-    if (o.geometry && o.geometry !== sphereGeo) o.geometry.dispose();
+    if (o.geometry && o.geometry !== sphereGeo && o.geometry !== electronGeo) o.geometry.dispose();
     if (o.material) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
@@ -896,14 +897,15 @@ function buildAtom(el) {
   root.add(protons);
   if (neutrons) root.add(neutrons);
 
-  const glowGeo = new THREE.SphereGeometry(nucleusR * 1.12, 20, 16);
   const glowMat = new THREE.MeshBasicMaterial({
     color: 0xffb36b,
     transparent: true,
     opacity: 0.07,
     depthWrite: false,
   });
-  root.add(new THREE.Mesh(glowGeo, glowMat));
+  const glow = new THREE.Mesh(sphereGeo, glowMat);
+  glow.scale.setScalar(nucleusR * 1.12);
+  root.add(glow);
 
   const shells = shellPopulations(E);
   if (el.symbol === 'C') console.assert(shells.map((s) => s[1]).join(',') === '2,4' && N === 6, 'carbon 6p/6n/2+4e');
@@ -914,7 +916,7 @@ function buildAtom(el) {
   const mergeHeavy = E > 36;
   electronRings = [];
 
-  const allElectrons = E > 0 ? new THREE.InstancedMesh(sphereGeo, electronMat, E) : null;
+  const allElectrons = E > 0 ? new THREE.InstancedMesh(electronGeo, electronMat, E) : null;
   let eIndex = 0;
   const ringMeshes = [];
 
@@ -1255,7 +1257,7 @@ function labelSprite(text, color, height = 0.12) {
 
 function disposeTree(obj) {
   obj.traverse((o) => {
-    if (o.geometry && o.geometry !== sphereGeo) o.geometry.dispose();
+    if (o.geometry && o.geometry !== sphereGeo && o.geometry !== electronGeo) o.geometry.dispose();
     if (o.material) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
@@ -1778,7 +1780,15 @@ try {
     return new THREE.MeshPhysicalMaterial(o);
   };
 
-  sphereGeo = new THREE.SphereGeometry(1, isMobile ? 12 : 16, isMobile ? 10 : 14);
+  /* Nucleons, quarks, glow, atlas balls. Electrons stay a step lower (Z copies). */
+  const sphereW = isMobile ? 24 : 32;
+  const sphereH = isMobile ? 20 : 28;
+  sphereGeo = new THREE.SphereGeometry(1, sphereW, sphereH);
+  electronGeo = new THREE.SphereGeometry(1, isMobile ? 16 : 24, isMobile ? 14 : 20);
+  console.assert(
+    sphereGeo.parameters.widthSegments === sphereW && sphereGeo.parameters.heightSegments === sphereH,
+    'particle sphere segments',
+  );
 
   scene = new THREE.Scene();
   if (!embed) scene.background = new THREE.Color(VOID);
