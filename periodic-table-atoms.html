@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<title>Periodic table · atoms</title>
+<title>Periodic table · intro chemistry</title>
 <style>
   :root {
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -64,6 +64,12 @@
     font-size: clamp(1.2rem, 3.5vw, 1.65rem); letter-spacing: -0.03em; line-height: 1.05;
   }
   .top h1 em { font-style: normal; font-weight: 300; color: var(--mute); }
+  .teach {
+    margin: 6px 0 0;
+    max-width: 40ch;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.01em;
+    line-height: 1.45; color: var(--mute); text-transform: none;
+  }
   .legend {
     display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: flex-end;
     font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.08em;
@@ -201,8 +207,8 @@
   }
   .counts {
     margin-top: 8px;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--mute);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+    text-transform: none; color: var(--mute);
     display: flex; flex-wrap: wrap; gap: 6px 14px;
   }
   .counts b { color: var(--pearl); font-weight: 700; }
@@ -255,7 +261,7 @@
     text-transform: uppercase; color: var(--door); pointer-events: none;
   }
   /* Particle symbols must NOT inherit text-transform:uppercase (γ→Γ, uud→UUD, 2p→2P). */
-  .pchip, .readout, .detail, .detail .big, .flowmini, .card, .card *, .badge, .badge b, #nucleonPick, #nucleonPick * {
+  .teach, .counts, .pchip, .readout, .detail, .detail .big, .flowmini, .card, .card *, .badge, .badge b, #nucleonPick, #nucleonPick *, .empty-stage, .empty-stage * {
     text-transform: none !important;
   }
   .pchip {
@@ -360,9 +366,9 @@
   }
   .frow b { color: var(--pearl); font-weight: 700; }
   .hint-atom {
-    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--mute);
-    align-self: flex-start;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.01em;
+    text-transform: none; color: var(--mute); line-height: 1.4;
+    align-self: flex-start; max-width: min(420px, 100%);
     background: rgba(20,8,24,0.55); padding: 6px 8px; border-radius: 6px;
   }
   /* stage must own the 1fr row so the canvas isn't 0×0 */
@@ -378,11 +384,13 @@
   }
   #stage canvas:active { cursor: grabbing; }
   .empty-stage {
-    position: absolute; inset: 0; display: grid; place-items: center;
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em;
-    text-transform: uppercase; color: var(--mute); pointer-events: none;
+    position: absolute; inset: 0; display: grid; place-items: center; align-content: center;
+    gap: 8px; padding: 20px; text-align: center;
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em;
+    line-height: 1.45; text-transform: none; color: var(--mute); pointer-events: none;
     z-index: 1;
   }
+  .empty-stage .path { display: block; max-width: 34ch; color: rgba(239, 230, 242, 0.78); }
   .empty-stage.hidden { display: none; }
   .vig {
     position: absolute; inset: 0; pointer-events: none; z-index: 1;
@@ -455,8 +463,9 @@
 <div class="app">
   <header class="top">
     <div>
-      <p class="tag">Corridor · chemistry</p>
-      <h1>Periodic table <em>atoms</em></h1>
+      <p class="tag">Intro chemistry</p>
+      <h1>Periodic table <em>H–Og</em></h1>
+      <p class="teach">Atom structure → nucleus → quarks → Standard Model atlas</p>
     </div>
     <div class="legend" aria-hidden="true">
       <span><i style="background:#e86a5c"></i>alkali</span>
@@ -481,7 +490,7 @@
 
     <section class="atom-panel" id="atomPanel" aria-label="Atom view">
       <div class="stage-wrap" id="stageWrap">
-        <div class="empty-stage" id="emptyHint">Tap an element</div>
+        <div class="empty-stage" id="emptyHint"><span>Tap any element, H–Og</span><span class="path">Intro chem · atom structure → nucleus → quarks → Standard Model atlas</span></div>
         <div id="stage"></div>
         <div class="vig" aria-hidden="true"></div>
         <div class="badge" id="stageBadge" hidden>Bohr-ish · not to scale</div>
@@ -510,7 +519,7 @@
               </div>
               <div class="row" id="nucleonPick" hidden role="group" aria-label="Nucleon"></div>
             </div>
-            <div class="hint-atom" id="atomHint">drag to orbit · p / n / e</div>
+            <div class="hint-atom" id="atomHint">Intro chem · atom structure → nucleus → quarks → Standard Model atlas</div>
           </div>
         </div>
         <div class="handoff" id="handoff" role="dialog" aria-modal="true" aria-labelledby="handoffTitle">
@@ -1501,6 +1510,7 @@ function syncLadderUi() {
   }
   if (stageReadout && !stageReadout.hidden) {
     console.assert(getComputedStyle(stageReadout).textTransform === 'none', 'readout must not uppercase symbols');
+    console.assert(getComputedStyle(fCounts).textTransform === 'none', 'counts must not uppercase p/n/e');
   }
   if (stageBadge) {
     stageBadge.hidden = !el;
@@ -1518,11 +1528,11 @@ function syncLadderUi() {
     btnNext.classList.toggle('door', st === 'quark');
   }
   if (!atomHint) return;
-  if (still && st === 'atom') atomHint.textContent = 'still pose · drag to orbit';
-  else if (st === 'atom') atomHint.textContent = 'Atom · heads on faint rings · Next opens the nucleus';
-  else if (st === 'nucleus') atomHint.textContent = 'Nucleus · tap a proton or neutron · or Next';
-  else if (st === 'quark') atomHint.textContent = 'Bottom of the ladder · next is a door, not a deeper nucleus';
-  else atomHint.textContent = 'Esc / Back returns to the quark · Atlas is a separate room';
+  if (still && st === 'atom') atomHint.textContent = 'Intro chem · atom structure · still pose';
+  else if (st === 'atom') atomHint.textContent = 'Intro chem · atom structure · Next is the nucleus';
+  else if (st === 'nucleus') atomHint.textContent = 'Nucleus · protons and neutrons only · Next opens quarks';
+  else if (st === 'quark') atomHint.textContent = 'Quarks inside one nucleon · Next is the Standard Model door';
+  else atomHint.textContent = 'Standard Model atlas · separate room · Esc returns to the quark';
 }
 
 function hideElectronsNow() {

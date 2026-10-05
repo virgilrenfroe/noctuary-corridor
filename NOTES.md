@@ -1,11 +1,16 @@
-# Periodic table · atoms
+# Periodic table · intro chemistry
 
-Interactive H–Og table. Chemistry is on the Atom readout. After the nucleus, any element can open one nucleon’s quarks, then a separate Standard Model atlas room.
+Teachable drill-down for every element, hydrogen through oganesson. One path, named in the page header:
+
+**Atom structure → nucleus → quarks → Standard Model atlas**
+
+Intro chemistry stays exact on the way down. Shells and orbitals are labels on the Atom readout, not extra zoom stages. After the nucleus, any element can open one nucleon’s quarks, then a separate Standard Model atlas room. Mesons live only in that room.
 
 ## Open
 
+From the repo root:
+
 ```bash
-cd /workspace
 python3 -m http.server 8080
 ```
 
@@ -34,13 +39,24 @@ Local three r170 via `./vendor/three/` import map.
 
 Masses: IUPAC CIAAW conventional atomic weights where available; radioactive/synthetic elements use a commonly listed standard weight or the most-stable isotope mass number.
 
-Spot checks: H 1/0/1 · He 2/2/2 · C 6/6/6 · O 8/8/8 · Ne 10/10/10 · Ar 18/22/18 · Fe 26/30/26 · Au 79/118/79 · U 92/146/92.
+Spot checks (p / n / e): H 1/0/1 · He 2/2/2 · C 6/6/6 · O 8/8/8 · Ne 10/10/10 · Ar 18/22/18 · Fe 26/30/26 · Au 79/118/79 · U 92/146/92 · Og 118/176/118.
 
 Electron heads sit on faint Bohr rings, one head per electron, grouped by principal **n**. Totals always equal Z. Outer shells compress visually for Z > 36. Carbon is K 2 + L 4. Hydrogen is one electron on K.
 
 **Electron finish B2 (Atom):** bright discrete heads on faint Bohr rings. Count = Z. No comet dust, trails, or decorative points in the empty space between the heads and the nucleus. Nucleons stay satin.
 
 Shells and orbitals are HUD labels, not stages. The Atom readout shows the Madelung string and the shell summary, for example Carbon `1s² 2s² 2p²` and `K2 · L4`, with `Σ e⁻ = Z`. Hydrogen is `1s¹` · `K1`. Iron’s string includes `4s² 3d⁶`. Oganesson runs through `7p⁶`. A few real atoms (Cr, Cu, and some heavier cases) differ from this Madelung order; the page keeps one fill so the Aufbau string and the shell summary match. There are no plastic s/p/d/f volumes.
+
+## What finished means
+
+A student can open any of the 118 elements and walk the same lesson:
+
+1. **Atom** — Z protons, `round(mass) − Z` neutrons, Z electrons as bright B2 heads on faint rings. The readout shows the Aufbau string, the shell summary (`K2 · L4` for carbon), and `Σ e⁻ = Z`.
+2. **Nucleus** — satin protons and neutrons with a small gap between neighbors, not one fused blob.
+3. **Quark** — the chosen proton is uud (+1), the chosen neutron is udd (0). Hydrogen has no neutron.
+4. **Atlas door**, then the **atlas room** — fermions, gauge bosons, the Higgs, and mesons (π⁺ = u d̄). Mesons are not nucleons. Nothing in that room is packed into the nucleus.
+
+Esc or Back walks atlas → quark → nucleus → atom. The page is the whole lesson: `periodic-table-atoms.html` plus `periodic-table-data.js` (Z 1–118), served from the repo root.
 
 ## Ladder
 
