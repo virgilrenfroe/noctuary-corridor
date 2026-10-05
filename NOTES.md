@@ -38,6 +38,8 @@ Spot checks: H 1/0/1 · He 2/2/2 · C 6/6/6 · O 8/8/8 · Ne 10/10/10 · Ar 18/2
 
 Electron rings: Aufbau subshell fill, grouped by principal **n**. Totals always equal Z. Outer shells compress visually for Z > 36. Carbon is K 2 + L 4. Hydrogen is one electron on K.
 
+**Electron finish B2 (Atom and Shells):** bright discrete heads on faint Bohr rings. One head per electron, count = Z. No comet dust, trails, or decorative points in the empty space between the heads and the nucleus. Nucleons stay satin. The Orbitals stage is unchanged (schematic shapes, satin dots).
+
 Orbital stage uses that same order, ungrouped: H `1s1` · C `1s2 2s2 2p2` · Fe `1s2 2s2 2p6 3s2 3p6 4s2 3d6` · Og through `7p6`. A few real atoms (Cr, Cu, and some heavier cases) differ from this Madelung order; the page keeps one fill so shell totals and orbital totals match.
 
 ## Ladder
@@ -76,7 +78,7 @@ Particle-symbol chips (γ, μ, ν, π, uud, …) do **not** use CSS `text-transf
 
 ## Craft
 
-Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin finish: metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
+Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin nucleons (and orbital dots): metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Atom/Shells electrons are B2 heads (no clearcoat): bright teal beads, ring opacity about 0.16 on Atom and 0.28 on Shells. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
 
 DPR ≤ 1.5. `setSize(w, h, true)` on mobile. The atom panel and stage use `minmax(0, 1fr)` so the canvas cannot collapse to 0×0. Touch-friendly cells. Mobile atom panel is full screen.
 
