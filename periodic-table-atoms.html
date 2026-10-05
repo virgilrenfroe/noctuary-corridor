@@ -24,6 +24,16 @@
     --boson: #7ec8ff;
     --higgs: #ff8fab;
     --meson: #c4a1ff;
+    --cat-alkali: #e86a5c;
+    --cat-alkaline-earth: #ffb36b;
+    --cat-transition: #b08cc8;
+    --cat-post-transition: #78a0be;
+    --cat-metalloid: #8cbe96;
+    --cat-nonmetal: #6eb4c8;
+    --cat-halogen: #64c8b4;
+    --cat-noble: #8296ff;
+    --cat-lanthanide: #dc96b4;
+    --cat-actinide: #c8788c;
     --safe-t: env(safe-area-inset-top, 0px);
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
@@ -130,33 +140,35 @@
 
   .el {
     aspect-ratio: 1;
-    border: 1px solid transparent;
+    border: 1px solid rgba(239, 230, 242, 0.08);
+    border-left: 3px solid transparent;
     border-radius: 6px;
     background: rgba(255,255,255,0.03);
     color: var(--pearl);
     cursor: pointer;
-    padding: 3px 2px;
+    padding: 3px 2px 3px 4px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     font-family: var(--font-sans);
-    transition: border-color 0.15s, transform 0.12s, background 0.15s;
+    transition: transform 0.12s, box-shadow 0.15s, filter 0.15s;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     min-height: 36px;
   }
   .el:hover, .el:focus-visible {
     outline: none;
-    border-color: rgba(255, 179, 107, 0.55);
-    background: rgba(255, 179, 107, 0.08);
     transform: translateY(-1px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
   }
   .el.active {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px rgba(255, 179, 107, 0.35);
-    background: rgba(255, 179, 107, 0.12);
+    box-shadow: 0 0 0 2px var(--accent);
+    z-index: 1;
+  }
+  .el.active:hover, .el.active:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent), inset 0 0 0 1px rgba(255, 255, 255, 0.45);
   }
   .el .z {
     font-family: var(--font-mono); font-size: clamp(7px, 0.9vw, 9px);
-    color: var(--mute); line-height: 1; letter-spacing: 0.02em;
+    color: rgba(239, 230, 242, 0.82); line-height: 1; letter-spacing: 0.02em;
   }
   .el .sym {
     font-family: var(--font-display); font-weight: 600;
@@ -164,16 +176,17 @@
     letter-spacing: -0.02em; line-height: 1.1;
   }
 
-  .cat-alkali { background: rgba(232, 106, 92, 0.16); }
-  .cat-alkaline-earth { background: rgba(255, 179, 107, 0.14); }
-  .cat-transition { background: rgba(176, 140, 200, 0.14); }
-  .cat-post-transition { background: rgba(120, 160, 190, 0.14); }
-  .cat-metalloid { background: rgba(140, 190, 150, 0.14); }
-  .cat-nonmetal { background: rgba(110, 180, 200, 0.14); }
-  .cat-halogen { background: rgba(100, 200, 180, 0.16); }
-  .cat-noble { background: rgba(130, 150, 255, 0.16); }
-  .cat-lanthanide { background: rgba(220, 150, 180, 0.14); }
-  .cat-actinide { background: rgba(200, 120, 140, 0.14); }
+  /* Family fills sit in the 0.35–0.55 range so they match the solid legend on the void. */
+  .cat-alkali { background: rgba(232, 106, 92, 0.48); border-left-color: var(--cat-alkali); }
+  .cat-alkaline-earth { background: rgba(255, 179, 107, 0.46); border-left-color: var(--cat-alkaline-earth); }
+  .cat-transition { background: rgba(176, 140, 200, 0.48); border-left-color: var(--cat-transition); }
+  .cat-post-transition { background: rgba(120, 160, 190, 0.48); border-left-color: var(--cat-post-transition); }
+  .cat-metalloid { background: rgba(140, 190, 150, 0.50); border-left-color: var(--cat-metalloid); }
+  .cat-nonmetal { background: rgba(110, 180, 200, 0.48); border-left-color: var(--cat-nonmetal); }
+  .cat-halogen { background: rgba(100, 200, 180, 0.48); border-left-color: var(--cat-halogen); }
+  .cat-noble { background: rgba(130, 150, 255, 0.46); border-left-color: var(--cat-noble); }
+  .cat-lanthanide { background: rgba(220, 150, 180, 0.46); border-left-color: var(--cat-lanthanide); }
+  .cat-actinide { background: rgba(200, 120, 140, 0.48); border-left-color: var(--cat-actinide); }
 
   .atom-panel { min-height: 280px; }
   .atom-chrome {
@@ -468,16 +481,16 @@
       <p class="teach">Atom structure → nucleus → quarks → Standard Model atlas</p>
     </div>
     <div class="legend" aria-hidden="true">
-      <span><i style="background:#e86a5c"></i>alkali</span>
-      <span><i style="background:#ffb36b"></i>alk. earth</span>
-      <span><i style="background:#b08cc8"></i>transition</span>
-      <span><i style="background:#78a0be"></i>post-trans.</span>
-      <span><i style="background:#8cbe96"></i>metalloid</span>
-      <span><i style="background:#6eb4c8"></i>nonmetal</span>
-      <span><i style="background:#64c8b4"></i>halogen</span>
-      <span><i style="background:#8296ff"></i>noble</span>
-      <span><i style="background:#dc96b4"></i>lanthanide</span>
-      <span><i style="background:#c8788c"></i>actinide</span>
+      <span><i style="background:var(--cat-alkali)"></i>alkali</span>
+      <span><i style="background:var(--cat-alkaline-earth)"></i>alk. earth</span>
+      <span><i style="background:var(--cat-transition)"></i>transition</span>
+      <span><i style="background:var(--cat-post-transition)"></i>post-trans.</span>
+      <span><i style="background:var(--cat-metalloid)"></i>metalloid</span>
+      <span><i style="background:var(--cat-nonmetal)"></i>nonmetal</span>
+      <span><i style="background:var(--cat-halogen)"></i>halogen</span>
+      <span><i style="background:var(--cat-noble)"></i>noble</span>
+      <span><i style="background:var(--cat-lanthanide)"></i>lanthanide</span>
+      <span><i style="background:var(--cat-actinide)"></i>actinide</span>
     </div>
   </header>
 

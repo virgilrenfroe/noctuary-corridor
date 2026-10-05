@@ -90,7 +90,7 @@ Particle-symbol chips (γ, μ, ν, π, uud, …) do **not** use CSS `text-transf
 
 ## Craft
 
-Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin nucleons: metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Atom electrons are B2 heads (no clearcoat): bright teal beads, ring opacity about 0.16. Shared nucleon, quark, and glow spheres are 24×20 on mobile and 32×28 on desktop so a nucleus zoom does not look faceted. Electron heads stay a step lower (16×14 mobile, 24×20 desktop) because there is one per electron. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
+Family tiles use the legend hues at about half opacity, with a solid left edge in the same hex, so alkali through actinide read at a glance. Selected tiles keep that fill and pick up a warm ring. Corridor void `#140818`, Bricolage Grotesque / Instrument Sans / Space Mono, warm accent. Satin nucleons: metalness 0.32, roughness 0.45, clearcoat 0.22 / 0.38. Anisotropy 0.55 on desktop WebGL2 and **off on mobile**. Atom electrons are B2 heads (no clearcoat): bright teal beads, ring opacity about 0.16. Shared nucleon, quark, and glow spheres are 24×20 on mobile and 32×28 on desktop so a nucleus zoom does not look faceted. Electron heads stay a step lower (16×14 mobile, 24×20 desktop) because there is one per electron. Hemisphere + warm point light. Subtle UnrealBloom on desktop only.
 
 DPR ≤ 1.5. `setSize(w, h, true)` on mobile. The atom panel and stage use `minmax(0, 1fr)` so the canvas cannot collapse to 0×0. Touch-friendly cells. Mobile atom panel is full screen.
 
