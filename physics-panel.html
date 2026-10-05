@@ -908,7 +908,8 @@ function buildCloth() {
 }
 
 function buildParticles() {
-  const N = embed ? 560 : 900;
+  const mobileEmbed = embed && (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches);
+  const N = mobileEmbed ? 280 : (embed ? 560 : 900);
   // Embed: tighter XY bounds so the curl field reads as a floating cloud, not a square slab.
   const xSpan = embed ? 2.6 : 4.5;
   const yMin = embed ? 0.7 : 0.4;

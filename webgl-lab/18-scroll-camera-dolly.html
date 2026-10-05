@@ -41,6 +41,7 @@ window.addEventListener('error', e => { err.style.display='block'; err.textConte
 window.addEventListener('unhandledrejection', e => { err.style.display='block'; err.textContent = String(e.reason); });
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import './embed-fit.js';
 
 function makeRenderer(opts={}) {
   const embed = document.body.classList.contains('embed');
