@@ -17,10 +17,6 @@ cd webgl-lab && python3 -m http.server 8765
 
 CDN import maps need http(s); `file://` will fail module loads.
 
-## Light Lab
-
-Curriculum exhibit, separate from these scratch drills: [spatial-drill-optics.html](../spatial-drill-optics.html). **Light Lab** — occlusion → volumetric shafts, refraction → caustic pool. One WebGL context. Desktop uses the god-ray composer; narrow screens, coarse pointers, and `?safe=1` use additive shaft quads with EffectComposer left off.
-
 ## WebGPU caveats
 
 None of these demos require WebGPU. Effect **02 caustics** is a WebGL projected/animated caustic fallback (true spectral/compute caustics would need WebGPU).
