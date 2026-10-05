@@ -14,6 +14,7 @@ canvas{display:block;width:100%;height:100%}
 .brand a{color:inherit;text-decoration:none}
 .note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
 .note b{color:var(--accent);font-weight:600}
+.note a{color:var(--accent);pointer-events:auto}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
 /* Floating embed matches the other labs: no ink plate. Wall mural (?wall=1) stays opaque. */
@@ -36,7 +37,7 @@ body.embed.wall{--ink:#140818;--paper:#ffe8c8;--mute:rgba(255,200,140,.55);--acc
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 03 Volumetric lighting / god rays</div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>Volumetric lighting / god rays.</b> Occlusion-map radial blur god rays through a window cutout. Pure WebGL post-process (no WebGPU).</div>
+  <div class="note"><b>Volumetric lighting / god rays.</b> Occlusion-map radial blur god rays through a window cutout. Pure WebGL post-process (no WebGPU). Exhibit: <a href="../spatial-drill-optics.html">Light Lab</a> — occlusion → volumetric shafts.</div>
 </div>
 <div class="error" id="err"></div>
 <script type="module">
