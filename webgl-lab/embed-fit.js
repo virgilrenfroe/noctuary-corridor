@@ -1,5 +1,18 @@
 import * as THREE from 'three';
 
+// Mobile embeds share the phone's WebGL budget with the grove renderer.
+// Cap DPR before each lab reads devicePixelRatio. Full-page labs are unchanged.
+if (typeof document !== 'undefined' && document.body && document.body.classList.contains('embed')) {
+  const mobileEmbed = matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches;
+  const cap = 1.5;
+  const current = window.devicePixelRatio || 1;
+  if (mobileEmbed && current > cap) {
+    try {
+      Object.defineProperty(window, 'devicePixelRatio', { configurable: true, get: () => cap });
+    } catch (_) {}
+  }
+}
+
 const _tmp = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _dir = new THREE.Vector3();

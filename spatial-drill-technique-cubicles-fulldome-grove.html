@@ -429,6 +429,8 @@
       try { bufferSource.playbackRate.value = 1; } catch {}
     }
 
+    // One context, created on the enter gesture (foyer tap / key / pad).
+    // resume() runs in that same turn. Later taps only resume the same context.
     function tryPlay() {
       if (started) {
         if (audioCtx && audioCtx.state === 'suspended') {
@@ -438,6 +440,21 @@
         return;
       }
       startNow();
+    }
+
+    function suspendForHidden() {
+      if (audioCtx && audioCtx.state === 'running') {
+        try { audioCtx.suspend(); } catch {}
+      }
+    }
+
+    function resumeIfUnlocked() {
+      if (!started || !audioCtx) return;
+      if (audioCtx.state === 'suspended') {
+        try { audioCtx.resume().then(() => lockRate()).catch(() => {}); } catch {}
+      } else {
+        lockRate();
+      }
     }
 
     window.__wormholeAmbient = {
@@ -451,20 +468,19 @@
       get secondaryArmed() { return false; },
       get mode() { return mode; },
       lockRate,
+      suspendForHidden,
+      resumeIfUnlocked,
     };
     document.addEventListener('pointerdown', tryPlay, { capture: true });
     document.addEventListener('touchstart', tryPlay, { capture: true, passive: true });
     document.addEventListener('click', tryPlay, { capture: true });
     document.addEventListener('keydown', tryPlay);
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        if (audioCtx && audioCtx.state === 'running') {
-          try { audioCtx.suspend(); } catch {}
-        }
-      } else if (started) {
-        // Not a tap. The next pointer or key resumes the same source.
-        lockRate();
-      }
+      if (document.hidden) suspendForHidden();
+      else resumeIfUnlocked();
+    });
+    window.addEventListener('pageshow', () => {
+      if (!document.hidden) resumeIfUnlocked();
     });
     console.info('[cubicles] wormhole ambient ready (one buffer, gain=' + VOL + ', axis)',
       BARS + ' bars @ ' + BPM + ' BPM, loop ' + LOOP_LEN + 's');
@@ -474,6 +490,7 @@
 })();
 
 </script>
+<script src="./technique-gallery-budget.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
@@ -514,7 +531,10 @@ const GRID_D = GRID_Z_MAX - GRID_Z_MIN;          // depth of 5×4 field
 const CELL_W = OUTER_W / COLS;
 const CELL_D = GRID_D / ROWS;
 const EYE = 1.65;
-const MAX_ARMED = 6;
+// One grove WebGLRenderer. Iframe labs are extra contexts — hard cap 0 or 1.
+const MAX_ARMED = (window.GalleryBudget && typeof window.GalleryBudget.maxArmedIframes === 'number')
+  ? window.GalleryBudget.maxArmedIframes
+  : 1;
 /** Arm embeds across ~full grid depth so back rows stay live while walking. */
 const ARM_DIST = Math.max(22, GRID_D * 0.95);
 /** Reach deep enough for far-wall cells (row 3–4) from the cell aisle. */
@@ -580,10 +600,22 @@ const CELLS = [
 ];
 
 const stage = document.getElementById('stage');
+// Single shared gallery context. Lab sketches stay in at most one armed iframe.
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
 const forceDesktop = params.has('desktop') || params.get('hq') === '1' || hashParams.get('desktop') === '1';
 const mobileLike = !forceDesktop && (matchMedia('(pointer: coarse)').matches || matchMedia('(max-width: 900px)').matches);
-renderer.setPixelRatio(Math.min(devicePixelRatio, mobileLike ? 1.4 : 2));
+const dprCap = (window.GalleryBudget && window.GalleryBudget.dprCap) || (mobileLike ? 1.5 : 2);
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, dprCap));
+console.info('[cubicles] gallery budget', window.GalleryBudget ? {
+  preChange: window.GalleryBudget.preChange,
+  mobile: window.GalleryBudget.mobile,
+  dprCap: window.GalleryBudget.dprCap,
+  maxArmedIframes: window.GalleryBudget.maxArmedIframes,
+  maxPlayingVideos: window.GalleryBudget.maxPlayingVideos,
+  skipComposer: window.GalleryBudget.skipComposer,
+  sparkCount: window.GalleryBudget.sparkCount,
+  videoArmDist: window.GalleryBudget.videoArmDist,
+} : { dprCap, maxArmed: MAX_ARMED });
 renderer.setClearColor(0x140818, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -597,6 +629,13 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.appendChild(renderer.domElement);
 
 let glContextLost = false;
+let rafId = 0;
+let pauseGalleryMedia = () => {};
+let resumeGalleryMedia = () => {};
+function stopLoop() {
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = 0;
+}
 const glTip = document.getElementById('gl-tip');
 function showGlTip(msg) {
   if (!glTip) return;
@@ -612,18 +651,23 @@ function hideGlTip() {
 renderer.domElement.addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
   glContextLost = true;
+  stopLoop();
+  try { pauseGalleryMedia(); } catch {}
   showGlTip('3D view paused — tap to reload');
 }, false);
 renderer.domElement.addEventListener('webglcontextrestored', () => {
   glContextLost = false;
   hideGlTip();
   try {
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, dprCap));
     renderer.setClearColor(0x140818, 1);
     renderer.setSize(innerWidth, innerHeight, false);
     cssRenderer.setSize(innerWidth, innerHeight);
     camera.aspect = innerWidth / Math.max(1, innerHeight);
     camera.updateProjectionMatrix();
+    if (composer) composer.setSize(innerWidth, innerHeight);
   } catch {}
+  try { resumeGalleryMedia(); } catch {}
 }, false);
 if (glTip) {
   glTip.addEventListener('click', () => { location.reload(); });
@@ -852,8 +896,9 @@ async function setupCathedralEnvAndBloom() {
 
   try { pmrem.dispose(); } catch (_) {}
 
-  if (mobileLike) {
-    console.info('[cubicles] bloom skipped on mobile-like');
+  const skipFx = (window.GalleryBudget && window.GalleryBudget.skipComposer) || mobileLike;
+  if (skipFx) {
+    console.info('[cubicles] bloom skipped (mobile safe preset)');
     return;
   }
   try {
@@ -1023,7 +1068,10 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     const maxAniso = (renderer.capabilities && renderer.capabilities.getMaxAnisotropy)
       ? renderer.capabilities.getMaxAnisotropy()
       : 1;
+    // Wrap rvfc before VideoTexture registers it, so a paused frame never sets needsUpdate.
+    if (window.GalleryBudget) window.GalleryBudget.installPausedVideoUploadGuard(vid);
     const tex = new THREE.VideoTexture(vid);
+    if (window.GalleryBudget) window.GalleryBudget.guardVideoTexture(tex);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
@@ -1081,18 +1129,34 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
     mesh.renderOrder = 1;
     scene.add(mesh);
 
+    const mayUpload = () => {
+      if (glContextLost || document.hidden) return false;
+      if (window.GalleryBudget) return window.GalleryBudget.videoMayUpload(vid);
+      return !vid.paused && !vid.ended && !vid.seeking && vid.readyState >= 2;
+    };
+    const showPoster = () => {
+      if (mat.map !== poster) {
+        mat.map = poster;
+        mat.needsUpdate = true;
+      }
+    };
     const promoteVideoMap = () => {
-      if (vid.readyState < 2) return;
+      if (!mayUpload()) {
+        showPoster();
+        return;
+      }
       applyStarCover(tex);
       if (mat.map !== tex) mat.map = tex;
-      tex.needsUpdate = true;
       mat.needsUpdate = true;
     };
     vid.addEventListener('loadeddata', promoteVideoMap);
     vid.addEventListener('playing', promoteVideoMap);
 
+    let playAttempt = 0;
     const tryPlay = () => {
-      if (!vid.src) return;
+      if (!vid.src || document.hidden || glContextLost) return;
+      if (vid.paused && playAttempt && performance.now() - playAttempt < 800) return;
+      playAttempt = performance.now();
       try { vid.muted = true; vid.defaultMuted = true; } catch {}
       const p = vid.play();
       if (p && typeof p.then === 'function') {
@@ -1107,6 +1171,13 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       }
     };
     let videoStarted = false;
+    let gestureUnlocked = false;
+    const VIDEO_ID = 'stargazer';
+    const armDist = () => (window.GalleryBudget && window.GalleryBudget.videoArmDist) || (mobileLike ? 16 : 48);
+    const nearWall = () => {
+      const dz = pos.z - mesh.position.z;
+      return dz > 0.35 && dz <= armDist();
+    };
     const startStargazerVideo = () => {
       if (videoStarted) { tryPlay(); promoteVideoMap(); return; }
       videoStarted = true;
@@ -1118,11 +1189,35 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       tryPlay();
       console.info('[cubicles] stargazer mp4 start (unlock)');
     };
-    // Same gestures that start the wormhole bed.
-    document.addEventListener('pointerdown', startStargazerVideo, { capture: true });
-    document.addEventListener('touchstart', startStargazerVideo, { capture: true, passive: true });
-    document.addEventListener('click', startStargazerVideo, { capture: true });
-    document.addEventListener('keydown', startStargazerVideo);
+    // Poster while paused or far, so three never texImage2Ds a paused element.
+    const hold = () => {
+      try { window.GalleryBudget && window.GalleryBudget.releaseVideo(VIDEO_ID); } catch {}
+      if (!vid.paused) {
+        try { vid.pause(); } catch {}
+      }
+      showPoster();
+    };
+    const sync = () => {
+      const want = gestureUnlocked && !document.hidden && !glContextLost && nearWall();
+      const slot = !want ? false : (window.GalleryBudget ? window.GalleryBudget.claimVideo(VIDEO_ID) : true);
+      if (!want || !slot) {
+        hold();
+        return;
+      }
+      if (!videoStarted || !vid.src) startStargazerVideo();
+      else if (vid.paused) tryPlay();
+      if (mayUpload()) promoteVideoMap();
+      else showPoster();
+    };
+    const noteGesture = () => {
+      gestureUnlocked = true;
+      sync();
+    };
+    // Same gestures that start the wormhole bed. Playback still waits for proximity.
+    document.addEventListener('pointerdown', noteGesture, { capture: true });
+    document.addEventListener('touchstart', noteGesture, { capture: true, passive: true });
+    document.addEventListener('click', noteGesture, { capture: true });
+    document.addEventListener('keydown', noteGesture);
     window.__stargazingWall = {
       mesh, vid, tex, poster,
       copies: 1,
@@ -1137,12 +1232,13 @@ console.info('[cubicles] far-wall wallpaper skipped (floating labs — no cube p
       srcH: STAR_SRC_H,
       start: startStargazerVideo,
       play: tryPlay,
+      hold, sync,
       posterFirst: true,
     };
     console.info('[cubicles] stargazer covers far wall', figW.toFixed(2) + '×' + figH.toFixed(2),
       'at', mesh.position.x.toFixed(2), mesh.position.y.toFixed(2), mesh.position.z.toFixed(2),
       'center crop rows', STAR_COVER_TOP + '–' + (STAR_COVER_TOP + starCoverH).toFixed(0),
-      'wings past', (OUTER_W / 2).toFixed(0), 'poster until gesture');
+      'wings past', (OUTER_W / 2).toFixed(0), 'poster until near + gesture');
   } catch (err) {
     console.warn('[cubicles] stargazing portrait failed', err);
   }
@@ -1182,7 +1278,7 @@ function updateWallpaper(t) {
 
 
 // —— Ceiling pendant fixtures (far-wall wallpaper unchanged; floor is Water ocean) ——
-const SPARK_CEIL_N = mobileLike ? 14 : 28; // ~1 per cell + foyer accents
+const SPARK_CEIL_N = (window.GalleryBudget && window.GalleryBudget.sparkCount) || (mobileLike ? 8 : 28); // fewer pendants on the mobile preset
 const SPARK_STRIDE = mobileLike ? 4 : 2;
 const SPARK_FRAME_N = mobileLike ? 2 : 1;
 let sparkStem = null;
@@ -1470,14 +1566,30 @@ for (let i = 0; i < CELLS.length; i++) {
 }
 window.__hungLabs = hung;
 window.__floatingLabsSketch = true;
+function hookLabFrame(panel) {
+  if (!panel || panel._rafHooked) return;
+  try {
+    const w = panel.iframe.contentWindow;
+    if (!w || !w.document) return;
+    if (window.GalleryBudget) window.GalleryBudget.installEmbeddedRafPause(w);
+    panel._rafHooked = true;
+  } catch {}
+}
+
 /** Reveal iframe only once its WebGL canvas exists (avoids empty black rectangles). */
 function revealLabWhenReady(panel) {
   if (!panel || panel._revealWatch) return;
   panel._revealWatch = true;
+  const token = panel._revealToken || 0;
   let tries = 0;
   const tick = () => {
+    if (!panel.embedArmed || (panel._revealToken || 0) !== token) {
+      panel._revealWatch = false;
+      return;
+    }
     tries++;
     try {
+      hookLabFrame(panel);
       const doc = panel.iframe.contentDocument;
       const canvas = doc && doc.querySelector('canvas');
       if (canvas && canvas.width > 0) {
@@ -1486,29 +1598,64 @@ function revealLabWhenReady(panel) {
         return;
       }
     } catch {}
-    if (tries < 180) requestAnimationFrame(tick);
+    if (tries < 180 && !document.hidden) requestAnimationFrame(tick);
     else { panel._revealWatch = false; } // stay hidden if canvas never arrives (no empty plate)
   };
-  panel.iframe.addEventListener('load', () => { tries = 0; requestAnimationFrame(tick); }, { once: true });
+  panel.iframe.addEventListener('load', () => {
+    if ((panel._revealToken || 0) !== token) return;
+    tries = 0;
+    hookLabFrame(panel);
+    requestAnimationFrame(tick);
+  }, { once: true });
   requestAnimationFrame(tick);
 }
 
+let armedForClicks = null; // lab iframe allowed to take clicks after a choose
+/** Leave a zone: lose the lab's GL context, stop its media, blank the iframe. */
+function disarmLab(panel) {
+  if (!panel || !panel.embedArmed) return;
+  panel._revealToken = (panel._revealToken || 0) + 1;
+  panel._revealWatch = false;
+  panel._rafHooked = false;
+  const iframe = panel.iframe;
+  try { if (window.GalleryBudget) window.GalleryBudget.loseIframeWebGL(iframe); } catch {}
+  try {
+    const doc = iframe.contentDocument;
+    if (doc) {
+      doc.querySelectorAll('video, audio').forEach((el) => {
+        try { el.pause(); } catch {}
+      });
+    }
+  } catch {}
+  iframe.src = 'about:blank';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  panel.embedArmed = false;
+  panel.canInteract = false;
+  if (armedForClicks === panel) armedForClicks = null;
+  console.info('[cubicles] disarmed lab', panel.meta && panel.meta.id);
+}
+
 function armLab(panel) {
-  if (!panel) return;
+  if (!panel || MAX_ARMED < 1) return;
   if (!panel.embedArmed) {
+    for (const h of hung) {
+      if (h !== panel && h.embedArmed) disarmLab(h);
+    }
     panel.iframe.src = panel.embedUrl;
     panel.embedArmed = true;
     revealLabWhenReady(panel);
+    console.info('[cubicles] armed lab', panel.meta && panel.meta.id, 'cap', MAX_ARMED);
   } else if (panel.iframe.style.opacity !== '1') {
     revealLabWhenReady(panel);
   }
 }
 
-/** Pre-arm a few near-foyer labs (WebGL context budget) so walk shows floating sketches. */
+/** Pre-arm the nearest foyer lab only (iframe WebGL cap). */
 function armFoyerVisibleLabs() {
   const scored = hung.map((h) => ({ h, dist: Math.hypot(h.cx - SPAWN.x, h.panelZ - SPAWN.z) }))
     .sort((a, b) => a.dist - b.dist);
-  const FOYER_ARM = Math.min(3, MAX_ARMED);
+  const FOYER_ARM = MAX_ARMED;
   let n = 0;
   for (const { h } of scored) {
     if (n >= FOYER_ARM) break;
@@ -1516,7 +1663,7 @@ function armFoyerVisibleLabs() {
     armLab(h);
     n++;
   }
-  console.info('[cubicles] foyer-armed floating labs', n);
+  console.info('[cubicles] foyer-armed floating labs', n, 'cap', MAX_ARMED);
 }
 armFoyerVisibleLabs();
 console.info('[cubicles] floating labs sketch —', hung.length, 'free-float scenes (no frames / no ghost plate)');
@@ -1927,29 +2074,35 @@ function updateLazyEmbeds() {
   const scored = hung.map((h) => ({ h, dist: panelDist(h) }))
     .sort((a, b) => a.dist - b.dist);
 
-  // Arm hover/facing/activeCell first, then nearest-N within ARM_DIST.
-  const armSet = new Set();
-  if (hoverPanel) armSet.add(hoverPanel);
+  // Hard cap: interaction target first, then the nearest lab inside ARM_DIST.
+  // Never more than MAX_ARMED (0–1) iframe WebGL contexts.
   const facing = facingPanelWithin(1);
-  if (facing) armSet.add(facing);
-  if (activeCell) armSet.add(activeCell);
+  const ordered = [];
+  const pushArm = (h) => {
+    if (!h || ordered.includes(h) || ordered.length >= MAX_ARMED) return;
+    ordered.push(h);
+  };
+  pushArm(hoverPanel);
+  pushArm(facing);
+  pushArm(activeCell);
   for (const { h, dist } of scored) {
-    if (armSet.size >= MAX_ARMED) break;
-    if (dist < ARM_DIST) armSet.add(h);
+    if (ordered.length >= MAX_ARMED) break;
+    if (dist < ARM_DIST) pushArm(h);
   }
+  // Keep the lab that is already open unless the visitor has clearly moved on.
+  if (!hoverPanel && !facing && !activeCell && ordered.length) {
+    const current = hung.find((h) => h.embedArmed);
+    if (current && ordered[0] !== current && panelDist(current) < ARM_DIST && panelDist(ordered[0]) + 1.5 >= panelDist(current)) {
+      ordered[0] = current;
+    }
+  }
+  const armSet = new Set(ordered);
 
   for (const h of hung) {
-    const want = armSet.has(h);
-    if (want && !h.embedArmed) {
-      armLab(h);
-    } else if (!want && h.embedArmed && !panelPointerLock && h !== hoverPanel) {
-      h.iframe.src = 'about:blank';
-      h.iframe.style.opacity = '0';
-      h.embedArmed = false;
-      h._revealWatch = false;
-    }
+    if (!armSet.has(h) && h.embedArmed) disarmLab(h);
     h.group.visible = true;
   }
+  for (const h of ordered) armLab(h);
 
   // Cursor-over-frame wins → center facing → activeCell → nearest.
   // Arm hover immediately so pointer cursor is not lost on the far wall.
@@ -1973,7 +2126,6 @@ const move = { f: false, b: false, l: false, r: false };
 const velocity = new THREE.Vector3();
 let dragging = false;
 let panelPointerLock = false;
-let armedForClicks = null; // lab iframe allowed to take clicks after a choose
 let suspendIframePointer = false;
 let standGlide = null;
 let pendingChoose = null;
@@ -2054,12 +2206,7 @@ function setOverview(on) {
     panelPointerLock = false;
     for (const h of hung) {
       h.iframe.style.pointerEvents = 'none';
-      if (h.embedArmed) {
-        h.iframe.src = 'about:blank';
-        h.iframe.style.opacity = '0';
-        h.embedArmed = false;
-        h.canInteract = false;
-      }
+      if (h.embedArmed) disarmLab(h);
     }
     activeCell = null;
     camera.fov = OVERVIEW_FOV;
@@ -2443,7 +2590,30 @@ const forward = new THREE.Vector3();
 const right = new THREE.Vector3();
 const margin = 0.95;
 
+pauseGalleryMedia = () => {
+  try { window.__stargazingWall && window.__stargazingWall.hold && window.__stargazingWall.hold(); } catch {}
+  try { window.__wormholeAmbient && window.__wormholeAmbient.suspendForHidden && window.__wormholeAmbient.suspendForHidden(); } catch {}
+};
+resumeGalleryMedia = () => {
+  try { window.__wormholeAmbient && window.__wormholeAmbient.resumeIfUnlocked && window.__wormholeAmbient.resumeIfUnlocked(); } catch {}
+  try { window.__stargazingWall && window.__stargazingWall.sync && window.__stargazingWall.sync(); } catch {}
+  if (!rafId && !document.hidden && !glContextLost) {
+    try { clock.getDelta(); } catch {}
+    rafId = requestAnimationFrame(frame);
+  }
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    pauseGalleryMedia();
+    stopLoop();
+  } else if (!glContextLost) {
+    resumeGalleryMedia();
+  }
+});
+
 function frame() {
+  rafId = 0;
+  if (document.hidden || glContextLost) return;
   const dt = Math.min(0.05, clock.getDelta());
   if (overview.on) {
     // elevated orbit — no walk clamps / embeds
@@ -2504,6 +2674,7 @@ function frame() {
     const _bass = _bed && typeof _bed.getBass === 'function' ? _bed.getBass() : 0;
     updateBeatLabs(_tSpark, _bass);
     updateBeatKnees(_bass);
+    try { window.__stargazingWall && window.__stargazingWall.sync && window.__stargazingWall.sync(); } catch {}
     try {
       if (composer) composer.render();
       else renderer.render(scene, camera);
@@ -2511,12 +2682,16 @@ function frame() {
     } catch (err) {
       console.warn('[cubicles] render failed', err);
       glContextLost = true;
+      stopLoop();
+      try { pauseGalleryMedia(); } catch {}
       showGlTip('3D view paused — tap to reload');
+      return;
     }
   }
-  requestAnimationFrame(frame);
+  if (document.hidden || glContextLost) return;
+  rafId = requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+rafId = requestAnimationFrame(frame);
 
 if (params.has('still')) {
   entered = true;
