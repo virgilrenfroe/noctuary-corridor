@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="description" content="Soft Matter Lab: waves and cloth, a continuum intro for shop and intro physics. A shape can travel through silk and a water basin while the material mostly stays." />
+<meta name="theme-color" content="#140818" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<title>Soft Matter Lab · waves &amp; cloth</title>
+<style>
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-sans: "Instrument Sans", system-ui, sans-serif;
+    --font-mono: "Space Mono", ui-monospace, monospace;
+    --void: #140818;
+    --pearl: #efe6f2;
+    --mute: rgba(239, 230, 242, 0.62);
+    --accent: #ffb36b;
+    --line: rgba(239, 230, 242, 0.14);
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--void); color: var(--pearl);
+    font-family: var(--font-sans);
+    overflow: hidden; touch-action: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .chrome {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding:
+      max(14px, var(--safe-t))
+      max(14px, var(--safe-r))
+      max(14px, var(--safe-b))
+      max(14px, var(--safe-l));
+  }
+  .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .tag {
+    margin: 0 0 4px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  h1 {
+    margin: 0; font-family: var(--font-display); font-weight: 620;
+    font-size: clamp(1.45rem, 3.6vw, 2.15rem); letter-spacing: -0.035em; line-height: 0.98;
+  }
+  h1 em { font-style: normal; font-weight: 360; color: var(--mute); }
+  .teach {
+    margin: 8px 0 0; max-width: 46ch;
+    font-size: 13.5px; line-height: 1.45; color: var(--mute);
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: flex-end;
+    max-width: 280px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--mute);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .dock {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  }
+  .notice {
+    max-width: 52ch;
+    padding: 10px 12px 11px; border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(20, 8, 24, 0.72);
+    backdrop-filter: blur(10px);
+  }
+  .notice .kicker {
+    margin: 0;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .notice p { margin: 5px 0 0; font-size: 13.5px; line-height: 1.45; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; pointer-events: auto; }
+  button {
+    appearance: none; cursor: pointer;
+    min-height: 44px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(20, 8, 24, 0.78);
+    color: var(--pearl);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    backdrop-filter: blur(10px);
+  }
+  button:hover { border-color: rgba(255, 179, 107, 0.55); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[aria-pressed="true"] {
+    border-color: rgba(255, 179, 107, 0.85);
+    color: var(--accent);
+    background: rgba(255, 179, 107, 0.12);
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .keys {
+    margin-top: 6px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(239, 230, 242, 0.42);
+  }
+  .err, .noscript {
+    position: fixed; z-index: 9; left: 14px; right: 14px; bottom: 14px;
+    background: #3a1218; color: #ffd6de; padding: 12px 14px; border-radius: 12px;
+    font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap;
+  }
+  .err { display: none; }
+  body.embed .chrome { display: none !important; }
+  html.embed, body.embed { background: transparent !important; }
+  body.embed canvas { background: transparent !important; }
+  @media (max-width: 800px), (pointer: coarse) {
+    .legend { display: none; }
+    .teach { font-size: 12.5px; }
+    .dock { flex-direction: column; align-items: stretch; }
+    .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    button { padding: 0 8px; letter-spacing: 0.08em; }
+    .keys { display: none; }
+    h1 { font-size: 1.45rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .notice { backdrop-filter: none; }
+    button { backdrop-filter: none; }
+  }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  if (q.has('embed')) {
+    document.documentElement.classList.add('embed');
+    document.body.classList.add('embed');
+    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'transparent';
+  }
+  if (q.has('still') || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.documentElement.classList.add('still');
+    document.body.classList.add('still');
+  }
+})();
+</script>
+<div class="chrome">
+  <div class="top">
+    <div>
+      <p class="tag">Soft Matter Lab · continuum</p>
+      <h1>Waves &amp; cloth <em>for shop / intro physics</em></h1>
+      <p class="teach">Silk is a soft solid. The basin is a liquid surface. Both are continua: neighbors pull on neighbors. A shape can travel while the material mostly stays.</p>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span><i style="background:#f0c24b"></i> Buoy stays</span>
+      <span><i style="background:#ffe6c2"></i> Tracer bobs</span>
+      <span><i style="background:#c45b78"></i> Silk cloth</span>
+      <span><i style="background:#2aa89a"></i> Wave basin</span>
+    </div>
+  </div>
+  <div class="dock">
+    <div class="notice">
+      <p class="kicker">What to notice</p>
+      <p id="notice">The lamp on the left is the wind. Crests walk across the basin. A gold buoy rises and falls, then stays where it is.</p>
+      <p class="keys">Drag the basin or the silk · W wind · D drop · R rest</p>
+    </div>
+    <div class="controls">
+      <button type="button" id="wind" aria-pressed="true">Wind</button>
+      <button type="button" id="drop" aria-label="Drop a stone in the basin">Stone</button>
+      <button type="button" id="rest">Rest</button>
+    </div>
+  </div>
+</div>
+<noscript><p class="noscript">Soft Matter Lab needs JavaScript to show the wave basin and the silk.</p></noscript>
+<div class="err" id="err" role="alert"></div>
+<script>
+window.addEventListener('error', function (e) {
+  var el = document.getElementById('err');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent = (e && e.message) ? e.message : String(e);
+});
+</script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const params = new URLSearchParams(location.search);
+const embed = params.has('embed');
+const held = params.has('still') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const coarse = matchMedia('(pointer: coarse)').matches;
+const narrow = window.innerWidth < 820;
+const mobile = coarse || narrow;
+
+const TANK_W = 3.2;
+const TANK_D = 1.75;
+const WATER_Y = 0.56;
+const gridX = mobile ? 40 : 72;
+const gridZ = mobile ? 24 : 42;
+const clothCols = mobile ? 12 : 20;
+const clothRows = mobile ? 8 : 12;
+const particleCols = mobile ? 8 : 14;
+const particleRows = mobile ? 5 : 8;
+const clothIters = mobile ? 3 : 5;
+const waveSubsteps = mobile ? 1 : 2;
+
+const noticeEl = document.getElementById('notice');
+const windBtn = document.getElementById('wind');
+const dropBtn = document.getElementById('drop');
+const restBtn = document.getElementById('rest');
+let windOn = !held;
+let lastNotice = '';
+
+if (held) {
+  windBtn.disabled = true;
+  windBtn.setAttribute('aria-pressed', 'false');
+  windBtn.title = 'Motion is paused';
+} else {
+  windBtn.setAttribute('aria-pressed', 'true');
+}
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: embed,
+  premultipliedAlpha: !embed,
+  powerPreference: 'high-performance',
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+if (embed) {
+  renderer.setClearColor(0x000000, 0);
+  renderer.setClearAlpha(0);
+  renderer.domElement.style.background = 'transparent';
+} else {
+  renderer.setClearColor(0x140818, 1);
+}
+renderer.domElement.setAttribute('aria-label', 'Soft Matter Lab. A silk cloth hangs over a wave basin. Crests travel. Five gold buoys stay in place and bob. Drag the water or the silk. The lamp on the left is the wind.');
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+if (!embed) scene.background = new THREE.Color(0x140818);
+scene.fog = embed ? null : new THREE.Fog(0x140818, 7.5, 16);
+
+const camera = new THREE.PerspectiveCamera(36, 1, 0.08, 40);
+
+function frameCamera() {
+  const portrait = window.innerHeight > window.innerWidth;
+  if (embed) {
+    camera.fov = 33;
+    camera.position.set(0.25, 2.22, 3.35);
+    camera.lookAt(0, 0.68, -0.28);
+  } else if (portrait || window.innerWidth < 800) {
+    camera.fov = 44;
+    camera.position.set(0.12, 2.55, 3.85);
+    camera.lookAt(0, 0.7, -0.22);
+  } else {
+    camera.fov = 34;
+    camera.position.set(0.72, 2.15, 3.28);
+    camera.lookAt(-0.05, 0.74, -0.32);
+  }
+  camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  camera.updateProjectionMatrix();
+}
+
+function resize() {
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75));
+  renderer.setSize(window.innerWidth, window.innerHeight, true);
+  frameCamera();
+}
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
+
+scene.add(new THREE.HemisphereLight(0x8d6ea0, 0x140818, 0.55));
+const key = new THREE.DirectionalLight(0xfff1dc, 2.35);
+key.position.set(-2.4, 6.2, 3.4);
+scene.add(key);
+const rim = new THREE.PointLight(0x9bb6ff, 14, 9, 2);
+rim.position.set(2.4, 1.7, 1.4);
+scene.add(rim);
+const fill = new THREE.PointLight(0xfff4e8, 7, 9, 2);
+fill.position.set(0.2, 1.4, 2.6);
+scene.add(fill);
+const lampLight = new THREE.PointLight(0xffc98a, windOn ? 18 : 2.2, 4.5, 2);
+lampLight.position.set(-2.02, 1.12, 0.22);
+scene.add(lampLight);
+
+const brass = new THREE.MeshStandardMaterial({
+  color: 0xd7b56a, roughness: 0.28, metalness: 0.88,
+  envMap, envMapIntensity: 1.15,
+});
+const plinthMat = new THREE.MeshStandardMaterial({ color: 0x1a0c16, roughness: 0.9, metalness: 0.06 });
+const poolMat = new THREE.MeshStandardMaterial({ color: 0x07141c, roughness: 0.92, metalness: 0.04 });
+
+if (!embed) {
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(2.55, mobile ? 28 : 48),
+    new THREE.MeshBasicMaterial({ color: 0x07030c, transparent: true, opacity: 0.55, depthWrite: false })
+  );
+  disc.rotation.x = -Math.PI / 2;
+  disc.position.y = 0.002;
+  scene.add(disc);
+}
+
+const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.85, 0.28, 2.35), plinthMat);
+plinth.position.y = 0.14;
+scene.add(plinth);
+const pool = new THREE.Mesh(new THREE.PlaneGeometry(TANK_W - 0.08, TANK_D - 0.08), poolMat);
+pool.rotation.x = -Math.PI / 2;
+pool.position.y = 0.4;
+scene.add(pool);
+
+function addBox(w, h, d, x, y, z) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), brass);
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+  return mesh;
+}
+const rimY = 0.66;
+addBox(TANK_W + 0.18, 0.055, 0.055, 0, rimY, TANK_D / 2 + 0.02);
+addBox(TANK_W + 0.18, 0.055, 0.055, 0, rimY, -TANK_D / 2 - 0.02);
+addBox(0.055, 0.055, TANK_D + 0.12, TANK_W / 2 + 0.02, rimY, 0);
+addBox(0.055, 0.055, TANK_D + 0.12, -TANK_W / 2 - 0.02, rimY, 0);
+const postH = 0.4;
+for (const sx of [-1, 1]) {
+  for (const sz of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, postH, mobile ? 8 : 12), brass);
+    post.position.set(sx * (TANK_W / 2 + 0.02), 0.28 + postH / 2, sz * (TANK_D / 2 + 0.02));
+    scene.add(post);
+  }
+}
+
+const lampPost = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.032, 0.78, mobile ? 8 : 12), brass);
+lampPost.position.set(-2.05, 0.67, 0.22);
+scene.add(lampPost);
+const lampCup = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.06, mobile ? 8 : 12), brass);
+lampCup.position.set(-2.05, 1.08, 0.22);
+scene.add(lampCup);
+const flameMat = new THREE.MeshBasicMaterial({ color: windOn ? 0xffe2b0 : 0x6a5340, toneMapped: false });
+const flame = new THREE.Mesh(new THREE.SphereGeometry(0.055, mobile ? 10 : 16, mobile ? 8 : 12), flameMat);
+flame.position.set(-2.05, 1.16, 0.22);
+scene.add(flame);
+
+const cellCount = gridX * gridZ;
+let bufA = new Float32Array(cellCount);
+let bufB = new Float32Array(cellCount);
+let bufC = new Float32Array(cellCount);
+let cur = bufA;
+let prev = bufB;
+let next = bufC;
+
+function seedBasin() {
+  cur.fill(0);
+  prev.fill(0);
+  next.fill(0);
+  for (let j = 0; j < gridZ; j++) {
+    for (let i = 0; i < gridX; i++) {
+      const x = (i / (gridX - 1) - 0.5) * TANK_W;
+      const z = (j / (gridZ - 1) - 0.5) * TANK_D;
+      const env = Math.cos((x / TANK_W) * Math.PI) * Math.cos((z / TANK_D) * Math.PI);
+      cur[j * gridX + i] = env * (0.092 * Math.sin(x * 2.35) + 0.04 * Math.sin(x * 4.6 + z * 1.7));
+    }
+  }
+  prev.set(cur);
+}
+
+function disturb(x, z, amp) {
+  const u = (x / TANK_W + 0.5) * (gridX - 1);
+  const v = (z / TANK_D + 0.5) * (gridZ - 1);
+  const rad = mobile ? 2.5 : 3.6;
+  const sig = rad * 0.46;
+  const i0 = Math.max(1, Math.floor(u - rad));
+  const i1 = Math.min(gridX - 2, Math.ceil(u + rad));
+  const j0 = Math.max(1, Math.floor(v - rad));
+  const j1 = Math.min(gridZ - 2, Math.ceil(v + rad));
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const d = Math.hypot(i - u, j - v);
+      if (d > rad) continue;
+      const k = j * gridX + i;
+      cur[k] += amp * Math.exp(-(d * d) / (sig * sig));
+      if (cur[k] > 0.15) cur[k] = 0.15;
+      else if (cur[k] < -0.15) cur[k] = -0.15;
+    }
+  }
+}
+
+function injectWind() {
+  const s = Math.sin(time * 2.2);
+  for (let j = 1; j < gridZ - 1; j++) {
+    const env = Math.sin((j / (gridZ - 1)) * Math.PI);
+    const k = j * gridX + 2;
+    cur[k] += s * (mobile ? 0.007 : 0.0062) * env;
+  }
+}
+
+function stepWave() {
+  const c2 = 0.46;
+  const damp = 0.995;
+  for (let j = 1; j < gridZ - 1; j++) {
+    const row = j * gridX;
+    for (let i = 1; i < gridX - 1; i++) {
+      const k = row + i;
+      const lap = cur[k - 1] + cur[k + 1] + cur[k - gridX] + cur[k + gridX] - 4 * cur[k];
+      let v = damp * (cur[k] * 2 - prev[k] + c2 * lap);
+      if (v > 0.15) v = 0.15;
+      else if (v < -0.15) v = -0.15;
+      next[k] = v;
+    }
+  }
+  for (let i = 0; i < gridX; i++) {
+    next[i] = next[gridX + i];
+    next[(gridZ - 1) * gridX + i] = next[(gridZ - 2) * gridX + i];
+  }
+  for (let j = 0; j < gridZ; j++) {
+    const row = j * gridX;
+    next[row] = next[row + 1];
+    next[row + gridX - 1] = next[row + gridX - 2];
+  }
+  const oldPrev = prev;
+  prev = cur;
+  cur = next;
+  next = oldPrev;
+}
+
+function sampleHeight(x, z) {
+  const u = (x / TANK_W + 0.5) * (gridX - 1);
+  const v = (z / TANK_D + 0.5) * (gridZ - 1);
+  const i = Math.max(0, Math.min(gridX - 2, Math.floor(u)));
+  const j = Math.max(0, Math.min(gridZ - 2, Math.floor(v)));
+  const tx = u - i;
+  const tz = v - j;
+  const h00 = cur[j * gridX + i];
+  const h10 = cur[j * gridX + i + 1];
+  const h01 = cur[(j + 1) * gridX + i];
+  const h11 = cur[(j + 1) * gridX + i + 1];
+  return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+}
+
+const waterGeo = new THREE.BufferGeometry();
+const waterPos = new Float32Array(cellCount * 3);
+const waterUv = new Float32Array(cellCount * 2);
+const waterCol = new Float32Array(cellCount * 3);
+const waterIndex = [];
+for (let j = 0; j < gridZ; j++) {
+  for (let i = 0; i < gridX; i++) {
+    const k = j * gridX + i;
+    waterPos[k * 3] = (i / (gridX - 1) - 0.5) * TANK_W;
+    waterPos[k * 3 + 1] = 0;
+    waterPos[k * 3 + 2] = (j / (gridZ - 1) - 0.5) * TANK_D;
+    waterUv[k * 2] = i / (gridX - 1);
+    waterUv[k * 2 + 1] = j / (gridZ - 1);
+  }
+}
+for (let j = 0; j < gridZ - 1; j++) {
+  for (let i = 0; i < gridX - 1; i++) {
+    const a = j * gridX + i;
+    waterIndex.push(a, a + gridX, a + 1, a + 1, a + gridX, a + gridX + 1);
+  }
+}
+waterGeo.setAttribute('position', new THREE.BufferAttribute(waterPos, 3));
+waterGeo.setAttribute('uv', new THREE.BufferAttribute(waterUv, 2));
+waterGeo.setAttribute('color', new THREE.BufferAttribute(waterCol, 3));
+waterGeo.setIndex(waterIndex);
+const waterMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  vertexColors: true,
+  roughness: 0.14,
+  metalness: 0.06,
+  clearcoat: 1,
+  clearcoatRoughness: 0.18,
+  envMap,
+  envMapIntensity: 1.15,
+  emissive: 0x06262a,
+  emissiveIntensity: 0.35,
+});
+const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+waterMesh.position.y = WATER_Y;
+waterMesh.frustumCulled = false;
+scene.add(waterMesh);
+
+const cTrough = new THREE.Color(0x081828);
+const cMid = new THREE.Color(0x1c8f86);
+const cCrest = new THREE.Color(0xf3d7a2);
+const cTmp = new THREE.Color();
+
+function paintWater() {
+  const pos = waterGeo.attributes.position.array;
+  const col = waterGeo.attributes.color.array;
+  for (let k = 0; k < cellCount; k++) {
+    const h = cur[k];
+    pos[k * 3 + 1] = h;
+    const u = THREE.MathUtils.clamp((h + 0.05) / 0.14, 0, 1);
+    cTmp.copy(cTrough).lerp(cMid, Math.min(1, u * 1.15));
+    if (u > 0.42) cTmp.lerp(cCrest, (u - 0.42) / 0.58);
+    col[k * 3] = cTmp.r;
+    col[k * 3 + 1] = cTmp.g;
+    col[k * 3 + 2] = cTmp.b;
+  }
+  waterGeo.attributes.position.needsUpdate = true;
+  waterGeo.attributes.color.needsUpdate = true;
+  waterGeo.computeVertexNormals();
+}
+
+const dotCanvas = document.createElement('canvas');
+dotCanvas.width = dotCanvas.height = 64;
+{
+  const g = dotCanvas.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.45, 'rgba(255,236,206,0.9)');
+  grd.addColorStop(1, 'rgba(255,236,206,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+}
+const dotTex = new THREE.CanvasTexture(dotCanvas);
+const pCount = particleCols * particleRows;
+const pPos = new Float32Array(pCount * 3);
+const pCol = new Float32Array(pCount * 3);
+const pHome = new Float32Array(pCount * 2);
+const pGeo = new THREE.BufferGeometry();
+let pi = 0;
+for (let j = 0; j < particleRows; j++) {
+  for (let i = 0; i < particleCols; i++) {
+    const x = ((i + 0.5) / particleCols - 0.5) * TANK_W * 0.82;
+    const z = ((j + 0.5) / particleRows - 0.5) * TANK_D * 0.72;
+    pHome[pi * 2] = x;
+    pHome[pi * 2 + 1] = z;
+    pi++;
+  }
+}
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+const pearls = new THREE.Points(pGeo, new THREE.PointsMaterial({
+  map: dotTex,
+  vertexColors: true,
+  size: mobile ? 0.062 : 0.046,
+  transparent: true,
+  opacity: 0.92,
+  depthWrite: false,
+  sizeAttenuation: true,
+}));
+pearls.frustumCulled = false;
+scene.add(pearls);
+const pearlLow = new THREE.Color(0xd5c2ae);
+const pearlHigh = new THREE.Color(0xffe6b0);
+
+const buoyHomes = [-1.2, -0.6, 0, 0.6, 1.2];
+const buoys = buoyHomes.map((x) => {
+  const group = new THREE.Group();
+  const ball = new THREE.Mesh(
+    new THREE.SphereGeometry(mobile ? 0.055 : 0.048, mobile ? 10 : 16, mobile ? 8 : 12),
+    brass
+  );
+  ball.position.y = 0.07;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.062, 0.008, mobile ? 6 : 8, mobile ? 12 : 18),
+    brass
+  );
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring, ball);
+  group.position.set(x, WATER_Y, 0.18);
+  scene.add(group);
+  return group;
+});
+
+function paintFloaters() {
+  const pos = pGeo.attributes.position.array;
+  const col = pGeo.attributes.color.array;
+  for (let i = 0; i < pCount; i++) {
+    const hx = pHome[i * 2];
+    const hz = pHome[i * 2 + 1];
+    const h = sampleHeight(hx, hz);
+    const slope = sampleHeight(hx + 0.08, hz) - sampleHeight(hx - 0.08, hz);
+    const ox = THREE.MathUtils.clamp(-slope * 2.2, -0.055, 0.055);
+    pos[i * 3] = hx + ox;
+    pos[i * 3 + 1] = WATER_Y + h + 0.02;
+    pos[i * 3 + 2] = hz;
+    const u = THREE.MathUtils.clamp((h + 0.06) / 0.14, 0, 1);
+    cTmp.copy(pearlLow).lerp(pearlHigh, u);
+    col[i * 3] = cTmp.r;
+    col[i * 3 + 1] = cTmp.g;
+    col[i * 3 + 2] = cTmp.b;
+  }
+  pGeo.attributes.position.needsUpdate = true;
+  pGeo.attributes.color.needsUpdate = true;
+  for (let i = 0; i < buoys.length; i++) {
+    const x = buoyHomes[i];
+    buoys[i].position.y = WATER_Y + sampleHeight(x, 0.18);
+  }
+}
+
+const clothZ = -1.16;
+const clothTop = 1.86;
+const clothHem = 0.78;
+const clothW = mobile ? 2.05 : 2.62;
+const restX = clothW / (clothCols - 1);
+const restY = (clothTop - clothHem) / (clothRows - 1);
+const parts = [];
+const clothInit = [];
+for (let j = 0; j < clothRows; j++) {
+  for (let i = 0; i < clothCols; i++) {
+    const u = j / (clothRows - 1);
+    const across = i / (clothCols - 1);
+    const x = (across - 0.5) * clothW;
+    const y = clothTop - j * restY - Math.sin(u * Math.PI) * 0.14;
+    const z = clothZ
+      + Math.sin(across * Math.PI * 2) * 0.2 * u
+      + Math.sin(across * Math.PI) * 0.1 * u;
+    parts.push({ x, y, z, px: x, py: y, pz: z, pin: j === 0, i, j, wy: u });
+    clothInit.push(x, y, z);
+  }
+}
+const constraints = [];
+function link(a, b) {
+  const pa = parts[a];
+  const pb = parts[b];
+  constraints.push({
+    a, b,
+    rest: Math.hypot(pb.x - pa.x, pb.y - pa.y, pb.z - pa.z),
+  });
+}
+for (let j = 0; j < clothRows; j++) {
+  for (let i = 0; i < clothCols; i++) {
+    const k = j * clothCols + i;
+    if (i < clothCols - 1) link(k, k + 1);
+    if (j < clothRows - 1) link(k, k + clothCols);
+    if (i < clothCols - 1 && j < clothRows - 1) {
+      link(k, k + clothCols + 1);
+      link(k + 1, k + clothCols);
+    }
+  }
+}
+
+function weaveTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#9a3a58';
+  g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 128; i += 4) {
+    g.fillStyle = i % 8 === 0 ? 'rgba(255,220,230,0.18)' : 'rgba(40,0,16,0.1)';
+    g.fillRect(i, 0, 1, 128);
+    g.fillRect(0, i, 128, 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(mobile ? 4 : 6, mobile ? 3 : 4);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 1;
+  return tex;
+}
+
+const clothCount = clothCols * clothRows;
+const clothPos = new Float32Array(clothCount * 3);
+const clothUv = new Float32Array(clothCount * 2);
+const clothIndex = [];
+for (let j = 0; j < clothRows; j++) {
+  for (let i = 0; i < clothCols; i++) {
+    const k = j * clothCols + i;
+    clothUv[k * 2] = i / (clothCols - 1);
+    clothUv[k * 2 + 1] = 1 - j / (clothRows - 1);
+  }
+}
+for (let j = 0; j < clothRows - 1; j++) {
+  for (let i = 0; i < clothCols - 1; i++) {
+    const a = j * clothCols + i;
+    clothIndex.push(a, a + clothCols, a + 1, a + 1, a + clothCols, a + clothCols + 1);
+  }
+}
+const clothGeo = new THREE.BufferGeometry();
+clothGeo.setAttribute('position', new THREE.BufferAttribute(clothPos, 3));
+clothGeo.setAttribute('uv', new THREE.BufferAttribute(clothUv, 2));
+clothGeo.setIndex(clothIndex);
+const clothMat = new THREE.MeshPhysicalMaterial({
+  map: weaveTexture(),
+  color: 0xffd4e0,
+  roughness: 0.42,
+  metalness: 0.02,
+  sheen: 1,
+  sheenRoughness: 0.34,
+  sheenColor: new THREE.Color(0xffd5e0),
+  clearcoat: 0.14,
+  clearcoatRoughness: 0.55,
+  side: THREE.DoubleSide,
+  envMap,
+  envMapIntensity: 0.8,
+});
+clothMat.anisotropy = 0;
+if (!mobile && renderer.capabilities.isWebGL2) clothMat.anisotropy = 0.35;
+const clothMesh = new THREE.Mesh(clothGeo, clothMat);
+clothMesh.frustumCulled = false;
+scene.add(clothMesh);
+
+const railLen = clothW + 0.22;
+const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, railLen, mobile ? 8 : 14), brass);
+rail.rotation.z = Math.PI / 2;
+rail.position.set(0, clothTop + 0.02, clothZ);
+scene.add(rail);
+for (const side of [-1, 1]) {
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.045, mobile ? 8 : 12, mobile ? 8 : 10), brass);
+  finial.position.set(side * railLen * 0.5, clothTop + 0.02, clothZ);
+  scene.add(finial);
+}
+for (let i = 0; i < clothCols; i += Math.max(1, Math.floor(clothCols / 5))) {
+  const pin = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshStandardMaterial({
+    color: 0x1a1520, roughness: 0.4, metalness: 0.35, envMap, envMapIntensity: 0.4,
+  }));
+  pin.position.set(parts[i].x, parts[i].y + 0.02, parts[i].z);
+  scene.add(pin);
+}
+
+function resetCloth() {
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    p.x = p.px = clothInit[i * 3];
+    p.y = p.py = clothInit[i * 3 + 1];
+    p.z = p.pz = clothInit[i * 3 + 2];
+  }
+}
+
+function paintCloth() {
+  const arr = clothGeo.attributes.position.array;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    arr[i * 3] = p.x;
+    arr[i * 3 + 1] = p.y;
+    arr[i * 3 + 2] = p.z;
+  }
+  clothGeo.attributes.position.needsUpdate = true;
+  clothGeo.computeVertexNormals();
+}
+
+function integrateCloth(dt) {
+  const dt2 = dt * dt;
+  const damp = 0.988;
+  for (let n = 0; n < parts.length; n++) {
+    const p = parts[n];
+    if (p.pin) continue;
+    const breeze = windOn ? (0.9 + 0.35 * Math.sin(time * 1.35 + p.i * 0.48 + p.j * 0.15)) : 0;
+    const ax = breeze * 1.15 * p.wy;
+    const ay = -2.35;
+    const az = breeze * 2.15 * p.wy;
+    const vx = (p.x - p.px) * damp;
+    const vy = (p.y - p.py) * damp;
+    const vz = (p.z - p.pz) * damp;
+    p.px = p.x;
+    p.py = p.y;
+    p.pz = p.z;
+    p.x += vx + ax * dt2;
+    p.y += vy + ay * dt2;
+    p.z += vz + az * dt2;
+    if (p.y < 0.36) { p.y = 0.36; p.py = p.y; }
+    if (!Number.isFinite(p.x) || Math.abs(p.x) > 6) {
+      resetCloth();
+      return;
+    }
+  }
+}
+
+function satisfyCloth() {
+  for (let iter = 0; iter < clothIters; iter++) {
+    for (let k = 0; k < constraints.length; k++) {
+      const c = constraints[k];
+      const pa = parts[c.a];
+      const pb = parts[c.b];
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const dz = pb.z - pa.z;
+      const dist = Math.hypot(dx, dy, dz) || 1e-6;
+      const diff = (dist - c.rest) / dist;
+      const ox = dx * 0.5 * diff;
+      const oy = dy * 0.5 * diff;
+      const oz = dz * 0.5 * diff;
+      if (!pa.pin) { pa.x += ox; pa.y += oy; pa.z += oz; }
+      if (!pb.pin) { pb.x -= ox; pb.y -= oy; pb.z -= oz; }
+    }
+  }
+}
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const hit = new THREE.Vector3();
+const waterPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -WATER_Y);
+const grabPlane = new THREE.Plane();
+let dragging = null;
+let grab = -1;
+let waveX = 0;
+let waveZ = 0;
+let stoneNote = false;
+let stoneAt = 0;
+let time = 0;
+let rafId = 0;
+
+function setNDC(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+  ndc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+}
+
+function pick() {
+  const clothHits = raycaster.intersectObject(clothMesh, false);
+  let waterPoint = null;
+  if (raycaster.ray.intersectPlane(waterPlane, hit)) {
+    if (Math.abs(hit.x) <= TANK_W * 0.5 && Math.abs(hit.z) <= TANK_D * 0.5) {
+      waterPoint = hit.clone();
+    }
+  }
+  const clothDist = clothHits.length ? clothHits[0].distance : Infinity;
+  const waterDist = waterPoint ? camera.position.distanceTo(waterPoint) : Infinity;
+  if (clothHits.length && clothDist <= waterDist + 0.02) {
+    return { kind: 'cloth', point: clothHits[0].point.clone() };
+  }
+  if (waterPoint) return { kind: 'water', point: waterPoint };
+  return null;
+}
+
+function beginCloth(point) {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  grabPlane.setFromNormalAndCoplanarPoint(dir, point);
+  let best = -1;
+  let bestD = 0.36;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].pin) continue;
+    const p = parts[i];
+    const d = Math.hypot(p.x - point.x, p.y - point.y, p.z - point.z);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  grab = best;
+  return best >= 0;
+}
+
+function pullCloth() {
+  if (grab < 0) return;
+  if (!raycaster.ray.intersectPlane(grabPlane, hit)) return;
+  const p = parts[grab];
+  p.x = hit.x;
+  p.y = Math.max(0.4, hit.y);
+  p.z = hit.z;
+  p.px = p.x;
+  p.py = p.y;
+  p.pz = p.z;
+}
+
+function setNotice(text) {
+  if (text === lastNotice) return;
+  lastNotice = text;
+  noticeEl.textContent = text;
+}
+
+function describe() {
+  if (held && dragging === 'cloth') return 'Motion is paused. You can still pull one point: the weave shares it, and the pins on the rail stay.';
+  if (held && dragging === 'water') return 'Motion is paused. The dent stays where you pushed. The wave does not travel while the page is held still.';
+  if (held) return 'Motion is held still. The silk hangs and the basin keeps one shape — a snapshot of the same continuum.';
+  if (dragging === 'cloth') return 'You are pulling one point of the silk. The weave shares that pull with its neighbors. The pins on the rail stay put.';
+  if (dragging === 'water') return 'You pushed the water. The neighboring surface has to follow. That traveling shape is the wave.';
+  if (stoneNote) {
+    return held
+      ? 'A stone dented the middle. Motion is paused, so the dent stays instead of traveling.'
+      : 'A stone hit the middle. The ring travels because each bit of water pulls the next.';
+  }
+  if (windOn) return 'The lamp on the left is the wind. Crests walk across the basin. A gold buoy rises and falls, then stays where it is.';
+  return 'The wind is off. The basin is settling, and the silk hangs quieter. Drop a stone, or turn the wind back on.';
+}
+
+function syncLamp() {
+  const live = windOn && !held;
+  flameMat.color.set(live ? 0xffe2b0 : 0x6a5340);
+  lampLight.intensity = live ? 18 : 2.2;
+  const s = live ? 1 + Math.sin(time * 3.1) * 0.05 : 0.62;
+  flame.scale.setScalar(s);
+}
+
+function paintAll() {
+  paintWater();
+  paintFloaters();
+  paintCloth();
+  syncLamp();
+  setNotice(describe());
+}
+
+function renderScene() {
+  renderer.render(scene, camera);
+}
+
+function restAll() {
+  seedBasin();
+  resetCloth();
+  grab = -1;
+  dragging = null;
+  stoneNote = false;
+  paintAll();
+  renderScene();
+}
+
+seedBasin();
+resize();
+paintAll();
+renderScene();
+
+function step(dt) {
+  time += dt;
+  if (stoneNote && time - stoneAt > 2.6) stoneNote = false;
+  if (dragging === 'water') disturb(waveX, waveZ, mobile ? 0.02 : 0.016);
+  if (windOn) injectWind();
+  for (let s = 0; s < waveSubsteps; s++) stepWave();
+  integrateCloth(1 / 60);
+  if (dragging === 'cloth') pullCloth();
+  satisfyCloth();
+  if (dragging === 'cloth') pullCloth();
+  paintAll();
+}
+
+function frame(now) {
+  if (document.hidden) {
+    rafId = 0;
+    return;
+  }
+  rafId = requestAnimationFrame(frame);
+  const dt = Math.min(0.033, (now - lastTime) / 1000 || 0.016);
+  lastTime = now;
+  step(dt);
+  renderScene();
+}
+let lastTime = performance.now();
+
+function startLoop() {
+  if (rafId || held || document.hidden) return;
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(frame);
+}
+function stopLoop() {
+  if (!rafId) return;
+  cancelAnimationFrame(rafId);
+  rafId = 0;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopLoop();
+  else startLoop();
+});
+
+const canvas = renderer.domElement;
+canvas.style.cursor = 'crosshair';
+canvas.addEventListener('pointerdown', (e) => {
+  setNDC(e);
+  stoneNote = false;
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  const picked = pick();
+  if (picked && picked.kind === 'cloth' && beginCloth(picked.point)) {
+    dragging = 'cloth';
+    pullCloth();
+    satisfyCloth();
+    pullCloth();
+  } else if (picked && picked.kind === 'water') {
+    dragging = 'water';
+    waveX = picked.point.x;
+    waveZ = picked.point.z;
+    disturb(waveX, waveZ, held ? 0.1 : 0.05);
+  } else {
+    dragging = null;
+  }
+  if (held) { paintAll(); renderScene(); }
+});
+canvas.addEventListener('pointermove', (e) => {
+  setNDC(e);
+  if (dragging === 'cloth') {
+    pullCloth();
+    if (held) {
+      satisfyCloth();
+      pullCloth();
+      paintAll();
+      renderScene();
+    }
+  } else if (dragging === 'water') {
+    if (raycaster.ray.intersectPlane(waterPlane, hit)) {
+      waveX = THREE.MathUtils.clamp(hit.x, -TANK_W * 0.48, TANK_W * 0.48);
+      waveZ = THREE.MathUtils.clamp(hit.z, -TANK_D * 0.48, TANK_D * 0.48);
+      if (held) {
+        disturb(waveX, waveZ, 0.045);
+        paintAll();
+        renderScene();
+      }
+    }
+  }
+});
+function endDrag() {
+  dragging = null;
+  grab = -1;
+  if (held) { paintAll(); renderScene(); }
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+windBtn.addEventListener('click', () => {
+  if (held) return;
+  stoneNote = false;
+  windOn = !windOn;
+  windBtn.setAttribute('aria-pressed', windOn ? 'true' : 'false');
+  syncLamp();
+  setNotice(describe());
+});
+dropBtn.addEventListener('click', () => {
+  disturb(0, 0.05, 0.12);
+  stoneNote = true;
+  stoneAt = time;
+  paintAll();
+  renderScene();
+});
+restBtn.addEventListener('click', restAll);
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT')) return;
+  const key = e.key.toLowerCase();
+  if (key === 'w' && !held) windBtn.click();
+  else if (key === 'd') dropBtn.click();
+  else if (key === 'r') restBtn.click();
+});
+
+window.addEventListener('resize', () => {
+  resize();
+  if (held || !rafId) {
+    paintAll();
+    renderScene();
+  }
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  const el = document.getElementById('err');
+  el.style.display = 'block';
+  el.textContent = String(e.reason || e);
+});
+
+startLoop();
+</script>
+</body>
+</html>

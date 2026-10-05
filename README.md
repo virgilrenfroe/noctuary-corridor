@@ -16,4 +16,6 @@ Enter from the main hall via the warm **Physics room** door on the right wall (f
 
 X micro-demo (gravity & bounce, mobile tap): https://virgilrenfroe.github.io/noctuary-corridor/physics-x.html
 
+Soft Matter Lab (waves & cloth — continuum intro for shop / intro physics): https://virgilrenfroe.github.io/noctuary-corridor/soft-matter-lab.html
+
 WebGPU Lab (practice): https://virgilrenfroe.github.io/noctuary-corridor/webgpu-lab/
