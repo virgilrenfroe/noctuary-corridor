@@ -14,6 +14,7 @@ canvas{display:block;width:100%;height:100%}
 .brand a{color:inherit;text-decoration:none}
 .note{position:absolute;bottom:14px;left:14px;right:14px;max-width:520px;color:var(--mute);font-size:12px;background:rgba(10,11,16,.45);border:1px solid var(--line);border-radius:12px;padding:10px 12px;backdrop-filter:blur(8px)}
 .note b{color:var(--accent);font-weight:600}
+.note a{color:var(--accent);pointer-events:auto}
 .error{position:fixed;inset:auto 14px 14px 14px;background:#3a1212;color:#ffd6d6;padding:12px 14px;border-radius:10px;z-index:9;display:none;white-space:pre-wrap}
 body.embed .hud{display:none!important} body.embed .error{display:none!important}
 html.embed,body.embed{background:transparent!important} body.embed canvas{background:transparent!important;background-color:transparent!important}
@@ -31,7 +32,7 @@ html.embed,body.embed{background:transparent!important} body.embed canvas{backgr
     <div class="brand"><a href="./INDEX.html">← WebGL Lab</a> · 02 Realtime caustics (WebGL)</div>
     <div class="pill">three@0.170.0 local</div>
   </div>
-  <div class="note"><b>Realtime caustics (WebGL).</b> Animated projected caustic pattern under a refractive blob — WebGL fallback (not WebGPU compute caustics).</div>
+  <div class="note"><b>Realtime caustics (WebGL).</b> Animated projected caustic pattern under a refractive blob — WebGL fallback (not WebGPU compute caustics). Exhibit: <a href="../spatial-drill-optics.html">Light Lab</a> — refraction → caustic pool.</div>
 </div>
 <div class="error" id="err"></div>
 <script type="module">
