@@ -49,7 +49,7 @@ Atom → Nucleus → Quark ┆ door ┆ Atlas room
 ```
 
 1. Tap an element. The panel opens on **Atom** (p / n / e, plus the Aufbau string, shell summary, and Σ e⁻ = Z). Electrons are B2 heads on faint rings. Tap the nucleus or Next to open Nucleus.
-2. **Nucleus** — proton and neutron spheres only. No quarks, gluons, bosons, or mesons in the pack.
+2. **Nucleus** — proton and neutron spheres only, spaced so neighbors leave a small gap instead of merging into one blob. No quarks, gluons, bosons, or mesons in the pack.
 3. **Quark** — from Nucleus, tap a nucleon or press Next. A proton shows **uud** (+2/3, +2/3, −1/3 = +1). A neutron shows **udd** (+2/3, −1/3, −1/3 = 0). Both are labeled baryons. Hydrogen has no neutron, so the only nucleon is the proton.
 4. **Atlas door** — Next on Quark is “Open door”. The handoff card reads “Leaving the atom · Standard Model atlas”. Enter atlas, or Esc to stay on the quark. This is a separate room, not a deeper nucleus.
 5. **Atlas room** — hard cut (atom hidden, blue dashed frame). Browse fermions (6 quarks, 6 leptons), gauge bosons (γ, g, W±, Z⁰), Higgs (H⁰), and mesons (π⁺ = u d̄, π⁻ = d ū, π⁰ = (uū − dd̄)/√2, K⁺ = u s̄). A dashed contrast group shows p = uud and n = udd as baryons, not mesons and not elementary.

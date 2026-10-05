@@ -740,6 +740,105 @@ function fibonacciSphere(i, n, radius) {
   );
 }
 
+const chordCache = new Map();
+function unitChord(n) {
+  if (n <= 1) return Infinity;
+  const hit = chordCache.get(n);
+  if (hit) return hit;
+  const pts = [];
+  for (let i = 0; i < n; i++) pts.push(fibonacciSphere(i, n, 1));
+  let min = Infinity;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) min = Math.min(min, pts[i].distanceTo(pts[j]));
+  }
+  chordCache.set(n, min);
+  return min;
+}
+
+/** One shell while it stays readable; then more shells, never a crushed core. */
+function planNucleonShells(count) {
+  if (count <= 24) return [count];
+  const shells = [];
+  let left = count;
+  let ring = 0;
+  while (left > 0) {
+    const cap = 12 + ring * 10;
+    let take = Math.min(left, cap);
+    if (left - take > 0 && left - take < 8) take = left;
+    shells.push(take);
+    left -= take;
+    ring++;
+  }
+  return shells;
+}
+
+/**
+ * Centers stay far enough apart that radii at 90% of half the nearest gap
+ * leave a small space between neighbors instead of a fused blob.
+ */
+function layoutNucleons(count) {
+  const nucleusR = Math.max(0.22, 0.12 + Math.cbrt(Math.max(1, count)) * 0.11);
+  if (count <= 1) {
+    return {
+      positions: [new THREE.Vector3()],
+      particleR: nucleusR * 0.62,
+      nucleusR,
+    };
+  }
+  const positions = [];
+  let prevR = 0;
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  planNucleonShells(count).forEach((n, s) => {
+    const shellR = s === 0 ? 1 / unitChord(n) : Math.max(1 / unitChord(n), prevR + 1);
+    for (let i = 0; i < n; i++) {
+      const p = fibonacciSphere(i, n, shellR);
+      if (s) p.applyAxisAngle(yAxis, s * 0.9);
+      positions.push(p);
+    }
+    prevR = shellR;
+  });
+  let dMin = Infinity;
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      dMin = Math.min(dMin, positions[i].distanceTo(positions[j]));
+    }
+  }
+  const localR = (dMin * 0.90) / 2;
+  let maxAbs = 0;
+  for (const p of positions) maxAbs = Math.max(maxAbs, p.length());
+  const scale = nucleusR / (maxAbs + localR);
+  for (const p of positions) p.multiplyScalar(scale);
+  return { positions, particleR: localR * scale, nucleusR };
+}
+
+(function assertNucleonGaps() {
+  const check = (count, label) => {
+    const lay = layoutNucleons(count);
+    console.assert(lay.positions.length === count, `${label} seats`);
+    if (count <= 1) return;
+    let gap = Infinity;
+    const r = lay.particleR;
+    for (let i = 0; i < count; i++) {
+      for (let j = i + 1; j < count; j++) {
+        gap = Math.min(gap, lay.positions[i].distanceTo(lay.positions[j]) - 2 * r);
+      }
+    }
+    console.assert(gap > r * 0.12, `${label} nucleons overlap (gap/r ${gap / r})`);
+  };
+  check(1, 'H');
+  check(4, 'He');
+  check(12, 'C');
+  check(56, 'Fe');
+  check(238, 'U');
+  for (let z = 1; z <= 118; z++) {
+    const el = ELEMENTS.find((e) => e.z === z);
+    const n = Math.round(el.atomicMass) - z;
+    console.assert(n >= 0 && el.neutrons === n, `${el.symbol} neutrons`);
+    if (z === 6) console.assert(n === 6, 'carbon 6n');
+    if (z <= 20 || z === 26 || z === 79 || z === 92 || z === 118) check(z + n, el.symbol);
+  }
+})();
+
 /* ---------- table ---------- */
 const byZ = new Map(ELEMENTS.map((e) => [e.z, e]));
 const cellButtons = new Map();
@@ -838,9 +937,10 @@ function buildAtom(el) {
   }
 
   const nucleonCount = Z + N;
-  const nucleusR = Math.max(0.22, 0.12 + Math.cbrt(Math.max(1, nucleonCount)) * 0.11);
-  const particleR = Math.min(0.085, Math.max(0.04, nucleusR * (nucleonCount < 8 ? 0.5 : 0.36)));
-  const packR = Math.max(0.02, nucleusR - particleR);
+  const packed = layoutNucleons(nucleonCount);
+  const nucleusR = packed.nucleusR;
+  const particleR = packed.particleR;
+  console.assert(packed.positions.length === nucleonCount, `${el.symbol} nucleon seats`);
 
   // Satin nucleons stay locked. Atom electrons are B2: bright heads on faint rings.
   const protonMat = makeSatin(PROTON_COLOR, 0.12);
@@ -870,9 +970,7 @@ function buildAtom(el) {
   let pi = 0, ni = 0;
   const nucleonRecs = [];
   for (let i = 0; i < nucleonCount; i++) {
-    const pos = nucleonCount === 1
-      ? new THREE.Vector3(0, 0, 0)
-      : fibonacciSphere(i, nucleonCount, packR * (0.35 + 0.65 * ((i % 5) / 4)));
+    const pos = packed.positions[i];
     dummy.position.copy(pos);
     const isP = types[i] === 'p';
     const baseScale = particleR * (isP ? 1 : 0.96);
