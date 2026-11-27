@@ -6,7 +6,7 @@ Open [`INDEX.html`](./INDEX.html) for the hub.
 
 ## Pages URL
 
-https://virgilrenfroe.github.io/noctuary-corridor/webgpu-lab/
+https://seethesystems.com/noctuary-corridor/webgpu-lab/
 
 ## Local
 

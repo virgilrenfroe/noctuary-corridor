@@ -206,15 +206,15 @@ const ATLAS_URL = '07-atlas-lab/hand-light-atlas.png';
 const ATLAS_META_URL = '07-atlas-lab/hand-light-atlas.json';
 const ATLAS_COLS = 4;
 const ATLAS_CELL = 256;
-/** Forearm yaw masters (Virgil locked framing) — black→alpha pre-cut + tip-aligned */
+/** Forearm yaw masters (locked framing) — black→alpha pre-cut + tip-aligned */
 const YAW_FRONT_URL = '07-atlas-lab/yaw-front-cut.png?v=plain2';
 const YAW_LEFT_URL  = '07-atlas-lab/yaw-left-cut.png?v=plain2';
 const YAW_RIGHT_URL = '07-atlas-lab/yaw-right-cut.png?v=plain2';
 const YAW_TIP_META = {"front":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596},"left":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596},"right":{"tipU":0.6997499422645803,"tipV":0.04568370669398834,"w":1008,"h":1596}};
 
-/** Responsive glove CSS px — Virgil: not a tiny floating pointer */
+/** Responsive glove CSS px — not a tiny floating pointer */
 function gloveSize(){
-  // Virgil: bigger still — ~72% of short edge, up to 820px
+  // Bigger still — ~72% of short edge, up to 820px
   return Math.round(Math.min(820, Math.max(520, Math.min(innerWidth, innerHeight) * 0.72)));
 }
 const TIP_R = 0.43; // fingertip radius from cell center (legacy atlas)
@@ -224,7 +224,7 @@ const YAW_TIP_V = 0.0019;
 const YAW_SMOOTH_HZ = 10; // exponential blend smoothing (~8–12 Hz)
 const YAW_ROT_MAX = 16 * Math.PI / 180; // screen-X yaw cue
 const YAW_BASE_TILT = 11 * Math.PI / 180; // extra first-person reach tilt
-const YAW_FLANK_MAX = 0; // identical plates — side cue via rotate only until matched flanks // never fully swap plates — same arm identity (Virgil)
+const YAW_FLANK_MAX = 0; // identical plates — side cue via rotate only until matched flanks // never fully swap plates — same arm identity
 const FROST_FADE = 0.972;
 const CROSSFADE_MS = 140;
 const TIP_MASK_R = 0.30; // fingertip stamp radius (fraction of glove size)
@@ -1111,7 +1111,7 @@ function applyTipMask(ctx, w, h, tipU, tipV){
 }
 
 /**
- * Zero motion / Virgil yaw mapping:
+ * Zero motion / yaw mapping:
  *   nx = tipX / innerWidth  (0 left … 1 right)
  *   t  = clamp((nx - 0.5) * 2, -1, 1)
  *   t < 0 (hand LEFT)  → blend front ↔ RIGHT flank, weight |t|

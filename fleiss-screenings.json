@@ -2,18 +2,18 @@
   "meta": {
     "title": "The Voice in Isabel Fleiss's Office",
     "director": "Jim Haverkamp",
-    "writer_poet": "Virgil Renfroe",
-    "role_note": "Virgil Renfroe is the source poet / Writer, not the director.",
+    "writer_poet": "",
+    "role_note": "The source poet is the Writer, not the director.",
     "source_poem": "The Voice in Wilhelm Fleiss's Office",
-    "poem_credit_verbatim": "Based on the poem “The Voice in Wilhelm Fleiss’s Office” by Virgil Renfroe",
+    "poem_credit_verbatim": "Based on the poem “The Voice in Wilhelm Fleiss’s Office”",
     "year": 2023,
     "runtime": "6:25",
     "featuring": "Jessica L. Hudson, Jane Holding, Katja Hill",
     "still_photographer": "Maria Brubeck",
-    "synopsis": "A woman with an unusual malady–cobweb buildup in the throat–receives an even more unusual treatment in this adaptation of a surreal poem by North Carolina writer Virgil Renfroe.",
+    "synopsis": "A woman with an unusual malady–cobweb buildup in the throat–receives an even more unusual treatment in this adaptation of a surreal poem.",
     "source": "http://www.jimhaverkamp.com/portfolio/movies/the-voice-in-isabel-fleisss-office/",
     "vimeo": "https://player.vimeo.com/video/738455303",
-    "dataset": "/workspace/research/virgil-short-film/verified-dataset.json",
+    "dataset": "/workspace/research/short-film/verified-dataset.json",
     "researched": "2026-09-17 America/New_York",
     "counts": {
       "nodes": 53,
@@ -34,7 +34,7 @@
       "USA"
     ],
     "honesty": [
-      "Virgil Renfroe wrote the source poem; Jim Haverkamp directed the film.",
+      "Jim Haverkamp directed the film, adapted from a source poem.",
       "ZEBRA Poetry Film Festival (Berlin) is a screening, not a verified prize.",
       "Poesiefestival Berlin 'Best of ZEBRA' is a screening program, not a prize.",
       "Independently verified awards: Chicago BWiFF, Cedar Rapids CRIFF, Los Angeles Holly Weird.",
@@ -350,9 +350,9 @@
       "tier": "verified",
       "award": "Professional Freestyle — Gold (Eddy Award)",
       "confidence": "high",
-      "source": "CRIFF 2023 archive; credits Virgil Renfroe as Writer (Durham, NC)",
+      "source": "CRIFF 2023 archive; credits the Writer (Durham, NC)",
       "url": "https://crifm.org/archives/2023-2/",
-      "note": "CRIFF winners line misspells title 'Isabell'. Virgil credited Writer."
+      "note": "CRIFF winners line misspells title 'Isabell'. Writer credited."
     },
     {
       "id": "n12",
