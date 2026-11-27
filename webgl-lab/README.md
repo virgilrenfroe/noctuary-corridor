@@ -1,12 +1,12 @@
 # WebGL Lab · Effects 01–18
 
-Standalone three.js `r170` drills for Virgil’s Noctuary taste-test. **Not** wired into corridor / physics-room panels.
+Standalone three.js `r170` drills for the Noctuary taste-test. **Not** wired into corridor / physics-room panels.
 
 Open [`INDEX.html`](./INDEX.html) for the hub.
 
 ## Pages URL
 
-https://virgilrenfroe.github.io/noctuary-corridor/webgl-lab/
+https://seethesystems.com/noctuary-corridor/webgl-lab/
 
 ## Local
 
